@@ -1,0 +1,47 @@
+{% extends "hub/layout.html" %}
+{% block title %}Clients Trial Balance{% endblock %}
+{% block hub_title %}Clients trial balance{% endblock %}
+{% block hub_subtitle %}Per-client debits, credits, and closing balance for the period.{% endblock %}
+{% block hub_extra_actions %}
+<a class="btn btn-ghost" href="?format=pdf&amp;{{ request.GET.urlencode }}">Download PDF</a>
+{% endblock %}
+{% block hub_body %}
+<form method="get" class="panel filter-bar" style="margin-bottom:12px;">
+    <input type="hidden" name="date_from" value="{% if date_from %}{{ date_from|date:'Y-m-d' }}{% endif %}">
+    <input type="hidden" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}">
+    <input type="hidden" name="preset" value="{{ request.GET.preset }}">
+    <label>Search <input type="search" name="q" value="{{ q }}" placeholder="Name or code"></label>
+    <button class="btn" type="submit">Search</button>
+</form>
+<div class="hub-table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>Account</th><th>Name</th><th>Curr</th>
+            <th class="num">Total Debit</th><th class="num">Total Credit</th>
+            <th class="num">Balance Debit</th><th class="num">Balance Credit</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for r in rows %}
+        <tr>
+            <td>{{ r.account }}</td><td>{{ r.name }}</td><td>{{ r.curr }}</td>
+            <td class="num">{{ r.tot_dr }}</td><td class="num">{{ r.tot_cr }}</td>
+            <td class="num">{{ r.bal_dr }}</td><td class="num">{{ r.bal_cr }}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="7">No client balances in this range.</td></tr>
+    {% endfor %}
+    </tbody>
+    {% if rows %}
+    <tfoot>
+        <tr>
+            <th colspan="3">Totals</th>
+            <th class="num">{{ tot_dr }}</th><th class="num">{{ tot_cr }}</th>
+            <th class="num">{{ bal_dr }}</th><th class="num">{{ bal_cr }}</th>
+        </tr>
+    </tfoot>
+    {% endif %}
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "page/layout.html" %}
+{% block title %}Money Accounts{% endblock %}
+{% block page_content %}
+<h1 class="title">Money Accounts</h1>
+<p>
+    <a class="btn" href="{% url 'treasury:money_account_create' %}">New Money Account</a>
+    <a class="btn" href="?format=pdf&amp;{{ request.GET.urlencode }}">Download PDF</a>
+</p>
+<form method="get" class="panel filter-bar">
+    <label><input type="checkbox" name="show_inactive" value="1" {% if request.GET.show_inactive == '1' %}checked{% endif %}> Show inactive</label>
+    <button class="btn" type="submit">Filter</button>
+</form>
+<table>
+    <thead><tr><th>Name</th><th>Type</th><th>Currency</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+    {% for item in accounts %}
+        <tr>
+            <td><a href="{% url 'treasury:money_account_detail' item.id %}">{{ item.name }}</a></td>
+            <td>{{ item.get_type_display }}</td>
+            <td>{{ item.currency }}</td>
+            <td>{{ item.is_active }}</td>
+            <td><a class="btn" href="{% url 'treasury:money_account_edit' item.id %}">Edit</a></td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="5">No money accounts found.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

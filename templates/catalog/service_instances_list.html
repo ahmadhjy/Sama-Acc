@@ -1,0 +1,28 @@
+{% extends "page/layout.html" %}
+{% block title %}Service Instances{% endblock %}
+{% block page_content %}
+<h1 class="title">Service Instances</h1>
+<p><a class="btn" href="?format=pdf&amp;{{ request.GET.urlencode }}">Download PDF</a></p>
+<form method="get" class="panel filter-bar">
+    <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Type, notes, passenger…"></label>
+    <label>From <input type="date" name="date_from" value="{{ request.GET.date_from }}"></label>
+    <label>To <input type="date" name="date_to" value="{{ request.GET.date_to }}"></label>
+    <button class="btn" type="submit">Filter</button>
+</form>
+<table>
+    <thead><tr><th>ID</th><th>Type</th><th>Passenger</th><th>Supplier</th><th>Created</th></tr></thead>
+    <tbody>
+    {% for item in service_instances %}
+        <tr>
+            <td>{{ item.id }}</td>
+            <td>{{ item.service_type.name }}</td>
+            <td>{{ item.passenger|default:"-" }}</td>
+            <td>{{ item.supplier|default:"-" }}</td>
+            <td>{{ item.created_at|date:"Y-m-d" }}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="5">No service instances found.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

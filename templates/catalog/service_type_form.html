@@ -1,0 +1,39 @@
+{% extends "page/layout.html" %}
+{% block title %}{% if is_edit %}Edit Service Type{% else %}New Service Type{% endif %}{% endblock %}
+{% block page_content %}
+<h1 class="title">{% if is_edit %}Edit Service Type{% else %}New Service Type{% endif %}</h1>
+<form method="post" class="panel">
+    {% csrf_token %}
+    <h3>Service type</h3>
+    {% for field in form %}
+    <p>
+        {{ field.label_tag }}
+        {{ field }}
+        {% if field.help_text %}<span class="muted">{{ field.help_text }}</span>{% endif %}
+        {% if field.errors %}<span class="errorlist">{{ field.errors }}</span>{% endif %}
+    </p>
+    {% endfor %}
+
+    <h3>Custom fields (per invoice line)</h3>
+    <p class="muted">Define dynamic fields shown on invoice service lines (e.g. passenger name, travel date).</p>
+    {{ formset.management_form }}
+    {% for f in formset %}
+    <div class="line-box" style="margin-bottom:12px;">
+        {% for field in f %}
+          {% if field.name != 'DELETE' %}
+          <p>{{ field.label_tag }} {{ field }}{% if field.errors %}<span class="errorlist">{{ field.errors }}</span>{% endif %}</p>
+          {% else %}
+          <p><label>{{ field }} Remove field</label></p>
+          {% endif %}
+        {% endfor %}
+    </div>
+    {% endfor %}
+    {% if formset.non_form_errors %}<ul class="errorlist">{% for e in formset.non_form_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+
+    <button class="btn" type="submit">{% if is_edit %}Save{% else %}Create{% endif %}</button>
+    <a class="btn" href="{% url 'catalog:service_types_list' %}">Back</a>
+    {% if service_type %}
+    <a class="btn" href="{% url 'catalog:service_type_detail' service_type.id %}">View</a>
+    {% endif %}
+</form>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "page/layout.html" %}
+{% block title %}Supplier Bill {{ bill.bill_no }}{% endblock %}
+{% block page_content %}
+<h1 class="title">Supplier Bill {{ bill.bill_no }}</h1>
+<div class="panel">
+    <p><strong>Supplier:</strong> {{ bill.supplier.name }}</p>
+    <p><strong>Status:</strong> <span class="badge">{{ bill.status }}</span></p>
+    <p><strong>Bill date / Due:</strong> {{ bill.bill_date }}{% if bill.due_date %} / {{ bill.due_date }}{% endif %}</p>
+    <p><strong>Currency:</strong> {{ bill.currency }}</p>
+    <p><strong>Grand total:</strong> {{ bill.grand_total }} {{ bill.currency }}</p>
+    {% if bill.source_sales_invoice %}
+    <p><strong>Source sales invoice:</strong>
+        <a href="{% url 'sales:invoice_open' bill.source_sales_invoice.id %}">{{ bill.source_sales_invoice.invoice_no }}</a>
+    </p>
+    {% endif %}
+</div>
+<h3>Lines</h3>
+<table>
+    <thead><tr><th>Kind</th><th>Description</th><th>Cost</th><th>Notes</th></tr></thead>
+    <tbody>
+    {% for line in lines %}
+        <tr>
+            <td>{{ line.get_line_kind_display }}</td>
+            <td>{{ line.description|default:"-" }}</td>
+            <td>{{ line.cost_amount }}</td>
+            <td>{{ line.notes|default:"-" }}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="4">No lines.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+<p style="margin-top:12px;">
+    {% if bill.status == "DRAFT" %}
+    <a class="btn" href="{% url 'purchases:bill_edit' bill.id %}">Edit</a>
+    {% endif %}
+    <a class="btn" href="{% url 'purchases:bill_list' %}">Back to bills</a>
+</p>
+{% endblock %}

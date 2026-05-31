@@ -1,0 +1,28 @@
+{% extends "page/layout.html" %}
+{% block title %}Expense Categories{% endblock %}
+{% block page_content %}
+<h1 class="title">Operating Expense Categories</h1>
+<p>
+    <a class="btn" href="{% url 'expenses:expense_category_create' %}">New Category</a>
+    <a class="btn" href="{% url 'expenses:expense_list' %}">Operating Expenses</a>
+</p>
+<form method="get" class="panel filter-bar">
+    <label><input type="checkbox" name="show_inactive" value="1" {% if request.GET.show_inactive == '1' %}checked{% endif %}> Show inactive</label>
+    <button class="btn" type="submit">Filter</button>
+</form>
+<table>
+    <thead><tr><th>Code</th><th>Name</th><th>Active</th><th></th></tr></thead>
+    <tbody>
+    {% for cat in categories %}
+    <tr>
+        <td>{{ cat.code }}</td>
+        <td>{{ cat.name }}</td>
+        <td>{{ cat.is_active }}</td>
+        <td><a class="btn" href="{% url 'expenses:expense_category_edit' cat.id %}">Edit</a></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4">No categories.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "page/layout.html" %}
+{% block title %}Sales Invoices{% endblock %}
+{% block page_content %}
+<h1 class="title">Sales Invoices</h1>
+<p>
+    <a class="btn" href="{% url 'sales:invoice_create' %}">New Invoice</a>
+    <a class="btn" href="?format=pdf">Download PDF</a>
+</p>
+<form method="get" class="panel filter-bar">
+    <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Invoice / client"></label>
+    <label>From <input type="date" name="date_from" value="{{ request.GET.date_from }}"></label>
+    <label>To <input type="date" name="date_to" value="{{ request.GET.date_to }}"></label>
+    <button class="btn" type="submit">Filter</button>
+</form>
+<table>
+    <thead><tr><th>No</th><th>Client</th><th>Date</th><th>Status</th><th>Type of service</th><th>Total (doc)</th><th>Total (USD)</th><th>Cost (doc)</th><th>Profit (USD)</th><th>Action</th></tr></thead>
+    <tbody>
+    {% for invoice in invoices %}
+        <tr>
+            <td>{{ invoice.invoice_no }}</td>
+            <td>{{ invoice.client.name_en }}</td>
+            <td>{{ invoice.issue_date }}</td>
+            <td><span class="badge">{{ invoice.status }}</span></td>
+            <td>{% if invoice.package_type %}<span class="badge">{{ invoice.get_package_type_display }}</span>{% else %}—{% endif %}</td>
+            <td>{{ invoice.grand_total }} {{ invoice.currency }}</td>
+            <td>{{ invoice.grand_total_usd }} USD</td>
+            <td>{{ invoice.total_line_cost }} {{ invoice.currency }}</td>
+            <td>{{ invoice.profit_amount }} USD</td>
+            <td>
+                {% if invoice.status == "DRAFT" %}
+                <a class="btn" href="{% url 'sales:invoice_open' invoice.id %}">View</a>
+                <a class="btn" href="{% url 'sales:invoice_edit' invoice.id %}">Edit</a>
+                <a class="btn" href="{% url 'sales:post_invoice' invoice.id %}" onclick="return confirm('Post this invoice?');">Post</a>
+                {% elif invoice.status == "POSTED" %}
+                <a class="btn" href="{% url 'sales:invoice_open' invoice.id %}">View</a>
+                {% else %}
+                <a class="btn" href="{% url 'sales:invoice_open' invoice.id %}">View</a>
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="10">No invoices found.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "page/layout.html" %}
+{% block title %}{% if is_edit %}Edit Category{% else %}New Category{% endif %}{% endblock %}
+{% block page_content %}
+<h1 class="title">{% if is_edit %}Edit Expense Category{% else %}New Expense Category{% endif %}</h1>
+<form method="post" class="panel">
+    {% csrf_token %}
+    {% for field in form %}
+    <p>
+        {{ field.label_tag }}
+        {{ field }}
+        {% if field.help_text %}<span class="muted">{{ field.help_text }}</span>{% endif %}
+        {% if field.errors %}<span class="errorlist">{{ field.errors }}</span>{% endif %}
+    </p>
+    {% endfor %}
+    <button class="btn" type="submit">{% if is_edit %}Save{% else %}Create{% endif %}</button>
+    <a class="btn" href="{% url 'expenses:expense_category_list' %}">Back</a>
+</form>
+{% if category %}
+<p style="margin-top:12px;">
+    <form method="post" action="{% url 'expenses:expense_category_deactivate' category.id %}" style="display:inline;" onsubmit="return confirm('Deactivate?');">
+        {% csrf_token %}
+        <button type="submit" class="btn">Deactivate</button>
+    </form>
+    <form method="post" action="{% url 'expenses:expense_category_delete' category.id %}" style="display:inline;" onsubmit="return confirm('Delete?');">
+        {% csrf_token %}
+        <button type="submit" class="btn">Delete</button>
+    </form>
+</p>
+{% endif %}
+{% endblock %}

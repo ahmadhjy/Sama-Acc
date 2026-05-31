@@ -1,0 +1,15 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ pdf_report_title }}</title>
+    <link rel="stylesheet" href="{% static 'css/pdf.css' %}">
+</head>
+<body class="is-pdf">
+    {% include "partials/pdf_report_header.html" %}
+    <main class="content pdf-body">
+        {% block pdf_body %}{% endblock %}
+    </main>
+</body>
+</html>

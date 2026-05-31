@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Sign in | Sama ERP{% endblock %}
+{% block content %}
+<div class="app-page">
+    <div class="app-page__body" style="max-width: 420px; margin: 2rem auto;">
+        <h1 class="title">Sign in</h1>
+        <p class="muted">Use your ERP account to access clients, invoices, suppliers, and reports.</p>
+        <form method="post" class="panel">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+            <ul class="errorlist">{% for err in form.non_field_errors %}<li>{{ err }}</li>{% endfor %}</ul>
+            {% endif %}
+            <p>
+                <label for="id_username">Username</label>
+                <input type="text" name="username" id="id_username" autofocus required>
+            </p>
+            <p>
+                <label for="id_password">Password</label>
+                <input type="password" name="password" id="id_password" required>
+            </p>
+            <button class="btn" type="submit">Sign in</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

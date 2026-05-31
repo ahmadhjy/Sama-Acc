@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sama Accounting{% endblock %}</title>
+    {% load static %}
+    <link rel="icon" type="image/png" href="{% static 'media/logo.png' %}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    {% if is_pdf %}
+    <link rel="stylesheet" href="{% static 'css/pdf.css' %}">
+    {% else %}
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    <link rel="stylesheet" href="{% static 'css/hub.css' %}">
+    {% endif %}
+</head>
+<body class="{% if is_pdf %}is-pdf{% endif %}">
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="brand">
+                <img src="{% static 'media/logo.png' %}" alt="Logo" class="brand__logo">
+                <span class="brand__text">Sama ERP</span>
+            </div>
+            <nav class="sidebar-nav">
+                <span class="sidebar-nav__label">Overview</span>
+                <a class="sidebar-link{% if request.path == '/' %} sidebar-link--active{% endif %}" href="{% url 'accounts_core:dashboard' %}">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                </a>
+                <span class="sidebar-nav__label">Sales</span>
+                <a class="sidebar-link{% if '/clients/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'accounts_core:clients_list' %}">
+                    <i class="fa-solid fa-users"></i> Clients
+                </a>
+                <a class="sidebar-link{% if '/sales/invoices/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'sales:invoice_list' %}">
+                    <i class="fa-solid fa-file-invoice"></i> Invoices
+                </a>
+                <a class="sidebar-link{% if '/catalog/service-types/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'catalog:service_types_list' %}">
+                    <i class="fa-solid fa-tags"></i> Service types
+                </a>
+                <span class="sidebar-nav__label">Purchasing</span>
+                <a class="sidebar-link{% if '/suppliers/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'accounts_core:suppliers_list' %}">
+                    <i class="fa-solid fa-truck-field"></i> Suppliers
+                </a>
+                <a class="sidebar-link{% if '/purchases/bills/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'purchases:bill_list' %}">
+                    <i class="fa-solid fa-receipt"></i> Supplier bills
+                </a>
+                <span class="sidebar-nav__label">Treasury</span>
+                <a class="sidebar-link{% if '/treasury/accounts/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'treasury:money_accounts_list' %}">
+                    <i class="fa-solid fa-building-columns"></i> Money accounts
+                </a>
+                <a class="sidebar-link{% if '/treasury/payments/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'treasury:payment_list' %}">
+                    <i class="fa-solid fa-money-bill-transfer"></i> Payments
+                </a>
+                <span class="sidebar-nav__label">Finance</span>
+                <a class="sidebar-link{% if '/expenses/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'expenses:expense_list' %}">
+                    <i class="fa-solid fa-wallet"></i> Operating expenses
+                </a>
+                <a class="sidebar-link sidebar-link--muted" href="/admin/">
+                    <i class="fa-solid fa-gear"></i> Admin
+                </a>
+            </nav>
+        </aside>
+        <main class="content">
+            {% include "partials/pdf_report_header.html" %}
+            {% if messages %}
+            <div class="app-messages">
+                {% for message in messages %}
+                <div class="alert alert--{{ message.tags|default:'info' }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% block content %}{% endblock %}
+            {% include "partials/pdf_footer.html" %}
+        </main>
+    </div>
+</body>
+<script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("select").forEach(function (el) {
+        if (el.closest && (el.closest("#invoice-form") || el.closest("#payment-form"))) return;
+        if (el.name && el.name.endsWith("-DELETE")) return;
+        if (el.classList.contains("choices__input")) return;
+        if (!el.dataset.choicesInitialized) {
+            new Choices(el, {
+                searchEnabled: true,
+                itemSelectText: "",
+                shouldSort: false,
+                searchResultLimit: 50
+            });
+            el.dataset.choicesInitialized = "1";
+        }
+    });
+});
+</script>
+</html>

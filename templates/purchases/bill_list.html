@@ -1,0 +1,51 @@
+{% extends "page/layout.html" %}
+{% block title %}Supplier Bills{% endblock %}
+{% block page_content %}
+<h1 class="title">Supplier Bills</h1>
+<p>
+    <a class="btn" href="{% url 'purchases:bill_create' %}">New Bill</a>
+    <a class="btn" href="?format=pdf&amp;{{ request.GET.urlencode }}">Download PDF</a>
+</p>
+<form method="get" class="panel filter-bar">
+    <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Bill no / supplier"></label>
+    <label>From <input type="date" name="date_from" value="{{ request.GET.date_from }}"></label>
+    <label>To <input type="date" name="date_to" value="{{ request.GET.date_to }}"></label>
+    <button class="btn" type="submit">Filter</button>
+</form>
+<table>
+    <thead><tr><th>No</th><th>Supplier</th><th>Source Invoice</th><th>Date</th><th>Status</th><th>Total</th><th>Action</th></tr></thead>
+    <tbody>
+    {% for bill in bills %}
+        <tr>
+            <td><a href="{% url 'purchases:bill_open' bill.id %}">{{ bill.bill_no }}</a></td>
+            <td>{{ bill.supplier.name }}</td>
+            <td>
+                {% if bill.source_sales_invoice %}
+                <a class="btn" href="{% url 'sales:invoice_open' bill.source_sales_invoice.id %}">{{ bill.source_sales_invoice.invoice_no }}</a>
+                {% else %}
+                -
+                {% endif %}
+            </td>
+            <td>{{ bill.bill_date }}</td>
+            <td><span class="badge">{{ bill.status }}</span></td>
+            <td>{{ bill.grand_total }} {{ bill.currency }}</td>
+            <td>
+                {% if bill.status == "DRAFT" %}
+                <a class="btn" href="{% url 'purchases:bill_edit' bill.id %}">Edit</a>
+                <a class="btn" href="{% url 'purchases:post_bill' bill.id %}" onclick="return confirm('Post this bill?');">Post</a>
+                {% elif bill.status == "POSTED" %}
+                <form method="post" action="{% url 'purchases:void_bill' bill.id %}" style="display:inline;" onsubmit="return confirm('Void this bill? This cannot be undone.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn">Void</button>
+                </form>
+                {% else %}
+                -
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="7">No supplier bills found.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

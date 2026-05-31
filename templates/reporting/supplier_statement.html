@@ -1,0 +1,29 @@
+{% extends "hub/layout.html" %}
+{% block title %}Supplier Statement{% endblock %}
+{% block hub_title %}Supplier statement — {{ supplier.name }}{% endblock %}
+{% block hub_subtitle %}Costs, bills, and payments with running balance.{% endblock %}
+{% block hub_extra_actions %}
+<a class="btn btn-ghost" href="?format=pdf&amp;{{ request.GET.urlencode }}">Download PDF</a>
+{% endblock %}
+{% block hub_body %}
+<div class="hub-table-wrap">
+<table>
+    <thead><tr><th>Date</th><th>Type</th><th>Description</th><th>Ref</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead>
+    <tbody>
+    {% for row in rows %}
+        <tr>
+            <td>{{ row.date|date:"d/m/Y" }}</td>
+            <td>{{ row.type }}</td>
+            <td>{{ row.description|default:"—" }}</td>
+            <td>{% include "reporting/partials/statement_ref.html" %}</td>
+            <td class="num">{{ row.debit }}</td>
+            <td class="num">{{ row.credit }}</td>
+            <td class="num">{{ row.running_balance }}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="7">No statement entries.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

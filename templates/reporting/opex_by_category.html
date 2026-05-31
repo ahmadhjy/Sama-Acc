@@ -1,0 +1,26 @@
+{% extends "hub/layout.html" %}
+{% block title %}OPEX by Category{% endblock %}
+{% block hub_title %}Operating expenses by category{% endblock %}
+{% block hub_subtitle %}Posted operating expenses grouped by category (USD).{% endblock %}
+{% block hub_extra_actions %}
+<a class="btn btn-ghost" href="?format=pdf&amp;{{ request.GET.urlencode }}">Download PDF</a>
+<a class="btn btn-ghost" href="{% url 'expenses:expense_list' %}">All expenses</a>
+{% endblock %}
+{% block hub_body %}
+<div class="hub-table-wrap">
+<table>
+    <thead><tr><th>Code</th><th>Category</th><th class="num">Total (USD)</th></tr></thead>
+    <tbody>
+    {% for row in rows %}
+        <tr>
+            <td>{{ row.expense_category__code|default:"UNCAT" }}</td>
+            <td>{{ row.expense_category__name|default:"Uncategorized" }}</td>
+            <td class="num">{{ row.total }}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="3">No operating expenses posted.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

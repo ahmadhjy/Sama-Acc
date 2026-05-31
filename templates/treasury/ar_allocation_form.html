@@ -1,0 +1,26 @@
+{% extends "page/layout.html" %}
+{% block title %}AR Allocation{% endblock %}
+{% block page_content %}
+<h1 class="title">Create AR Allocation</h1>
+<form method="post" class="panel">
+    {% csrf_token %}
+    <p>
+        <label>Payment</label>
+        <select name="payment">
+            {% for p in payments %}
+            <option value="{{ p.id }}">{{ p.receipt_no }} | remaining {{ p.remaining_amount }}</option>
+            {% endfor %}
+        </select>
+    </p>
+    <p>
+        <label>Invoice</label>
+        <select name="invoice">
+            {% for i in invoices %}
+            <option value="{{ i.id }}">{{ i.invoice_no }} | total {{ i.grand_total }}</option>
+            {% endfor %}
+        </select>
+    </p>
+    <p><label>Amount</label><input type="number" step="0.01" name="amount" required></p>
+    <button class="btn" type="submit">Allocate</button>
+</form>
+{% endblock %}

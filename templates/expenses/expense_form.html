@@ -1,0 +1,62 @@
+{% extends "page/layout.html" %}
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Operating Expense{% endblock %}
+{% block page_content %}
+<h1 class="title">{% if is_edit %}Edit{% else %}New{% endif %} Operating Expense</h1>
+<form method="post" enctype="multipart/form-data" class="panel" id="expense-form">
+    {% csrf_token %}
+    {% for field in form %}
+    <p>
+        {{ field.label_tag }} {{ field }}
+        {% if field.help_text %}<span class="muted">{{ field.help_text }}</span>{% endif %}
+        {% if field.errors %}<span class="errorlist">{{ field.errors }}</span>{% endif %}
+    </p>
+    {% endfor %}
+    <p id="expense-usd-hint" class="muted"></p>
+
+    <h3>Attachments</h3>
+    <p><input type="file" name="attachments" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"></p>
+    {% if attachments %}
+    <ul class="attachment-list">
+        {% for att in attachments %}
+        <li>
+            <a href="{{ att.file.url }}" target="_blank">{{ att.original_name|default:att.file.name }}</a>
+            {% if expense.status == "DRAFT" %}
+            <form method="post" action="{% url 'expenses:expense_delete_attachment' expense.id att.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-link" onclick="return confirm('Remove this file?');">Remove</button>
+            </form>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <button class="btn" type="submit">Save</button>
+    <a class="btn" href="{% url 'expenses:expense_list' %}">Back</a>
+</form>
+<script>
+(function() {
+  const cur = document.getElementById('id_currency');
+  const rate = document.getElementById('id_exchange_rate_to_usd');
+  const amt = document.getElementById('id_amount');
+  const hint = document.getElementById('expense-usd-hint');
+  function update() {
+    const code = cur && cur.value ? cur.value : 'USD';
+    const rateWrap = rate && rate.closest ? rate.closest('p') : null;
+    if (rateWrap) rateWrap.style.display = code === 'USD' ? 'none' : '';
+    if (!hint || !amt) return;
+    const a = parseFloat(amt.value) || 0;
+    const r = parseFloat(rate && rate.value ? rate.value : '1') || 1;
+    if (code === 'USD') hint.textContent = a ? ('USD amount: ' + a.toFixed(2)) : '';
+    else if (a && r) hint.textContent = a.toFixed(2) + ' ' + code + ' × ' + r + ' = ' + (a * r).toFixed(2) + ' USD';
+    else hint.textContent = 'Enter amount and exchange rate to see USD equivalent.';
+  }
+  ['change','input'].forEach(ev => {
+    if (cur) cur.addEventListener(ev, update);
+    if (rate) rate.addEventListener(ev, update);
+    if (amt) amt.addEventListener(ev, update);
+  });
+  update();
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "page/layout.html" %}
+{% block title %}Adjust Posted Invoice{% endblock %}
+{% block page_content %}
+<h1 class="title">Adjust Posted Invoice {{ invoice.invoice_no }}</h1>
+<div class="panel">
+    <p>This action will:</p>
+    <ul>
+        <li>Void the original posted invoice.</li>
+        <li>Create a new correction draft invoice with copied lines.</li>
+        <li>Keep a full audit trail with your reason.</li>
+    </ul>
+    <form method="post">
+        {% csrf_token %}
+        <p>
+            <label>Reason (required)</label>
+            <textarea name="reason" required></textarea>
+        </p>
+        <button class="btn" type="submit">Confirm Adjustment</button>
+        <a class="btn" href="{% url 'sales:invoice_list' %}">Cancel</a>
+    </form>
+</div>
+{% endblock %}

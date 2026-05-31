@@ -1,0 +1,343 @@
+{% extends "hub/layout.html" %}
+{% load static formatting %}
+{% block title %}Dashboard | Sama ERP{% endblock %}
+{% block hub_title %}Business intelligence{% endblock %}
+{% block hub_subtitle %}
+Period: <strong>{{ period_label }}</strong>
+{% include "partials/info_tip.html" with tip="Date range for KPI cards and most charts. Presets (Today, This week, etc.) set From/To in the header. Total sales always shows the last 6 calendar months." %}
+{% endblock %}
+
+{% block hub_filter_preserve %}
+{% if hub_tab == 'reports' %}<input type="hidden" name="tab" value="reports">{% endif %}
+{% endblock %}
+
+{% block hub_body %}
+{% if overdue_count or due_today_count %}
+<div class="hub-alerts">
+    {% if overdue_count %}
+    <div class="hub-alert hub-alert--danger">
+        <i class="fa-solid fa-triangle-exclamation"></i> {{ overdue_count }} overdue receivable(s)
+        {% include "partials/info_tip.html" with tip="Posted invoices past their due date with money still owed by clients." %}
+    </div>
+    {% endif %}
+    {% if due_today_count %}
+    <div class="hub-alert hub-alert--warn">
+        <i class="fa-solid fa-clock"></i> {{ due_today_count }} due today
+        {% include "partials/info_tip.html" with tip="Invoices whose due date is today and still have an outstanding balance." %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<section class="hub-panel {% if hub_tab != 'reports' %}hub-panel--active{% endif %}" id="panel-overview">
+    <div class="hub-kpis">
+        <div class="hub-kpi">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Revenue (USD)</span>
+                    {% include "partials/info_tip.html" with tip="Total selling on posted sales invoices in the selected period, in USD." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-arrow-trend-up"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ revenue|money }}</p>
+        </div>
+        <div class="hub-kpi hub-kpi--profit">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Gross profit</span>
+                    {% include "partials/info_tip.html" with tip="Revenue minus COGS: supplier/service costs on posted invoice lines in the period (USD)." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-chart-pie"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ gross_profit|money }}</p>
+        </div>
+        <div class="hub-kpi hub-kpi--profit">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Net profit</span>
+                    {% include "partials/info_tip.html" with tip="Gross profit minus operating expenses posted in the Operating Expenses module for the period." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-sack-dollar"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ net_profit|money }}</p>
+        </div>
+        <div class="hub-kpi">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Outstanding A/R</span>
+                    {% include "partials/info_tip.html" with tip="Accounts receivable: what all clients still owe you today on posted invoices (total minus payments allocated)." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-hand-holding-dollar"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ total_ar|money }}</p>
+        </div>
+        <div class="hub-kpi hub-kpi--warning">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Outstanding A/P</span>
+                    {% include "partials/info_tip.html" with tip="Accounts payable: what you still owe all suppliers today (bills and service costs minus payments made)." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-file-invoice-dollar"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ total_ap|money }}</p>
+        </div>
+        <div class="hub-kpi">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Cash in</span>
+                    {% include "partials/info_tip.html" with tip="Sum of posted payments received into your money accounts during the selected period." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-circle-down"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ cash_in|money }}</p>
+        </div>
+        <div class="hub-kpi">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Cash out</span>
+                    {% include "partials/info_tip.html" with tip="Sum of posted payments sent out from your money accounts during the selected period." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-circle-up"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ cash_out|money }}</p>
+        </div>
+        <div class="hub-kpi">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Net cash flow</span>
+                    {% include "partials/info_tip.html" with tip="Cash in minus cash out for the period. Positive means more money received than paid out." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-water"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ cash_net|money }}</p>
+        </div>
+    </div>
+
+    <div class="hub-charts">
+        <div class="hub-chart-card hub-chart-card--wide">
+            <h2>
+                <span class="hub-chart-title">Total sales</span>
+                {% include "partials/info_tip.html" with tip="Posted invoice selling totals in USD for each of the last six calendar months. Not limited by the dashboard date filter." %}
+                <span class="muted" style="font-weight:400;font-size:12px;">last 6 months</span>
+            </h2>
+            <div class="hub-chart-wrap"><canvas id="chart-revenue-trend"></canvas></div>
+        </div>
+        <div class="hub-chart-card">
+            <h2>
+                <span class="hub-chart-title">Profit breakdown</span>
+                {% include "partials/info_tip.html" with tip="How revenue splits into COGS, operating expenses, and net profit for the selected period." %}
+            </h2>
+            <div class="hub-chart-wrap hub-chart-wrap--sm"><canvas id="chart-profit"></canvas></div>
+        </div>
+        <div class="hub-chart-card">
+            <h2>
+                <span class="hub-chart-title">Cash flow</span>
+                {% include "partials/info_tip.html" with tip="Posted cash received, cash paid out, and net difference for the selected period (treasury payments)." %}
+            </h2>
+            <div class="hub-chart-wrap hub-chart-wrap--sm"><canvas id="chart-cash"></canvas></div>
+        </div>
+        <div class="hub-chart-card">
+            <h2>
+                <span class="hub-chart-title">A/R aging snapshot</span>
+                {% include "partials/info_tip.html" with tip="Outstanding receivables grouped by how overdue they are: not yet due, 0–30, 31–60, 61–90, and 90+ days (as of today)." %}
+            </h2>
+            <div class="hub-chart-wrap hub-chart-wrap--sm"><canvas id="chart-ar-aging"></canvas></div>
+        </div>
+        <div class="hub-chart-card">
+            <h2>
+                <span class="hub-chart-title">Receivables vs payables</span>
+                {% include "partials/info_tip.html" with tip="Total client A/R compared to total supplier A/P outstanding today (not limited to the date filter)." %}
+            </h2>
+            <div class="hub-chart-wrap hub-chart-wrap--sm"><canvas id="chart-ar-ap"></canvas></div>
+        </div>
+        <div class="hub-chart-card">
+            <h2>
+                <span class="hub-chart-title">Operating expenses</span>
+                {% include "partials/info_tip.html" with tip="Posted operating expenses in the selected period, split by category (rent, salaries, etc.)." %}
+            </h2>
+            <div class="hub-chart-wrap hub-chart-wrap--sm"><canvas id="chart-opex"></canvas></div>
+        </div>
+        <div class="hub-chart-card hub-chart-card--wide">
+            <h2>
+                <span class="hub-chart-title">Salesman performance</span>
+                {% include "partials/info_tip.html" with tip="Sales and profit by salesperson for the period, based on invoice lines assigned to each sales employee." %}
+            </h2>
+            <div class="hub-chart-wrap"><canvas id="chart-salesman"></canvas></div>
+        </div>
+        <div class="hub-chart-card hub-chart-card--wide">
+            <h2>
+                <span class="hub-chart-title">Top supplier balances</span>
+                {% include "partials/info_tip.html" with tip="Suppliers you owe the most right now (payables balance per supplier)." %}
+            </h2>
+            <div class="hub-chart-wrap"><canvas id="chart-suppliers"></canvas></div>
+        </div>
+    </div>
+
+    {% if overdue_receivables %}
+    <div class="hub-table-wrap hub-table-wrap--overdue">
+        <h2 class="hub-section-title hub-section-title--danger" style="padding:16px 16px 0;margin:0;display:flex;align-items:center;gap:6px;">
+            Overdue client payments
+            {% include "partials/info_tip.html" with tip="Posted invoices past their due date with an unpaid balance (due date, total, paid, and remaining)." %}
+        </h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Client</th>
+                    <th>Invoice</th>
+                    <th>Due date</th>
+                    <th class="num">Invoice total</th>
+                    <th class="num">Paid</th>
+                    <th class="num">Remaining</th>
+                    <th>Currency</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in overdue_receivables %}
+            <tr class="due-overdue">
+                <td>{{ row.client_name }}</td>
+                <td>{{ row.invoice_no }}</td>
+                <td>{{ row.due_date|date:"d/m/Y" }}</td>
+                <td class="num">{{ row.total|money }}</td>
+                <td class="num">{{ row.paid|money }}</td>
+                <td class="num"><strong>{{ row.remaining|money }}</strong></td>
+                <td>{{ row.currency }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <div class="hub-table-wrap">
+        <h2 class="hub-section-title" style="padding:16px 16px 0;margin:0;display:flex;align-items:center;gap:6px;">
+            Receivables due
+            {% include "partials/info_tip.html" with tip="Posted invoices with an unpaid balance, sorted by due date (overdue first). Payments appear on the client statement when posted." %}
+        </h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Client</th>
+                    <th>Invoice</th>
+                    <th>Due date</th>
+                    <th class="num">Invoice total</th>
+                    <th class="num">Paid</th>
+                    <th class="num">Remaining</th>
+                    <th>Currency</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in receivables_due|slice:":12" %}
+            <tr class="{% if row.is_overdue %}due-overdue{% endif %}">
+                <td>{{ row.client_name }}</td>
+                <td>{{ row.invoice_no }}</td>
+                <td>{{ row.due_date|date:"d/m/Y" }}</td>
+                <td class="num">{{ row.total|money }}</td>
+                <td class="num">{{ row.paid|money }}</td>
+                <td class="num"><strong>{{ row.remaining|money }}</strong></td>
+                <td>{{ row.currency }}</td>
+                <td><span class="badge badge-{{ row.status }}">{{ row.status }}</span></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8">No outstanding receivables.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="hub-panel {% if hub_tab == 'reports' %}hub-panel--active{% endif %}" id="panel-reports">
+    <div class="hub-kpis">
+        <div class="hub-kpi">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Posted sales</span>
+                    {% include "partials/info_tip.html" with tip="Total USD selling on posted sales invoices in the selected period." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-receipt"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ posted_invoices_total|money }}</p>
+        </div>
+        <div class="hub-kpi">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Posted purchases</span>
+                    {% include "partials/info_tip.html" with tip="Total on posted supplier bills in the selected period." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-cart-shopping"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ posted_bills_total|money }}</p>
+        </div>
+        <div class="hub-kpi">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Posted payments</span>
+                    {% include "partials/info_tip.html" with tip="Total amount of all posted treasury payments (in and out) in the period." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-money-bill-transfer"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ posted_payments_total|money }}</p>
+        </div>
+        <div class="hub-kpi">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">COGS</span>
+                    {% include "partials/info_tip.html" with tip="Cost of goods sold: service/supplier costs on posted sales invoice lines in the period (USD)." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-tags"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ posted_cogs_total|money }}</p>
+        </div>
+        <div class="hub-kpi hub-kpi--warning">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Operating expenses</span>
+                    {% include "partials/info_tip.html" with tip="Posted operating expenses (rent, salaries, utilities, etc.) in USD for the period." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-building"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ total_opex|money }}</p>
+        </div>
+        <div class="hub-kpi hub-kpi--profit">
+            <div class="hub-kpi__head">
+                <span class="hub-kpi__label-wrap">
+                    <span class="hub-kpi__label">Net profit est.</span>
+                    {% include "partials/info_tip.html" with tip="Estimated net profit: posted sales minus COGS minus operating expenses for the period." %}
+                </span>
+                <span class="hub-kpi__icon"><i class="fa-solid fa-calculator"></i></span>
+            </div>
+            <p class="hub-kpi__value">{{ net_profit_estimate|money }}</p>
+        </div>
+    </div>
+
+    <div class="hub-charts">
+        <div class="hub-chart-card hub-chart-card--wide">
+            <h2>
+                <span class="hub-chart-title">Posted activity summary</span>
+                {% include "partials/info_tip.html" with tip="Bar chart comparing posted sales, purchases, COGS, operating expenses, and estimated net profit for the period." %}
+            </h2>
+            <div class="hub-chart-wrap"><canvas id="chart-summary"></canvas></div>
+        </div>
+        <div class="hub-chart-card">
+            <h2>
+                <span class="hub-chart-title">Margin snapshot</span>
+                {% include "partials/info_tip.html" with tip="Share of period revenue represented by estimated net profit versus other costs." %}
+            </h2>
+            <div class="hub-chart-wrap hub-chart-wrap--sm"><canvas id="chart-margin"></canvas></div>
+        </div>
+    </div>
+
+    <div class="hub-quick-links">
+        <a class="hub-quick-link" href="{% url 'reporting:activity_trial_balance' %}?{{ request.GET.urlencode }}"><strong>Activity trial balance</strong><span>Income statement style</span></a>
+        <a class="hub-quick-link" href="{% url 'reporting:ar_aging' %}?{{ request.GET.urlencode }}"><strong>AR aging</strong><span>Client receivables buckets</span></a>
+        <a class="hub-quick-link" href="{% url 'reporting:ap_aging' %}?{{ request.GET.urlencode }}"><strong>AP aging</strong><span>Supplier payables buckets</span></a>
+        <a class="hub-quick-link" href="{% url 'reporting:cash_movement' %}?{{ request.GET.urlencode }}"><strong>Cash movement</strong><span>Money account balances</span></a>
+        <a class="hub-quick-link" href="{% url 'reporting:opex_by_category' %}?{{ request.GET.urlencode }}"><strong>OPEX by category</strong><span>Operating expense breakdown</span></a>
+        <a class="hub-quick-link" href="{% url 'reporting:salesman_reports_home' %}?{{ request.GET.urlencode }}"><strong>Salesman reports</strong><span>Per-employee performance</span></a>
+    </div>
+</section>
+
+{% include "hub/chart_data.html" %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/hub-charts.js' %}"></script>
+{% endblock %}

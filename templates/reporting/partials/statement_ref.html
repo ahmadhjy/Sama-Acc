@@ -1,0 +1,5 @@
+{% if not is_pdf and row.ref_url %}
+<a href="{{ row.ref_url }}">{{ row.ref }}</a>
+{% else %}
+{{ row.ref }}
+{% endif %}

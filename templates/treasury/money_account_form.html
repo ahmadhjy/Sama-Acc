@@ -1,0 +1,21 @@
+{% extends "page/layout.html" %}
+{% block title %}{% if is_edit %}Edit Money Account{% else %}New Money Account{% endif %}{% endblock %}
+{% block page_content %}
+<h1 class="title">{% if is_edit %}Edit Money Account{% else %}New Money Account{% endif %}</h1>
+<form method="post" class="panel">
+    {% csrf_token %}
+    {% for field in form %}
+    <p>
+        {{ field.label_tag }}
+        {{ field }}
+        {% if field.help_text %}<span class="muted">{{ field.help_text }}</span>{% endif %}
+        {% if field.errors %}<span class="errorlist">{{ field.errors }}</span>{% endif %}
+    </p>
+    {% endfor %}
+    <button class="btn" type="submit">{% if is_edit %}Save{% else %}Create{% endif %}</button>
+    <a class="btn" href="{% url 'treasury:money_accounts_list' %}">Back</a>
+    {% if account %}
+    <a class="btn" href="{% url 'treasury:money_account_detail' account.id %}">View</a>
+    {% endif %}
+</form>
+{% endblock %}

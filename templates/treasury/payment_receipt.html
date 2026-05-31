@@ -1,0 +1,70 @@
+{% extends is_pdf|yesno:"pdf/layout.html,page/layout.html" %}
+{% block title %}Payment Receipt {{ payment.receipt_no }}{% endblock %}
+
+{% block pdf_body %}
+<div class="pdf-doc-panel">
+    <div class="pdf-doc-panel__grid">
+        <div class="pdf-doc-panel__col">
+            <div class="pdf-doc-panel__label">Receipt number</div>
+            <div class="pdf-doc-panel__value">{{ payment.receipt_no }}</div>
+            <div class="pdf-doc-panel__label">Reference</div>
+            <div class="pdf-doc-panel__value">{{ payment.reference|default:"—" }}</div>
+            <div class="pdf-doc-panel__label">Party</div>
+            <div class="pdf-doc-panel__value">
+                {% if payment.client %}{{ payment.client.name_en }}
+                {% elif payment.supplier %}{{ payment.supplier.name }}
+                {% elif payment.party_name %}{{ payment.party_name }}
+                {% else %}—{% endif %}
+            </div>
+        </div>
+        <div class="pdf-doc-panel__col">
+            <div class="pdf-doc-panel__label">Date</div>
+            <div class="pdf-doc-panel__value">{{ payment.date|date:"d/m/Y" }}</div>
+            <div class="pdf-doc-panel__label">Money account</div>
+            <div class="pdf-doc-panel__value">{{ payment.money_account.name }}</div>
+            <div class="pdf-doc-panel__label">Direction</div>
+            <div class="pdf-doc-panel__value">{{ payment.get_direction_display|default:payment.direction }}</div>
+            <div class="pdf-doc-panel__label">Status</div>
+            <div class="pdf-doc-panel__value">{{ payment.status }}</div>
+        </div>
+    </div>
+</div>
+<table class="pdf-data-table">
+    <tbody>
+        <tr>
+            <th style="width:35%;">Amount</th>
+            <td class="num"><strong>{{ payment.amount }} {{ payment.currency }}</strong></td>
+        </tr>
+        {% if payment.note %}
+        <tr>
+            <th>Note</th>
+            <td class="desc">{{ payment.note|linebreaksbr }}</td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+{% endblock %}
+
+{% block page_content %}
+<h1 class="title">Payment Receipt {{ payment.receipt_no }}</h1>
+<div class="panel">
+    <p><strong>Date:</strong> {{ payment.date }}</p>
+    <p><strong>Status:</strong> <span class="badge">{{ payment.status }}</span></p>
+    <p><strong>Direction:</strong> {{ payment.direction }}</p>
+    <p><strong>Party Type:</strong> {{ payment.party_type }}</p>
+    <p><strong>Party:</strong>
+        {% if payment.client %}{{ payment.client.name_en }}
+        {% elif payment.supplier %}{{ payment.supplier.name }}
+        {% elif payment.party_name %}{{ payment.party_name }}
+        {% else %}-{% endif %}
+    </p>
+    <p><strong>Money Account:</strong> {{ payment.money_account.name }}</p>
+    <p><strong>Amount:</strong> {{ payment.amount }} {{ payment.currency }}</p>
+    <p><strong>Ref No:</strong> {{ payment.reference|default:"-" }}</p>
+    <p><strong>Note:</strong><br>{{ payment.note|default:"-"|linebreaksbr }}</p>
+</div>
+<p style="margin-top:12px;">
+    <a class="btn" href="?format=pdf">Download PDF</a>
+    <a class="btn" href="{% url 'treasury:payment_list' %}">Back to payments</a>
+</p>
+{% endblock %}

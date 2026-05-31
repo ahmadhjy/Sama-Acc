@@ -1,0 +1,54 @@
+{% extends "page/layout.html" %}
+{% block title %}Payments{% endblock %}
+{% block page_content %}
+<h1 class="title">Payments</h1>
+<p>
+    <a class="btn" href="{% url 'treasury:payment_create' %}">New Payment</a>
+    <a class="btn" href="{% url 'treasury:ar_allocation_create' %}">New AR Allocation</a>
+    <a class="btn" href="{% url 'treasury:ap_allocation_create' %}">New AP Allocation</a>
+    <a class="btn" href="{% url 'treasury:transfer_create' %}">New Transfer</a>
+    <a class="btn" href="{% url 'treasury:reconcile_account' %}">Reconcile</a>
+    <a class="btn" href="?format=pdf">Download PDF</a>
+</p>
+<form method="get" class="panel filter-bar">
+    <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Receipt / ref / party"></label>
+    <label>From <input type="date" name="date_from" value="{{ request.GET.date_from }}"></label>
+    <label>To <input type="date" name="date_to" value="{{ request.GET.date_to }}"></label>
+    <button class="btn" type="submit">Filter</button>
+</form>
+<table>
+    <thead><tr><th>Receipt</th><th>Ref No</th><th>Party</th><th>Account</th><th>Direction</th><th>Amount</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+    {% for payment in payments %}
+        <tr>
+            <td>{{ payment.receipt_no }}</td>
+            <td>{{ payment.reference|default:"-" }}</td>
+            <td>{% if payment.client %}{{ payment.client.name_en }}{% elif payment.supplier %}{{ payment.supplier.name }}{% elif payment.party_name %}{{ payment.party_name }}{% else %}-{% endif %}</td>
+            <td>{{ payment.money_account.name }}</td>
+            <td>{{ payment.direction }}</td>
+            <td>{{ payment.amount }} {{ payment.currency }}</td>
+            <td>{{ payment.note|default:"-" }}</td>
+            <td><span class="badge">{{ payment.status }}</span></td>
+            <td>
+                <a class="btn" href="{% url 'treasury:payment_receipt' payment.id %}">Receipt</a>
+                {% if payment.status == "DRAFT" %}
+                <a class="btn" href="{% url 'treasury:payment_edit' payment.id %}">Edit</a>
+                <a class="btn" href="{% url 'treasury:post_payment' payment.id %}" onclick="return confirm('Post payment? Splits will auto-allocate to open invoices/bills where possible.');">Post</a>
+                {% elif payment.status == "POSTED" %}
+                <a class="btn" href="{% url 'treasury:payment_edit' payment.id %}">Edit</a>
+                <form method="post" action="{% url 'treasury:void_payment' payment.id %}" style="display:inline;" onsubmit="return confirm('Void this payment?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="reason" value="Void from list">
+                    <button type="submit" class="btn">Void</button>
+                </form>
+                {% else %}
+                -
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="9">No payments found.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "hub/layout.html" %}
+{% block title %}Detailed Sales Report — {{ employee.name }}{% endblock %}
+{% block hub_title %}Detailed report — {{ employee.name }}{% endblock %}
+{% block hub_subtitle %}Per-invoice selling, cost, and profit (USD).{% endblock %}
+{% block hub_extra_actions %}
+<a class="btn btn-ghost" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}format=pdf">PDF</a>
+<a class="btn btn-ghost" href="{% url 'reporting:salesman_reports_home' %}">All salesmen</a>
+{% endblock %}
+{% block hub_body %}
+<form method="get" class="panel filter-bar" style="margin-bottom:16px;">
+    <label>Month <input type="month" name="month" value="{{ request.GET.month }}"></label>
+    <label>From <input type="date" name="date_from" value="{% if date_from %}{{ date_from|date:'Y-m-d' }}{% endif %}"></label>
+    <label>To <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}"></label>
+    <button class="btn" type="submit">Apply</button>
+</form>
+<div class="hub-table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>Invoice</th><th>Client</th>
+            <th class="num">Selling</th><th class="num">Cost</th><th class="num">Profit</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+        <tr>
+            <td>
+                {% if not is_pdf and row.invoice_id %}
+                <a href="{% url 'sales:invoice_open' row.invoice_id %}">{{ row.invoice_no }}</a>
+                {% else %}
+                {{ row.invoice_no }}
+                {% endif %}
+            </td>
+            <td>{{ row.client_name }}</td>
+            <td class="num">{{ row.selling|floatformat:2 }}</td>
+            <td class="num">{{ row.cost|floatformat:2 }}</td>
+            <td class="num">{{ row.profit|floatformat:2 }}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="5">No activity in this period.</td></tr>
+    {% endfor %}
+    </tbody>
+    {% if rows %}
+    <tfoot>
+        <tr>
+            <td colspan="2"><strong>Totals</strong></td>
+            <td class="num">{{ total_selling|floatformat:2 }}</td>
+            <td class="num">{{ total_cost|floatformat:2 }}</td>
+            <td class="num">{{ total_profit|floatformat:2 }}</td>
+        </tr>
+    </tfoot>
+    {% endif %}
+</table>
+</div>
+{% endblock %}

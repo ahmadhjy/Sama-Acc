@@ -1,0 +1,64 @@
+{% extends "pdf/layout.html" %}
+{% block pdf_body %}
+{% if pdf_report_subtitle and not pdf_hide_subtitle_in_body %}<p class="muted">{{ pdf_report_subtitle }}</p>{% endif %}
+{% if pdf_account_range and pdf_show_account_in_body %}<p class="muted">{{ pdf_account_range }}</p>{% endif %}
+{% if pdf_empty_message and not pdf_table_rows and not pdf_summary_cards %}
+<p class="muted">{{ pdf_empty_message }}</p>
+{% endif %}
+{% if pdf_table_rows %}
+<table class="pdf-data-table">
+    {% if pdf_column_widths %}
+    <colgroup>
+        {% for w in pdf_column_widths %}<col style="width: {{ w }}">{% endfor %}
+    </colgroup>
+    {% endif %}
+    <thead>
+        <tr>
+            {% for h in pdf_table_headers %}
+            <th class="{% if forloop.counter0 in pdf_numeric_column_indexes %}num{% elif forloop.counter0 in pdf_wrap_column_indexes %}wrap{% elif forloop.counter0 == pdf_description_column_index %}desc wrap{% elif forloop.counter0 == pdf_ref_column_index %}ref{% endif %}">{{ h }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in pdf_table_rows %}
+        <tr>
+            {% for cell in row %}
+            <td class="{% if forloop.counter0 in pdf_numeric_column_indexes %}num{% elif forloop.counter0 in pdf_wrap_column_indexes %}wrap{% elif forloop.counter0 == pdf_description_column_index %}desc wrap{% elif forloop.counter0 == pdf_ref_column_index %}ref{% endif %}">{{ cell }}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+    {% if pdf_footer_row %}
+    <tfoot>
+        <tr>
+            {% for cell in pdf_footer_row %}
+            <td class="{% if forloop.counter0 in pdf_numeric_column_indexes %}num{% endif %}">{{ cell }}</td>
+            {% endfor %}
+        </tr>
+    </tfoot>
+    {% endif %}
+</table>
+{% endif %}
+{% if pdf_totals %}
+<div class="pdf-totals-wrap">
+    <table class="pdf-totals-table">
+        {% for label, value in pdf_totals %}
+        <tr class="{% if forloop.last and pdf_totals_closing_last %}pdf-totals-table__closing{% endif %}">
+            <td>{{ label }}</td>
+            <td>{{ value }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endif %}
+{% if pdf_summary_cards %}
+<table class="pdf-data-table" style="margin-top:12px;">
+    <thead><tr><th>Metric</th><th class="num">Value</th></tr></thead>
+    <tbody>
+        {% for label, value in pdf_summary_cards %}
+        <tr><td>{{ label }}</td><td class="num">{{ value }}</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}

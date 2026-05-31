@@ -1,0 +1,103 @@
+{% extends "page/layout.html" %}
+{% block title %}{% if is_edit %}Edit Payment{% else %}New Payment{% endif %}{% endblock %}
+{% block page_content %}
+<h1 class="title">{% if is_edit %}Edit Payment{% else %}Create Payment{% endif %}</h1>
+<p class="muted">Payments record money in/out of bank/cash accounts. For rent and operating costs, use <a href="{% url 'expenses:expense_list' %}">Operating Expenses</a> first, then pay via Supplier or record the bank payment here.</p>
+<form method="post" class="panel" id="payment-form">
+    {% csrf_token %}
+    <p><label>Receipt No</label><input name="receipt_no" value="{{ payment.receipt_no|default:default_receipt_no }}" required></p>
+    <p>
+        <label>Direction</label>
+        <select name="direction">
+            <option value="IN" {% if payment and payment.direction == "IN" %}selected{% endif %}>Money In</option>
+            <option value="OUT" {% if payment and payment.direction == "OUT" %}selected{% endif %}>Money Out</option>
+        </select>
+    </p>
+    <p>
+        <label>Party Type</label>
+        <select name="party_type" id="id_party_type">
+            <option value="CLIENT" {% if payment and payment.party_type == "CLIENT" %}selected{% endif %}>Client</option>
+            <option value="SUPPLIER" {% if payment and payment.party_type == "SUPPLIER" %}selected{% endif %}>Supplier</option>
+            <option value="OTHER" {% if payment and payment.party_type == "OTHER" %}selected{% endif %}>Other</option>
+        </select>
+    </p>
+    <p id="client-field-wrap">
+        <label>Client <span id="client-required" class="muted">*</span></label>
+        <select name="client" id="id_client">
+            <option value="">--- Select client ---</option>
+            {% for c in clients %}
+            <option value="{{ c.id }}" {% if payment and payment.client_id == c.id %}selected{% endif %}>{{ c.name_en }}</option>
+            {% endfor %}
+        </select>
+    </p>
+    <p id="supplier-field-wrap" style="display:none;">
+        <label>Supplier <span id="supplier-required" class="muted">*</span></label>
+        <select name="supplier" id="id_supplier">
+            <option value="">--- Select supplier ---</option>
+            {% for s in suppliers %}
+            <option value="{{ s.id }}" {% if payment and payment.supplier_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+            {% endfor %}
+        </select>
+    </p>
+    <p id="party-name-wrap" style="display:none;">
+        <label>Party name <span class="muted">*</span></label>
+        <input type="text" name="party_name" id="id_party_name" maxlength="255" placeholder="e.g. Landlord, Bank fee" value="{{ payment.party_name|default:'' }}">
+    </p>
+    <p>
+        <label>Money Account</label>
+        <select name="money_account" required>
+            {% for acc in accounts %}
+            <option value="{{ acc.id }}" {% if payment and payment.money_account_id == acc.id %}selected{% endif %}>{{ acc.name }}</option>
+            {% endfor %}
+        </select>
+    </p>
+    <p><label>Date</label><input type="date" name="date" value="{{ payment.date|date:'Y-m-d' }}" required></p>
+    <p><label>Currency</label><input name="currency" value="{{ payment.currency|default:'USD' }}"></p>
+    <p><label>Amount</label><input name="amount" type="number" step="0.01" value="{{ payment.amount|default:'' }}" required></p>
+    <p><label>Ref No</label><input name="reference" maxlength="255" placeholder="Cheque no., bank ref, transfer ID…" value="{{ payment.reference|default:'' }}"></p>
+    <p><label>Note</label><textarea name="note" rows="3">{{ payment.note|default:'' }}</textarea></p>
+    <p><label><input type="checkbox" name="is_refund" {% if payment and payment.is_refund %}checked{% endif %}> Is Client Refund</label></p>
+    <button class="btn" type="submit">{% if is_edit %}Update Payment{% else %}Save Payment{% endif %}</button>
+    <a class="btn" href="{% url 'treasury:payment_list' %}">Back</a>
+</form>
+<script>
+(function() {
+  const partyType = document.getElementById("id_party_type");
+  const clientWrap = document.getElementById("client-field-wrap");
+  const supplierWrap = document.getElementById("supplier-field-wrap");
+  const partyNameWrap = document.getElementById("party-name-wrap");
+  const clientSel = document.getElementById("id_client");
+  const supplierSel = document.getElementById("id_supplier");
+  const partyNameInput = document.getElementById("id_party_name");
+  if (!partyType) return;
+
+  function syncPartyFields() {
+    const pt = partyType.value;
+    clientWrap.style.display = "none";
+    supplierWrap.style.display = "none";
+    partyNameWrap.style.display = "none";
+    clientSel.required = false;
+    supplierSel.required = false;
+    partyNameInput.required = false;
+
+    if (pt === "CLIENT") {
+      clientWrap.style.display = "";
+      clientSel.required = true;
+      supplierSel.value = "";
+    } else if (pt === "SUPPLIER") {
+      supplierWrap.style.display = "";
+      supplierSel.required = true;
+      clientSel.value = "";
+    } else {
+      partyNameWrap.style.display = "";
+      partyNameInput.required = true;
+      clientSel.value = "";
+      supplierSel.value = "";
+    }
+  }
+
+  partyType.addEventListener("change", syncPartyFields);
+  syncPartyFields();
+})();
+</script>
+{% endblock %}

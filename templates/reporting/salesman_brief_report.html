@@ -1,0 +1,23 @@
+{% extends "hub/layout.html" %}
+{% block title %}Brief Sales Report — {{ employee.name }}{% endblock %}
+{% block hub_title %}Brief report — {{ employee.name }}{% endblock %}
+{% block hub_subtitle %}Summary KPIs for the selected period (USD).{% endblock %}
+{% block hub_extra_actions %}
+<a class="btn btn-ghost" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}format=pdf">PDF</a>
+<a class="btn btn-ghost" href="{% url 'reporting:salesman_reports_home' %}">All salesmen</a>
+{% endblock %}
+{% block hub_body %}
+<form method="get" class="panel filter-bar" style="margin-bottom:16px;">
+    <label>Month <input type="month" name="month" value="{{ request.GET.month }}"></label>
+    <label>From <input type="date" name="date_from" value="{% if date_from %}{{ date_from|date:'Y-m-d' }}{% endif %}"></label>
+    <label>To <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}"></label>
+    <button class="btn" type="submit">Apply</button>
+</form>
+<div class="hub-kpis">
+    <div class="hub-kpi"><div class="hub-kpi__head"><span class="hub-kpi__label">Services sold</span></div><p class="hub-kpi__value">{{ total_services }}</p></div>
+    <div class="hub-kpi"><div class="hub-kpi__head"><span class="hub-kpi__label">Clients</span></div><p class="hub-kpi__value">{{ total_clients }}</p></div>
+    <div class="hub-kpi"><div class="hub-kpi__head"><span class="hub-kpi__label">Invoices</span></div><p class="hub-kpi__value">{{ total_invoices }}</p></div>
+    <div class="hub-kpi hub-kpi--profit"><div class="hub-kpi__head"><span class="hub-kpi__label">Revenue (USD)</span></div><p class="hub-kpi__value">{{ total_revenue|floatformat:2 }}</p></div>
+    <div class="hub-kpi hub-kpi--profit"><div class="hub-kpi__head"><span class="hub-kpi__label">Profit (USD)</span></div><p class="hub-kpi__value">{{ total_profit|floatformat:2 }}</p></div>
+</div>
+{% endblock %}

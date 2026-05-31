@@ -1,0 +1,50 @@
+{% extends "page/layout.html" %}
+{% block title %}Operating Expenses{% endblock %}
+{% block page_content %}
+<h1 class="title">Operating Expenses</h1>
+<form method="get" class="panel filter-bar">
+    <label>From <input type="date" name="date_from" value="{% if date_from %}{{ date_from|date:'Y-m-d' }}{% endif %}"></label>
+    <label>To <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}"></label>
+    <label>Category
+        <select name="category">
+            <option value="">All</option>
+            {% for c in categories %}
+            <option value="{{ c.id }}" {% if selected_category == c.id|stringformat:"s" %}selected{% endif %}>{{ c.code }} — {{ c.name }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <button class="btn" type="submit">Filter</button>
+    <a class="btn" href="?{{ request.GET.urlencode }}&format=pdf">Download PDF</a>
+    <a class="btn" href="{% url 'expenses:expense_create' %}">+ New Expense</a>
+    <a class="btn" href="{% url 'expenses:expense_category_list' %}">Categories</a>
+</form>
+<table>
+    <thead>
+        <tr>
+            <th>No</th><th>Date</th><th>Category</th><th>Description</th>
+            <th class="num">Amount</th><th class="num">USD</th><th>Status</th><th></th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for e in expenses %}
+        <tr>
+            <td>{{ e.expense_no }}</td>
+            <td>{{ e.expense_date|date:"d/m/Y" }}</td>
+            <td>{{ e.category.name }}</td>
+            <td>{{ e.description|truncatewords:12 }}</td>
+            <td class="num">{{ e.amount }} {{ e.currency }}</td>
+            <td class="num">{{ e.amount_usd }}</td>
+            <td>{{ e.status }}</td>
+            <td>
+                {% if e.status == "DRAFT" %}
+                <a href="{% url 'expenses:expense_edit' e.id %}">Edit</a>
+                <a href="{% url 'expenses:post_expense' e.id %}">Post</a>
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="8">No expenses found.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

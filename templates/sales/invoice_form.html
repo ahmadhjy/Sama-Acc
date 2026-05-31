@@ -1,0 +1,499 @@
+{% extends "page/layout.html" %}
+{% block title %}Invoice Form{% endblock %}
+{% block page_content %}
+<h1 class="title">{% if invoice_is_new %}New Invoice{% else %}Edit Invoice{% endif %}</h1>
+<form method="post" enctype="multipart/form-data" class="panel" id="invoice-form" data-formset-prefix="{{ formset.prefix }}">
+    {% csrf_token %}
+    {% for field in form %}
+      <p>
+        {{ field.label_tag }}
+        {{ field }}
+        {% if field.help_text %}<span class="muted">{{ field.help_text }}</span>{% endif %}
+        {% if field.errors %}<span class="errorlist">{{ field.errors }}</span>      {% endif %}
+      </p>
+    {% endfor %}
+
+    <h3>Invoice selling total</h3>
+    <p class="muted">Calculated automatically from service line selling prices (qty × price − discount) in the invoice currency below.</p>
+    <p>
+      <strong>Total selling:</strong>
+      <span id="invoice-selling-total">{{ invoice.grand_total|default:"0.00" }}</span>
+      <span id="invoice-selling-currency">{{ invoice.currency|default:"USD" }}</span>
+    </p>
+    <div id="invoice-fx-summary" class="panel" style="margin:12px 0;padding:12px;background:#f8fafc;border-radius:8px;display:none;">
+      <strong>Currency conversion</strong>
+      <div class="muted" style="margin-top:6px;">
+        <span>Original amount: <span id="fx-doc-amount">—</span> <span id="fx-doc-currency">USD</span></span><br>
+        <span>Exchange rate: <span id="fx-rate-display">—</span></span><br>
+        <span>Final USD total: <strong id="fx-usd-total">—</strong></span>
+      </div>
+    </div>
+    <p id="invoice-usd-hint" class="muted" style="margin-top:4px;"></p>
+
+    <h3>Attachments</h3>
+    <p class="muted">Upload invoices, receipts, or supporting documents (PDF, images, Office). Max 10 MB per file.</p>
+    <p><input type="file" name="attachments" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"></p>
+    {% if attachments %}
+    <ul class="attachment-list">
+      {% for att in attachments %}
+      <li>
+        <a href="{{ att.file.url }}" target="_blank">{{ att.original_name|default:att.file.name }}</a>
+        {% if not invoice_is_new and invoice.status == "DRAFT" %}
+        <form method="post" action="{% url 'sales:invoice_delete_attachment' invoice.id att.id %}" style="display:inline;">
+          {% csrf_token %}
+          <button type="submit" class="btn-link" onclick="return confirm('Remove this file?');">Remove</button>
+        </form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if can_view_cost %}
+    <div class="invoice-cost-summary panel" style="margin:16px 0;padding:12px;background:#f0f5fb;border-radius:8px;">
+      <strong>Total cost (sum of lines)</strong>
+      <span id="invoice-total-line-cost" data-currency="{{ invoice.currency|default:'USD' }}">{{ initial_line_cost_total }}</span>
+      <span id="invoice-cost-doc-label">{{ invoice.currency|default:'USD' }}</span>
+      <span class="muted"> | Est. in USD: <span id="invoice-total-line-cost-usd">{{ initial_line_cost_total_usd }}</span> USD</span>
+      <span class="muted" style="display:block;margin-top:6px;">Document amounts use the currency above; USD uses the exchange rate when currency is not USD.</span>
+    </div>
+    {% endif %}
+
+    {% if not can_view_cost %}
+    <p><em>Cost fields are hidden for Sales role users.</em></p>
+    {% endif %}
+
+    <h3>Services on this invoice</h3>
+    <p class="muted">One row per service (hotel, ticket, etc.). Start with one row &mdash; click <strong>Add another service</strong> for more. Unused rows are ignored when you save.</p>
+    {{ formset.management_form }}
+    <div id="invoice-lines">
+    {% for line_form in formset %}
+        <div class="line-box invoice-line" data-form-index="{{ forloop.counter0 }}">
+            <h4 class="line-title">Service line {{ forloop.counter }}</h4>
+            <div class="line-actions">
+                {% if line_form.DELETE %}
+                <label class="delete-line"><span>Remove</span> {{ line_form.DELETE }}</label>
+                {% endif %}
+            </div>
+            {{ line_form.id }}
+            <div class="line-grid">
+                <div>{{ line_form.service_type.label_tag }} {{ line_form.service_type }}</div>
+                <div>{{ line_form.supplier.label_tag }} {{ line_form.supplier }}</div>
+                <div>{{ line_form.line_employee.label_tag }} {{ line_form.line_employee }}</div>
+                <div>{{ line_form.service_date.label_tag }} {{ line_form.service_date }}</div>
+                <div class="destination-wrap">
+                    <label>Destination</label>
+                    <input type="text" class="destination-search" placeholder="Type to search…" autocomplete="off">
+                    <div class="destination-results"></div>
+                    {{ line_form.destination }}
+                </div>
+                <div>{{ line_form.qty.label_tag }} {{ line_form.qty }}</div>
+                <div>{{ line_form.sell_price.label_tag }} {{ line_form.sell_price }}</div>
+                {% if can_view_cost %}
+                <div>{{ line_form.cost_price.label_tag }} {{ line_form.cost_price }}</div>
+                {% endif %}
+                <div>{{ line_form.line_discount.label_tag }} {{ line_form.line_discount }}</div>
+            </div>
+            <div class="dynamic-fields" data-dynamic-for="{{ forloop.counter0 }}"></div>
+            <div>{{ line_form.notes.label_tag }} {{ line_form.notes }}</div>
+            {{ line_form.line_data }}
+            {% for field in line_form %}
+              {% if field.errors %}
+              <ul class="errorlist">{% for err in field.errors %}<li>{{ field.label }}: {{ err }}</li>{% endfor %}</ul>
+              {% endif %}
+            {% endfor %}
+        </div>
+    {% endfor %}
+    </div>
+    <p>
+        <button type="button" class="btn" id="add-invoice-line">+ Add another service</button>
+    </p>
+    {% if formset.non_form_errors %}
+    <ul class="errorlist">{% for err in formset.non_form_errors %}<li>{{ err }}</li>{% endfor %}</ul>
+    {% endif %}
+    <button class="btn" type="submit">Save</button>
+    <a class="btn" href="{% url 'sales:invoice_list' %}">Back</a>
+</form>
+<script>
+(function() {
+  const formEl = document.getElementById('invoice-form');
+  const prefix = formEl.getAttribute('data-formset-prefix') || 'lines';
+  const DEFS = {{ service_field_defs_json|safe }};
+  const DEFAULT_LINE_EMP = "{{ default_line_employee_id|escapejs }}";
+  const CAN_VIEW_COST = {{ can_view_cost|yesno:"true,false" }};
+
+  function renderDynamicFields(container, typeId, initialData) {
+    container.innerHTML = '';
+    if (!typeId || !DEFS[typeId]) return;
+    const fields = DEFS[typeId];
+    fields.forEach(function(fd) {
+      const wrap = document.createElement('div');
+      wrap.className = 'dyn-field';
+      const label = document.createElement('label');
+      label.textContent = fd.label + (fd.required ? ' *' : '');
+      let input;
+      if (fd.type === 'bool') {
+        input = document.createElement('input');
+        input.type = 'checkbox';
+        input.dataset.lineKey = fd.key;
+        if (initialData && initialData[fd.key]) input.checked = true;
+      } else if (fd.type === 'choice' && fd.choices && fd.choices.length) {
+        input = document.createElement('select');
+        input.dataset.lineKey = fd.key;
+        const empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = '—';
+        input.appendChild(empty);
+        fd.choices.forEach(function(c) {
+          const opt = document.createElement('option');
+          const val = typeof c === 'object' ? (c.value || c[0]) : c;
+          const lab = typeof c === 'object' ? (c.label || c[1] || val) : c;
+          opt.value = val;
+          opt.textContent = lab;
+          if (initialData && String(initialData[fd.key]) === String(val)) opt.selected = true;
+          input.appendChild(opt);
+        });
+      } else if (fd.type === 'date') {
+        input = document.createElement('input');
+        input.type = 'date';
+        input.dataset.lineKey = fd.key;
+        if (initialData && initialData[fd.key]) input.value = initialData[fd.key];
+      } else if (fd.type === 'number') {
+        input = document.createElement('input');
+        input.type = 'number';
+        input.step = 'any';
+        input.dataset.lineKey = fd.key;
+        if (initialData && initialData[fd.key] !== undefined) input.value = initialData[fd.key];
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.dataset.lineKey = fd.key;
+        if (initialData && initialData[fd.key] !== undefined) input.value = initialData[fd.key];
+      }
+      wrap.appendChild(label);
+      wrap.appendChild(document.createElement('br'));
+      wrap.appendChild(input);
+      container.appendChild(wrap);
+    });
+  }
+
+  function collectLineData(box) {
+    const hidden = box.querySelector('.line-data-json');
+    const data = {};
+    box.querySelectorAll('[data-line-key]').forEach(function(el) {
+      const k = el.dataset.lineKey;
+      if (el.type === 'checkbox') data[k] = el.checked;
+      else data[k] = el.value;
+    });
+    if (hidden) hidden.value = JSON.stringify(data);
+  }
+
+  function getFxRate() {
+    const cur = document.getElementById('id_currency');
+    const rEl = document.getElementById('id_exchange_rate_to_usd');
+    const code = cur && cur.value ? cur.value : 'USD';
+    if (code === 'USD') return 1;
+    const r = parseFloat(rEl && rEl.value ? rEl.value : '0') || 0;
+    return r > 0 ? r : 0;
+  }
+
+  function computeSellingTotal() {
+    let subtotal = 0;
+    let discount = 0;
+    document.querySelectorAll('#invoice-lines .invoice-line').forEach(function(box) {
+      const st = box.querySelector('select[name$="service_type"]');
+      if (!st || !st.value) return;
+      const qtyIn = box.querySelector('input[name$="-qty"]');
+      const sellIn = box.querySelector('input[name$="-sell_price"]');
+      const discIn = box.querySelector('input[name$="-line_discount"]');
+      const q = parseFloat(qtyIn && qtyIn.value !== '' ? qtyIn.value : '1') || 0;
+      const s = parseFloat(sellIn && sellIn.value !== '' ? sellIn.value : '0') || 0;
+      const d = parseFloat(discIn && discIn.value !== '' ? discIn.value : '0') || 0;
+      subtotal += q * s;
+      discount += d;
+    });
+    return Math.max(0, subtotal - discount);
+  }
+
+  function updateSellingTotal() {
+    const total = computeSellingTotal();
+    const totalEl = document.getElementById('invoice-selling-total');
+    const curEl = document.getElementById('id_currency');
+    const curLab = document.getElementById('invoice-selling-currency');
+    const code = curEl && curEl.value ? curEl.value : 'USD';
+    if (totalEl) totalEl.textContent = total.toFixed(2);
+    if (curLab) curLab.textContent = code;
+    return total;
+  }
+
+  function updateUsdHint() {
+    const cur = document.getElementById('id_currency');
+    const rateEl = document.getElementById('id_exchange_rate_to_usd');
+    const hint = document.getElementById('invoice-usd-hint');
+    const fxBox = document.getElementById('invoice-fx-summary');
+    const rateWrap = rateEl && rateEl.closest ? rateEl.closest('p') : null;
+    const code = cur && cur.value ? cur.value : 'USD';
+    if (rateWrap) rateWrap.style.display = (code === 'USD') ? 'none' : '';
+    if (rateEl && code === 'USD') rateEl.value = '';
+    const gt = updateSellingTotal();
+    const rate = code === 'USD' ? 1 : (parseFloat(rateEl && rateEl.value ? rateEl.value : '0') || 0);
+    const usd = gt * rate;
+    if (fxBox) {
+      fxBox.style.display = (code !== 'USD' && gt > 0) ? 'block' : (code === 'USD' && gt > 0 ? 'block' : 'none');
+      const docAmt = document.getElementById('fx-doc-amount');
+      const docCur = document.getElementById('fx-doc-currency');
+      const rateDisp = document.getElementById('fx-rate-display');
+      const usdTotal = document.getElementById('fx-usd-total');
+      if (docAmt) docAmt.textContent = gt.toFixed(2);
+      if (docCur) docCur.textContent = code;
+      if (rateDisp) rateDisp.textContent = code === 'USD' ? '1.00 (USD)' : (rate > 0 ? rate : '—');
+      if (usdTotal) usdTotal.textContent = usd.toFixed(2) + ' USD';
+    }
+    if (!hint) return;
+    if (code === 'USD') {
+      hint.textContent = gt ? ('Stored USD total: ' + gt.toFixed(2)) : '';
+      return;
+    }
+    if (rate > 0 && gt > 0) {
+      hint.textContent = gt.toFixed(2) + ' ' + code + ' × ' + rate + ' = ' + usd.toFixed(2) + ' USD (stored for reports and supplier bills).';
+    } else {
+      hint.textContent = 'Enter currency, exchange rate (to USD), and total amount.';
+    }
+  }
+
+  function updateTotalLineCost() {
+    if (!CAN_VIEW_COST) return;
+    const el = document.getElementById('invoice-total-line-cost');
+    const elUsd = document.getElementById('invoice-total-line-cost-usd');
+    const lab = document.getElementById('invoice-cost-doc-label');
+    if (!el) return;
+    let sum = 0;
+    document.querySelectorAll('#invoice-lines .invoice-line').forEach(function(box) {
+      const st = box.querySelector('select[name$="service_type"]');
+      if (!st || !st.value) return;
+      const qtyIn = box.querySelector('input[name$="-qty"]');
+      const costIn = box.querySelector('input[name$="-cost_price"]');
+      const q = parseFloat(qtyIn && qtyIn.value !== '' ? qtyIn.value : '0') || 0;
+      const c = parseFloat(costIn && costIn.value !== '' ? costIn.value : '0') || 0;
+      sum += q * c;
+    });
+    el.textContent = sum.toFixed(2);
+    const cur = document.getElementById('id_currency');
+    const code = cur && cur.value ? cur.value : 'USD';
+    if (lab) lab.textContent = code;
+    const rate = getFxRate();
+    if (elUsd) {
+      const mult = code === 'USD' ? 1 : rate;
+      if (mult > 0) elUsd.textContent = (sum * mult).toFixed(2);
+      else elUsd.textContent = '—';
+    }
+  }
+
+  function wireLine(box) {
+    const idx = box.dataset.formIndex;
+    const dyn = box.querySelector('[data-dynamic-for="' + idx + '"]');
+    const typeSelect = box.querySelector('select[name$="service_type"]');
+    const hidden = box.querySelector('.line-data-json');
+    let initial = {};
+    if (hidden && hidden.value) {
+      try { initial = JSON.parse(hidden.value); } catch (e) {}
+    }
+    const empSel = box.querySelector('select[name$="line_employee"]');
+    if (empSel && DEFAULT_LINE_EMP && !empSel.value) {
+      for (let i = 0; i < empSel.options.length; i++) {
+        if (empSel.options[i].value === DEFAULT_LINE_EMP) {
+          empSel.selectedIndex = i;
+          break;
+        }
+      }
+    }
+    function refresh() {
+      const tid = typeSelect && typeSelect.value;
+      renderDynamicFields(dyn, tid, initial);
+      initial = {};
+      updateTotalLineCost();
+      updateSellingTotal();
+      updateUsdHint();
+    }
+    if (typeSelect) {
+      typeSelect.addEventListener('change', refresh);
+      refresh();
+    }
+    ['input', 'change'].forEach(function(ev) {
+      box.querySelectorAll('input[name$="-qty"], input[name$="-cost_price"], input[name$="-sell_price"], input[name$="-line_discount"]').forEach(function(inp) {
+        inp.addEventListener(ev, function() {
+          updateTotalLineCost();
+          updateSellingTotal();
+          updateUsdHint();
+        });
+      });
+    });
+    updateUsdHint();
+  }
+
+  function renumberLineTitles() {
+    document.querySelectorAll('#invoice-lines .invoice-line').forEach(function(box, i) {
+      const h = box.querySelector('.line-title');
+      if (h) h.textContent = 'Service line ' + (i + 1);
+    });
+  }
+
+  function syncLineEmployeesFromHeader() {
+    const headerEmp = document.getElementById('id_sales_employee');
+    if (!headerEmp || !headerEmp.value) return;
+    document.querySelectorAll('#invoice-lines select[name$="line_employee"]').forEach(function(sel) {
+      if (!sel.dataset.userOverridden) sel.value = headerEmp.value;
+    });
+  }
+
+  const salesEmpEl = document.getElementById('id_sales_employee');
+  if (salesEmpEl) {
+    salesEmpEl.addEventListener('change', syncLineEmployeesFromHeader);
+    document.getElementById('invoice-lines').addEventListener('change', function(ev) {
+      if (ev.target && ev.target.name && ev.target.name.endsWith('line_employee')) {
+        ev.target.dataset.userOverridden = '1';
+      }
+    });
+  }
+
+  document.querySelectorAll('#invoice-lines .invoice-line').forEach(wireLine);
+  renumberLineTitles();
+  updateTotalLineCost();
+  updateSellingTotal();
+  updateUsdHint();
+  syncLineEmployeesFromHeader();
+
+  const curEl = document.getElementById('id_currency');
+  const rateEl = document.getElementById('id_exchange_rate_to_usd');
+  ['change', 'input'].forEach(function(ev) {
+    if (curEl) curEl.addEventListener(ev, function() { updateUsdHint(); updateTotalLineCost(); updateSellingTotal(); });
+    if (rateEl) rateEl.addEventListener(ev, function() { updateUsdHint(); updateTotalLineCost(); updateSellingTotal(); });
+  });
+
+  document.getElementById('invoice-form').addEventListener('submit', function() {
+    document.querySelectorAll('.invoice-line').forEach(collectLineData);
+  });
+
+  function wireDestinationSearch(box) {
+    const search = box.querySelector('.destination-search');
+    const select = box.querySelector('select[name$="-destination"]');
+    const results = box.querySelector('.destination-results');
+    if (!search || !select || !results) return;
+    let timer;
+    search.addEventListener('input', function() {
+      clearTimeout(timer);
+      const q = search.value.trim();
+      timer = setTimeout(function() {
+        fetch('/catalog/destinations/search/?q=' + encodeURIComponent(q))
+          .then(function(r) { return r.json(); })
+          .then(function(items) {
+            results.innerHTML = '';
+            items.forEach(function(item) {
+              const btn = document.createElement('button');
+              btn.type = 'button';
+              btn.className = 'destination-pick';
+              btn.textContent = item.name + (item.country ? ' (' + item.country + ')' : '');
+              btn.addEventListener('click', function() {
+                select.value = item.id;
+                search.value = item.name;
+                results.innerHTML = '';
+              });
+              results.appendChild(btn);
+            });
+            results.style.display = items.length ? 'block' : 'none';
+          });
+      }, 200);
+    });
+    if (select.value) {
+      const opt = select.options[select.selectedIndex];
+      if (opt) search.value = opt.text;
+    }
+  }
+
+  function todayIso() {
+    const d = new Date();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + m + '-' + day;
+  }
+
+  function defaultEmptyLineServiceDates() {
+    const today = todayIso();
+    document.querySelectorAll('.line-service-date').forEach(function(inp) {
+      if (!inp.value) inp.value = today;
+    });
+  }
+
+  document.querySelectorAll('#invoice-lines .invoice-line').forEach(function(box) {
+    wireDestinationSearch(box);
+  });
+
+  document.getElementById('add-invoice-line').addEventListener('click', function() {
+    const totalInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
+    const maxInput = document.getElementById('id_' + prefix + '-MAX_NUM_FORMS');
+    if (!totalInput) return;
+    let total = parseInt(totalInput.value, 10);
+    const max = maxInput ? parseInt(maxInput.value, 10) : 1000;
+    if (total >= max) {
+      alert('Maximum number of lines reached.');
+      return;
+    }
+    const container = document.getElementById('invoice-lines');
+    const lastBox = container.querySelector('.invoice-line:last-of-type');
+    if (!lastBox) return;
+    const oldIndex = total - 1;
+    const newIndex = total;
+    const clone = lastBox.cloneNode(true);
+    clone.querySelectorAll('.errorlist').forEach(function(el) { el.remove(); });
+
+    function replaceIdx(attr, el) {
+      let v = el.getAttribute(attr);
+      if (!v) return;
+      const re = new RegExp(prefix + '-' + oldIndex + '-', 'g');
+      el.setAttribute(attr, v.replace(re, prefix + '-' + newIndex + '-'));
+    }
+
+    clone.querySelectorAll('[name],[id],[for]').forEach(function(el) {
+      replaceIdx('name', el);
+      replaceIdx('id', el);
+      if (el.tagName === 'LABEL' && el.htmlFor) replaceIdx('for', el);
+    });
+    clone.querySelectorAll('[id]').forEach(function(el) {
+      replaceIdx('id', el);
+    });
+
+    clone.dataset.formIndex = String(newIndex);
+    const dyn = clone.querySelector('.dynamic-fields');
+    if (dyn) dyn.setAttribute('data-dynamic-for', String(newIndex));
+
+    clone.querySelectorAll('input:not([type="hidden"]), textarea').forEach(function(el) {
+      if (el.type === 'checkbox') el.checked = false;
+      else el.value = '';
+    });
+    clone.querySelectorAll('.line-service-date').forEach(function(inp) {
+      inp.value = todayIso();
+    });
+    clone.querySelectorAll('select').forEach(function(el) {
+      if (el.name && el.name.endsWith('-DELETE')) {
+        el.checked = false;
+      } else {
+        el.selectedIndex = 0;
+      }
+    });
+    const hid = clone.querySelector('.line-data-json');
+    if (hid) hid.value = '{}';
+    clone.querySelectorAll('.dynamic-fields').forEach(function(d) { d.innerHTML = ''; });
+
+    container.appendChild(clone);
+    totalInput.value = String(total + 1);
+    wireLine(clone);
+    wireDestinationSearch(clone);
+    defaultEmptyLineServiceDates();
+    renumberLineTitles();
+    updateTotalLineCost();
+    updateSellingTotal();
+  });
+  defaultEmptyLineServiceDates();
+})();
+</script>
+{% endblock %}

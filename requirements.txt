@@ -1,0 +1,11 @@
+# Sama Accounting — Python dependencies (production + local dev)
+# Install: pip install -r requirements.txt
+
+Django==5.0.2
+djangorestframework==3.14.0
+Pillow==10.2.0
+reportlab==4.2.0
+weasyprint==62.1
+
+# Required on PythonAnywhere only when using MySQL (recommended for production):
+# mysqlclient==2.2.4

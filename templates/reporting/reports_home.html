@@ -1,0 +1,57 @@
+{% extends "page/layout.html" %}
+{% block title %}Reporting{% endblock %}
+{% block page_content %}
+<h1 class="title">Reporting Overview</h1>
+<p class="muted reporting-subtitle">Use this page as your reporting hub: receivables, payables, cash, expenses, and statements. Set dates to scope the summary cards below.</p>
+
+<form method="get" class="panel filter-bar">
+    <label>From <input type="date" name="date_from" value="{% if date_from %}{{ date_from|date:'Y-m-d' }}{% endif %}"></label>
+    <label>To <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}"></label>
+    <button class="btn" type="submit">Apply to summary</button>
+    <a class="btn" href="?format=pdf{% if request.GET.urlencode %}&amp;{{ request.GET.urlencode }}{% endif %}">Download PDF</a>
+</form>
+
+<div class="report-groups">
+    <div class="report-group">
+        <h3>Trial-style reports</h3>
+        <p class="muted">Column layouts similar to your accounting exports, with date filters on each page.</p>
+        <a class="btn" href="{% url 'reporting:activity_trial_balance' %}">Activity trial balance</a>
+        <a class="btn" href="{% url 'reporting:clients_trial_balance' %}">Clients trial balance</a>
+        <a class="btn" href="{% url 'reporting:suppliers_trial_balance' %}">Suppliers trial balance</a>
+    </div>
+    <div class="report-group">
+        <h3>A/R (Customers)</h3>
+        <p class="muted">Track what clients still owe you and aging by due date buckets.</p>
+        <a class="btn" href="{% url 'reporting:ar_aging' %}">AR Aging</a>
+        <a class="btn" href="/clients/">Per-client statements</a>
+        <a class="btn" href="{% url 'reporting:all_clients_statement' %}">All clients (consolidated)</a>
+    </div>
+    <div class="report-group">
+        <h3>A/P (Suppliers)</h3>
+        <p class="muted">Track what you owe suppliers, including costs auto-posted from sales service lines.</p>
+        <a class="btn" href="{% url 'reporting:ap_aging' %}">AP Aging</a>
+        <a class="btn" href="/suppliers/">Per-supplier statements</a>
+        <a class="btn" href="{% url 'reporting:all_suppliers_statement' %}">All suppliers (consolidated)</a>
+    </div>
+    <div class="report-group">
+        <h3>Cash and Expenses</h3>
+        <p class="muted">Record operating costs under Operating Expenses; use OPEX by Category to review totals.</p>
+        <a class="btn" href="{% url 'reporting:cash_movement' %}">Cash Movement</a>
+        <a class="btn" href="{% url 'expenses:expense_create' %}">+ Record Operating Expense</a>
+        <a class="btn" href="{% url 'expenses:expense_list' %}">Operating Expenses</a>
+        <a class="btn" href="{% url 'reporting:opex_by_category' %}">OPEX by Category (report)</a>
+        <a class="btn" href="{% url 'reporting:salesman_reports_home' %}">Salesman Reports</a>
+    </div>
+</div>
+
+<div class="cards">
+    <div class="card"><h3>Posted Sales</h3><p>{{ posted_invoices_total }}</p></div>
+    <div class="card"><h3>Posted Purchases</h3><p>{{ posted_bills_total }}</p></div>
+    <div class="card"><h3>Posted Payments</h3><p>{{ posted_payments_total }}</p></div>
+    <div class="card"><h3>Gross Margin Estimate</h3><p>{{ gross_margin_estimate }}</p></div>
+    <div class="card"><h3>COGS (Service Costs)</h3><p>{{ posted_cogs_total }}</p></div>
+    <div class="card"><h3>Operating Expenses</h3><p>{{ total_opex }} USD</p></div>
+    <div class="card"><h3>Net Profit Estimate</h3><p>{{ net_profit_estimate }}</p></div>
+</div>
+{% endblock %}
+

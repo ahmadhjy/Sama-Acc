@@ -1,0 +1,77 @@
+{% extends "page/layout.html" %}
+{% block title %}Invoice {{ invoice.invoice_no }}{% endblock %}
+{% block page_content %}
+<h1 class="title">Invoice {{ invoice.invoice_no }}</h1>
+<div class="panel">
+    <p><strong>Client:</strong> {{ invoice.client.name_en }}</p>
+    <p><strong>Status:</strong> <span class="badge">{{ invoice.status }}</span>
+        {% if invoice.package_type %}<span class="badge">{{ invoice.get_package_type_display }}</span>{% endif %}
+    </p>
+    <p><strong>Issue / Due:</strong> {{ invoice.issue_date }} / {{ invoice.due_date }}</p>
+    <p><strong>Currency:</strong> {{ invoice.currency }}
+        {% if invoice.exchange_rate_to_usd %}
+        <span class="muted">— Rate to USD: {{ invoice.exchange_rate_to_usd }} (USD = amount × rate)</span>
+        {% endif %}
+    </p>
+    <p><strong>Total selling (document):</strong> {{ invoice.grand_total }} {{ invoice.currency }}
+        <span class="muted">(sum of service line selling prices)</span></p>
+    <p><strong>Total selling (USD):</strong> {{ invoice.grand_total_usd }} USD</p>
+    <p><strong>Total cost (document):</strong> {{ invoice.total_line_cost }} {{ invoice.currency }}</p>
+    <p><strong>Total cost (USD):</strong> {{ invoice.total_line_cost_usd }} USD</p>
+    <p><strong>Profit (USD):</strong> {{ invoice.profit_amount }} USD</p>
+    <p><strong>Subtotal / Discount (document):</strong> {{ invoice.subtotal }} / {{ invoice.discount_total }}</p>
+    <p><strong>Subtotal / Discount (USD):</strong> {{ invoice.subtotal_usd }} / {{ invoice.discount_total_usd }}</p>
+</div>
+
+<h3>Service Lines</h3>
+<table>
+    <thead><tr><th>Date</th><th>Service</th><th>Destination</th><th>Supplier</th><th>Employee</th><th>Qty</th><th>Sell</th><th>Cost</th><th>Sell USD</th><th>Cost USD</th><th>Details</th></tr></thead>
+    <tbody>
+    {% for line in lines %}
+        <tr>
+            <td>{{ line.effective_service_date|date:"d/m/Y" }}</td>
+            <td>{{ line.service_type.name|default:"-" }}</td>
+            <td>{{ line.destination.name|default:"-" }}</td>
+            <td>{{ line.supplier.name|default:"-" }}</td>
+            <td>{{ line.line_employee.name|default:"-" }}</td>
+            <td>{{ line.qty }}</td>
+            <td>{{ line.sell_price }}</td>
+            <td>{{ line.cost_price }}</td>
+            <td>{{ line.sell_price_usd }}</td>
+            <td>{{ line.cost_price_usd }}</td>
+            <td>{{ line.line_summary_label }}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="11">No lines.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<p style="margin-top:14px;">
+    <a class="btn" href="{% url 'sales:invoice_pdf' invoice.id %}?version=client">PDF (Client)</a>
+    <a class="btn" href="{% url 'sales:invoice_pdf' invoice.id %}?version=accountant">PDF (Accountant)</a>
+    {% if invoice.status == "DRAFT" %}
+    <a class="btn" href="{% url 'sales:invoice_edit' invoice.id %}">Edit Draft</a>
+    <a class="btn" href="{% url 'sales:post_invoice' invoice.id %}" onclick="return confirm('Post this invoice?');">Post</a>
+    {% elif invoice.status == "POSTED" %}
+        {% if can_adjust %}
+        <a class="btn" href="{% url 'sales:adjust_invoice' invoice.id %}">Adjust</a>
+        {% endif %}
+        <form method="post" action="{% url 'sales:void_invoice' invoice.id %}" style="display:inline;" onsubmit="return confirm('Void this invoice? This cannot be undone.');">
+            {% csrf_token %}
+            <input type="hidden" name="reason" value="Void from invoice view">
+            <button type="submit" class="btn">Void</button>
+        </form>
+    {% endif %}
+    <a class="btn" href="{% url 'sales:invoice_list' %}">Back to list</a>
+</p>
+
+{% if attachments %}
+<h3>Attachments</h3>
+<ul class="attachment-list">
+    {% for att in attachments %}
+    <li><a href="{{ att.file.url }}" target="_blank">{{ att.original_name|default:att.file.name }}</a></li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

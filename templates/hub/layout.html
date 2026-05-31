@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="hub">
+    <header class="hub-hero">
+        <div class="hub-hero__text">
+            <h1 class="hub-hero__title">{% block hub_title %}Business intelligence{% endblock %}</h1>
+            <p class="hub-hero__subtitle">{% block hub_subtitle %}Analytics, reporting, and financial insights in one place.{% endblock %}</p>
+        </div>
+        <form method="get" class="hub-hero__filters">
+            {% block hub_filter_preserve %}{% endblock %}
+            <label class="hub-filter">
+                <span>Preset</span>
+                <select name="preset" onchange="this.form.submit()">
+                    <option value="">Custom</option>
+                    <option value="today" {% if request.GET.preset == 'today' %}selected{% endif %}>Today</option>
+                    <option value="week" {% if request.GET.preset == 'week' %}selected{% endif %}>This week</option>
+                    <option value="month" {% if request.GET.preset == 'month' %}selected{% endif %}>This month</option>
+                    <option value="year" {% if request.GET.preset == 'year' %}selected{% endif %}>This year</option>
+                </select>
+            </label>
+            <label class="hub-filter">
+                <span>From</span>
+                <input type="date" name="date_from" value="{% if date_from %}{{ date_from|date:'Y-m-d' }}{% endif %}">
+            </label>
+            <label class="hub-filter">
+                <span>To</span>
+                <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}">
+            </label>
+            <button class="btn hub-btn-apply" type="submit">Apply</button>
+            {% block hub_extra_actions %}{% endblock %}
+        </form>
+    </header>
+
+    {% include "partials/hub_tabs_strip.html" %}
+
+    <div class="hub-body">
+        {% block hub_body %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

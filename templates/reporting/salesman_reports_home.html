@@ -1,0 +1,23 @@
+{% extends "hub/layout.html" %}
+{% block title %}Salesman Reports{% endblock %}
+{% block hub_title %}Salesman reports{% endblock %}
+{% block hub_subtitle %}Brief and detailed performance reports per employee.{% endblock %}
+{% block hub_body %}
+<div class="hub-table-wrap">
+<table>
+    <thead><tr><th>Employee</th><th>Role</th><th>Brief</th><th>Detailed</th></tr></thead>
+    <tbody>
+    {% for emp in employees %}
+        <tr>
+            <td>{{ emp.name }}</td>
+            <td>{{ emp.get_role_display }}</td>
+            <td><a class="btn" href="{% url 'reporting:salesman_brief_report' emp.id %}">Brief</a></td>
+            <td><a class="btn" href="{% url 'reporting:salesman_detailed_report' emp.id %}">Detailed</a></td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="4">No active employees.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "page/layout.html" %}
+{% block title %}Supplier Bill Form{% endblock %}
+{% block page_content %}
+<h1 class="title">{% if bill.id %}Edit Supplier Bill{% else %}New Supplier Bill{% endif %}</h1>
+<p class="muted">Supplier bills are for travel/service supplier costs (COGS). For rent, utilities, and office expenses use <a href="{% url 'expenses:expense_list' %}">Operating Expenses</a>.</p>
+<form method="post" class="panel">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <h3>Lines</h3>
+    {{ formset.management_form }}
+    {% for line_form in formset %}
+        <div class="line-box">
+            {{ line_form.as_p }}
+        </div>
+    {% endfor %}
+    <button class="btn" type="submit">Save</button>
+    <a class="btn" href="{% url 'purchases:bill_list' %}">Back</a>
+</form>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "hub/layout.html" %}
+{% block title %}AR Aging{% endblock %}
+{% block hub_title %}AR Aging{% endblock %}
+{% block hub_subtitle %}Outstanding receivables grouped by how overdue they are.{% endblock %}
+{% block hub_extra_actions %}
+<a class="btn btn-ghost" href="?format=pdf&amp;{{ request.GET.urlencode }}">Download PDF</a>
+{% endblock %}
+{% block hub_body %}
+<div class="hub-table-wrap">
+<table>
+    <thead><tr><th>Invoice</th><th>Client</th><th>Total Due</th><th>Not Due</th><th>0-30</th><th>31-60</th><th>61-90</th><th>90+</th></tr></thead>
+    <tbody>
+    {% for row in rows %}
+        <tr>
+            <td>{{ row.invoice.invoice_no }}</td>
+            <td>{{ row.invoice.client.name_en }}</td>
+            <td>{{ row.due }}</td>
+            <td>{{ row.not_due }}</td>
+            <td>{{ row.b0_30 }}</td>
+            <td>{{ row.b31_60 }}</td>
+            <td>{{ row.b61_90 }}</td>
+            <td>{{ row.b90_plus }}</td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="8">No due invoices.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

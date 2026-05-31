@@ -1,0 +1,20 @@
+{# Included on reporting sub-pages that keep their own title but need hub chrome #}
+{% load static %}
+<link rel="stylesheet" href="{% static 'css/hub.css' %}">
+<div class="hub hub--embedded">
+    <nav class="hub-tabs" aria-label="Main sections">
+        {% for tab in hub_main_tabs %}
+        <a class="hub-tab {% if tab.active %}hub-tab--active{% endif %}" href="{{ tab.url }}">
+            <i class="fa-solid {{ tab.icon }}"></i>
+            <span>{{ tab.label }}</span>
+        </a>
+        {% endfor %}
+    </nav>
+    {% if hub_sub_tabs %}
+    <nav class="hub-subtabs" aria-label="Section pages">
+        {% for tab in hub_sub_tabs %}
+        <a class="hub-subtab {% if tab.active %}hub-subtab--active{% endif %}" href="{{ tab.url }}">{{ tab.label }}</a>
+        {% endfor %}
+    </nav>
+    {% endif %}
+</div>

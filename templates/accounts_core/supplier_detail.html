@@ -1,0 +1,33 @@
+{% extends "page/layout.html" %}
+{% block title %}Supplier {{ supplier.name }}{% endblock %}
+{% block page_content %}
+<h1 class="title">{{ supplier.name }}</h1>
+<div class="panel">
+    <p><strong>Code:</strong> {{ supplier.supplier_code }}</p>
+    <p><strong>Type:</strong> {{ supplier.get_type_display }}</p>
+    <p><strong>Status:</strong> {% if supplier.is_active %}<span class="badge">Active</span>{% else %}<span class="badge">Inactive</span>{% endif %}</p>
+    <p><strong>Email:</strong> {{ supplier.email|default:"—" }}</p>
+    <p><strong>WhatsApp:</strong> {{ supplier.whatsapp|default:"—" }}</p>
+    <p><strong>Phones:</strong> {% if supplier.phones %}{{ supplier.phones|join:", " }}{% else %}—{% endif %}</p>
+    <p><strong>Address:</strong> {{ supplier.address|default:"—"|linebreaksbr }}</p>
+    <p><strong>Default currency:</strong> {{ supplier.default_currency }}</p>
+    <p><strong>Terms:</strong> {{ supplier.terms|default:"—"|linebreaksbr }}</p>
+    <p><strong>Notes:</strong> {{ supplier.notes|default:"—"|linebreaksbr }}</p>
+    <p><strong>Balance owed:</strong> {{ balance }}</p>
+</div>
+<p>
+    <a class="btn" href="{% url 'accounts_core:supplier_edit' supplier.id %}">Edit</a>
+    <a class="btn" href="{% url 'reporting:supplier_statement' supplier.id %}">Statement</a>
+    <a class="btn" href="{% url 'accounts_core:suppliers_list' %}">Back to list</a>
+    {% if supplier.is_active %}
+    <form method="post" action="{% url 'accounts_core:supplier_deactivate' supplier.id %}" style="display:inline;" onsubmit="return confirm('Deactivate this supplier?');">
+        {% csrf_token %}
+        <button type="submit" class="btn">Deactivate</button>
+    </form>
+    {% endif %}
+    <form method="post" action="{% url 'accounts_core:supplier_delete' supplier.id %}" style="display:inline;" onsubmit="return confirm('Permanently delete this supplier?');">
+        {% csrf_token %}
+        <button type="submit" class="btn">Delete</button>
+    </form>
+</p>
+{% endblock %}
