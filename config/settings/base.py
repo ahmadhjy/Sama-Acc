@@ -100,7 +100,22 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 _db_engine = os.environ.get("DJANGO_DB_ENGINE", "sqlite").lower()
-if _db_engine == "mysql":
+if _db_engine in ("postgresql", "postgres"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ["DJANGO_DB_NAME"],
+            "USER": os.environ["DJANGO_DB_USER"],
+            "PASSWORD": os.environ.get("DJANGO_DB_PASSWORD", ""),
+            "HOST": os.environ.get("DJANGO_DB_HOST", ""),
+            "PORT": os.environ.get("DJANGO_DB_PORT", "5432"),
+            "CONN_MAX_AGE": 60,
+            "OPTIONS": {
+                "sslmode": os.environ.get("DJANGO_DB_SSLMODE", "prefer"),
+            },
+        }
+    }
+elif _db_engine == "mysql":
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.mysql",

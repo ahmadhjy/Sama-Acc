@@ -1,41 +1,30 @@
 # =============================================================================
-# PythonAnywhere WSGI configuration for Sama Accounting
+# PythonAnywhere WSGI — Sama Accounting (Samatours2026 + PostgreSQL)
 # =============================================================================
-#
-# 1. Open PythonAnywhere → Web → your web app → WSGI configuration file
-# 2. Delete the default contents and paste this file (with YOUR values filled in)
-# 3. Save, then reload the web app
-#
-# Replace every YOUR_* placeholder before saving.
+# Web tab → WSGI configuration file → paste and fill YOUR_POSTGRES_PASSWORD
 # =============================================================================
 
 import os
 import sys
 
-# --- Project path (folder that contains manage.py) ---
-PROJECT_HOME = "/home/YOUR_USERNAME/Sama-Accounting"
+PROJECT_HOME = "/home/Samatours2026/Sama-Acc"
 if PROJECT_HOME not in sys.path:
     sys.path.insert(0, PROJECT_HOME)
 
-# --- Required environment variables ---
 os.environ["DJANGO_SETTINGS_MODULE"] = "config.settings.production"
 os.environ["DJANGO_SECRET_KEY"] = "YOUR_LONG_RANDOM_SECRET_KEY"
-os.environ["DJANGO_ALLOWED_HOSTS"] = "YOUR_USERNAME.pythonanywhere.com"
-os.environ["DJANGO_CSRF_TRUSTED_ORIGINS"] = "https://YOUR_USERNAME.pythonanywhere.com"
+os.environ["DJANGO_ALLOWED_HOSTS"] = "Samatours2026.pythonanywhere.com"
+os.environ["DJANGO_CSRF_TRUSTED_ORIGINS"] = "https://Samatours2026.pythonanywhere.com"
 os.environ["DJANGO_DEBUG"] = "False"
 os.environ["DJANGO_TIME_ZONE"] = "Asia/Beirut"
 
-# --- Database: SQLite (simplest) ---
-os.environ["DJANGO_DB_ENGINE"] = "sqlite"
-os.environ["DJANGO_DB_PATH"] = "/home/YOUR_USERNAME/Sama-Accounting/db.sqlite3"
-
-# --- Database: MySQL (recommended on paid plans — comment out SQLite above) ---
-# os.environ["DJANGO_DB_ENGINE"] = "mysql"
-# os.environ["DJANGO_DB_NAME"] = "YOUR_USERNAME$sama"
-# os.environ["DJANGO_DB_USER"] = "YOUR_USERNAME"
-# os.environ["DJANGO_DB_PASSWORD"] = "YOUR_MYSQL_PASSWORD"
-# os.environ["DJANGO_DB_HOST"] = "YOUR_USERNAME.mysql.pythonanywhere-services.com"
-# os.environ["DJANGO_DB_PORT"] = "3306"
+# PostgreSQL — copy Host, Database name, User, Password from PythonAnywhere → Databases
+os.environ["DJANGO_DB_ENGINE"] = "postgresql"
+os.environ["DJANGO_DB_NAME"] = "YOUR_POSTGRES_DATABASE_NAME"
+os.environ["DJANGO_DB_USER"] = "YOUR_POSTGRES_USERNAME"
+os.environ["DJANGO_DB_PASSWORD"] = "YOUR_POSTGRES_PASSWORD"
+os.environ["DJANGO_DB_HOST"] = "YOUR_POSTGRES_HOST"
+os.environ["DJANGO_DB_PORT"] = "5432"
 
 from django.core.wsgi import get_wsgi_application
 

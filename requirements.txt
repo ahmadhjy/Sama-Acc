@@ -7,5 +7,8 @@ Pillow==10.2.0
 reportlab==4.2.0
 weasyprint==62.1
 
-# Required on PythonAnywhere only when using MySQL (recommended for production):
+# PostgreSQL (PythonAnywhere paid plan — use on production):
+psycopg2-binary==2.9.9
+
+# MySQL (alternative on PythonAnywhere):
 # mysqlclient==2.2.4
