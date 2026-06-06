@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from django.db.models import Sum
 
-from accounts_core.list_utils import parse_date
+from reporting.date_ranges import resolve_report_dates
 from expenses.models import OperatingExpense
 from purchases.models import SupplierBill
 from sales.models import SalesInvoice
@@ -12,8 +12,7 @@ from treasury.models import Payment
 
 
 def build_report_summary(request):
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
 
     inv_q = SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED)
     bill_q = SupplierBill.objects.filter(status=SupplierBill.Status.POSTED)

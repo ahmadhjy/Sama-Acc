@@ -3,7 +3,7 @@
 {% block hub_title %}Operating expenses by category{% endblock %}
 {% block hub_subtitle %}Posted operating expenses grouped by category (USD).{% endblock %}
 {% block hub_extra_actions %}
-<a class="btn btn-ghost" href="?format=pdf&amp;{{ request.GET.urlencode }}">Download PDF</a>
+{% include "partials/export_buttons.html" %}
 <a class="btn btn-ghost" href="{% url 'expenses:expense_list' %}">All expenses</a>
 {% endblock %}
 {% block hub_body %}

@@ -4,10 +4,13 @@ from accounts_core.branding import get_company_branding
 
 
 def pdf_branding(request):
+    from reporting.date_ranges import default_filter_query
+
     ctx = {
         "is_pdf": request.GET.get("format") == "pdf",
         "company": get_company_branding(request),
         "pdf_generated_on": date.today(),
+        "default_filter_query": default_filter_query(),
     }
     if not ctx["is_pdf"]:
         path = request.path.rstrip("/") or "/"

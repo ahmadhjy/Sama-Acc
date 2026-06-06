@@ -25,9 +25,10 @@ def _next_temp_expense_no():
 
 @login_required
 def expense_list(request):
+    from reporting.date_ranges import resolve_report_dates
+
     qs = OperatingExpense.objects.select_related("category").order_by("-expense_date", "-created_at")
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
     cat = request.GET.get("category")
     if df:
         qs = qs.filter(expense_date__gte=df)
@@ -224,3 +225,26 @@ def expense_category_delete(request, category_id):
     except ProtectedError:
         messages.error(request, "Cannot delete: category is used on expenses. Deactivate instead.")
         return redirect("expenses:expense_category_edit", category_id=category_id)
+
+
+@login_required
+@require_http_methods(["POST"])
+def expense_category_quick_create(request):
+    import json
+
+    from django.http import JsonResponse
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON."}, status=400)
+
+    code = (payload.get("code") or "").strip().upper()
+    name = (payload.get("name") or "").strip()
+    if not code or not name:
+        return JsonResponse({"error": "Code and name are required."}, status=400)
+    if ExpenseCategory.objects.filter(code=code).exists():
+        return JsonResponse({"error": f"Category code {code} already exists."}, status=400)
+
+    cat = ExpenseCategory.objects.create(code=code, name=name, is_active=True)
+    return JsonResponse({"id": str(cat.id), "code": cat.code, "name": cat.name})

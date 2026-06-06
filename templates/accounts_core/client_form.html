@@ -2,10 +2,10 @@
 {% block title %}{% if is_edit %}Edit Client{% else %}New Client{% endif %}{% endblock %}
 {% block page_content %}
 <h1 class="title">{% if is_edit %}Edit Client{% else %}New Client{% endif %}</h1>
-<form method="post" class="panel">
+<form method="post" enctype="multipart/form-data" class="panel" id="client-form">
     {% csrf_token %}
     {% for field in form %}
-    <p>
+    <p class="client-field client-field--{{ field.name }}">
         {{ field.label_tag }}
         {{ field }}
         {% if field.help_text %}<span class="muted">{{ field.help_text }}</span>{% endif %}
@@ -18,4 +18,74 @@
     <a class="btn" href="{% url 'reporting:client_statement' client.id %}">Statement</a>
     {% endif %}
 </form>
+{% if client and client.passport_file %}
+<p class="panel" style="margin-top:12px;">
+    <strong>Passport on file:</strong>
+    <a href="{{ client.passport_file.url }}" target="_blank" download>Download passport</a>
+</p>
+{% endif %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    var typeSelect = document.querySelector(".client-type-select");
+    var nameLabel = document.querySelector("label[for='id_name_en']");
+    var contactField = document.querySelector(".client-field--contact_person");
+    var dobField = document.querySelector(".client-field--date_of_birth");
+
+    function ensureInput(id, type, attrs) {
+        var el = document.getElementById(id);
+        if (!el) return null;
+        if (el.type === "hidden") {
+            var next = document.createElement("input");
+            next.type = type;
+            next.name = el.name;
+            next.id = el.id;
+            Object.keys(attrs || {}).forEach(function (key) {
+                next.setAttribute(key, attrs[key]);
+            });
+            el.replaceWith(next);
+            return next;
+        }
+        return el;
+    }
+
+    function hideAsHidden(id) {
+        var el = document.getElementById(id);
+        if (!el || el.type === "hidden") return;
+        var hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = el.name;
+        hidden.id = el.id;
+        hidden.value = el.value;
+        el.replaceWith(hidden);
+    }
+
+    function syncClientType() {
+        var isCorporate = typeSelect && typeSelect.value === "CORPORATE";
+        if (nameLabel) {
+            nameLabel.textContent = isCorporate ? "Company name:" : "Full name:";
+        }
+        if (contactField) {
+            contactField.style.display = isCorporate ? "" : "none";
+            if (isCorporate) {
+                ensureInput("id_contact_person", "text", { maxlength: "255" });
+            } else {
+                hideAsHidden("id_contact_person");
+            }
+        }
+        if (dobField) {
+            dobField.style.display = isCorporate ? "none" : "";
+            if (isCorporate) {
+                hideAsHidden("id_date_of_birth");
+            } else {
+                ensureInput("id_date_of_birth", "date", {});
+            }
+        }
+    }
+
+    if (typeSelect) {
+        typeSelect.addEventListener("change", syncClientType);
+        syncClientType();
+    }
+});
+</script>
 {% endblock %}

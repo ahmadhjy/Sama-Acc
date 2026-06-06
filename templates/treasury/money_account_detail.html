@@ -5,18 +5,11 @@
 <div class="panel">
     <p><strong>Type:</strong> {{ account.get_type_display }}</p>
     <p><strong>Currency:</strong> {{ account.currency }}</p>
-    <p><strong>Active:</strong> {% if account.is_active %}Yes{% else %}No{% endif %}</p>
     <p><strong>Payments recorded:</strong> {{ payment_count }}</p>
 </div>
 <p>
     <a class="btn" href="{% url 'treasury:money_account_edit' account.id %}">Edit</a>
     <a class="btn" href="{% url 'treasury:money_accounts_list' %}">Back</a>
-    {% if account.is_active %}
-    <form method="post" action="{% url 'treasury:money_account_deactivate' account.id %}" style="display:inline;" onsubmit="return confirm('Deactivate?');">
-        {% csrf_token %}
-        <button type="submit" class="btn">Deactivate</button>
-    </form>
-    {% endif %}
     <form method="post" action="{% url 'treasury:money_account_delete' account.id %}" style="display:inline;" onsubmit="return confirm('Delete permanently?');">
         {% csrf_token %}
         <button type="submit" class="btn">Delete</button>

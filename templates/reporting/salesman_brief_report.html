@@ -3,7 +3,7 @@
 {% block hub_title %}Brief report — {{ employee.name }}{% endblock %}
 {% block hub_subtitle %}Summary KPIs for the selected period (USD).{% endblock %}
 {% block hub_extra_actions %}
-<a class="btn btn-ghost" href="?{% if request.GET.urlencode %}{{ request.GET.urlencode }}&{% endif %}format=pdf">PDF</a>
+{% include "partials/export_buttons.html" %}
 <a class="btn btn-ghost" href="{% url 'reporting:salesman_reports_home' %}">All salesmen</a>
 {% endblock %}
 {% block hub_body %}

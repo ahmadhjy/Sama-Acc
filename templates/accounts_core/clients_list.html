@@ -5,11 +5,12 @@
 <p class="page-toolbar">
     <a class="btn" href="{% url 'accounts_core:client_create' %}"><i class="fa-solid fa-plus"></i> New client</a>
     <a class="btn btn-secondary" href="{% url 'reporting:all_clients_statement' %}">All clients statement</a>
-    <a class="btn btn-secondary" href="?format=pdf&amp;{{ request.GET.urlencode }}"><i class="fa-solid fa-file-pdf"></i> PDF</a>
+    {% include "partials/export_buttons.html" %}
 </p>
 <form method="get" class="panel filter-bar">
     <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Name, code, email"></label>
     <button class="btn" type="submit">Filter</button>
+    <a class="btn btn-ghost" href="{% url 'accounts_core:clients_list' %}">Clear filters</a>
 </form>
 <table>
     <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Date of birth</th><th>Phone</th><th>Outstanding A/R</th><th></th></tr></thead>
@@ -20,7 +21,7 @@
             <td>{{ client.name_en }}</td>
             <td>{{ client.type }}</td>
             <td>{% if client.date_of_birth %}{{ client.date_of_birth|date:"d/m/Y" }}{% else %}-{% endif %}</td>
-            <td>{{ client.whatsapp|default:"-" }}</td>
+            <td>{{ client.phone|default:"-" }}</td>
             <td>{{ client.outstanding_receivable }}</td>
             <td>
                 <a class="btn" href="{% url 'accounts_core:client_edit' client.id %}">Edit</a>

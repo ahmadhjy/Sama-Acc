@@ -17,17 +17,23 @@
     <h3>Custom fields (per invoice line)</h3>
     <p class="muted">Define dynamic fields shown on invoice service lines (e.g. passenger name, travel date).</p>
     {{ formset.management_form }}
+    <div class="field-def-grid">
     {% for f in formset %}
-    <div class="line-box" style="margin-bottom:12px;">
+    <div class="field-def-row line-box">
         {% for field in f %}
           {% if field.name != 'DELETE' %}
-          <p>{{ field.label_tag }} {{ field }}{% if field.errors %}<span class="errorlist">{{ field.errors }}</span>{% endif %}</p>
+          <label class="field-def-cell">
+            <span class="field-def-label">{{ field.label }}</span>
+            {{ field }}
+            {% if field.errors %}<span class="errorlist">{{ field.errors }}</span>{% endif %}
+          </label>
           {% else %}
-          <p><label>{{ field }} Remove field</label></p>
+          <label class="field-def-cell field-def-cell--delete">{{ field }} Remove</label>
           {% endif %}
         {% endfor %}
     </div>
     {% endfor %}
+    </div>
     {% if formset.non_form_errors %}<ul class="errorlist">{% for e in formset.non_form_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
 
     <button class="btn" type="submit">{% if is_edit %}Save{% else %}Create{% endif %}</button>

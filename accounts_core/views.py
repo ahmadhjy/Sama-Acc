@@ -61,7 +61,7 @@ def clients_list(request):
 @login_required
 def client_create(request):
     if request.method == "POST":
-        form = ClientForm(request.POST)
+        form = ClientForm(request.POST, request.FILES)
         if form.is_valid():
             client = form.save()
             messages.success(request, f"Client {client.name_en} created.")
@@ -75,7 +75,7 @@ def client_create(request):
 def client_edit(request, client_id):
     client = get_object_or_404(Client, pk=client_id)
     if request.method == "POST":
-        form = ClientForm(request.POST, instance=client)
+        form = ClientForm(request.POST, request.FILES, instance=client)
         if form.is_valid():
             form.save()
             messages.success(request, f"Client {client.name_en} updated.")
@@ -209,6 +209,9 @@ def client_quick_create(request):
     name_en = (payload.get("name_en") or "").strip()
     if not name_en:
         return JsonResponse({"error": "Client name is required."}, status=400)
+    phone = (payload.get("phone") or "").strip()
+    if not phone:
+        return JsonResponse({"error": "Phone number is required."}, status=400)
 
     client_code = (payload.get("client_code") or "").strip() or next_client_code()
     if Client.objects.filter(client_code=client_code).exists():
@@ -217,6 +220,7 @@ def client_quick_create(request):
     client = Client.objects.create(
         client_code=client_code,
         name_en=name_en,
+        phone=phone,
         type=(payload.get("type") or Client.ClientType.INDIVIDUAL),
     )
     return JsonResponse({"id": str(client.id), "name": client.name_en, "client_code": client.client_code})
@@ -237,6 +241,11 @@ def supplier_quick_create(request):
     if not name:
         return JsonResponse({"error": "Supplier name is required."}, status=400)
 
+    managing = (payload.get("managing_number") or "").strip()
+    accounting = (payload.get("accounting_number") or "").strip()
+    if not managing and not accounting:
+        return JsonResponse({"error": "Enter at least one of managing number or accounting number."}, status=400)
+
     supplier_code = (payload.get("supplier_code") or "").strip() or next_supplier_code()
     if Supplier.objects.filter(supplier_code=supplier_code).exists():
         return JsonResponse({"error": f"Supplier code {supplier_code} already exists."}, status=400)
@@ -244,6 +253,9 @@ def supplier_quick_create(request):
     supplier = Supplier.objects.create(
         supplier_code=supplier_code,
         name=name,
+        managing_number=managing,
+        accounting_number=accounting,
+        phones=[n for n in (managing, accounting) if n],
         type=(payload.get("type") or Supplier.SupplierType.OTHER),
         is_active=True,
     )

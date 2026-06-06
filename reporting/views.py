@@ -4,10 +4,9 @@ from decimal import Decimal
 from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
-from accounts_core.list_utils import parse_date
-from accounts_core.models import Client, Supplier
+from reporting.date_ranges import resolve_report_dates
+from accounts_core.models import Client, Employee, Supplier
 from accounts_core.pdf_utils import pdf_download_query, render_or_pdf
-from accounts_core.models import Employee
 from reporting.salesman import build_brief_report, build_detailed_report
 from reporting.balances import client_ar_balance, supplier_ap_balance, supplier_line_purchases
 from reporting.client_statement_rows import build_client_statement_rows
@@ -38,8 +37,7 @@ def reports_home(request):
         qs = params.urlencode()
         return redirect("/?" + qs if qs else "/?tab=reports")
 
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
 
     inv_q = SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED)
     bill_q = SupplierBill.objects.filter(status=SupplierBill.Status.POSTED)
@@ -99,8 +97,7 @@ def _client_rows_raw(client, date_from=None, date_to=None):
 
 def client_statement(request, client_id):
     client = get_object_or_404(Client, pk=client_id)
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
     rows = _client_rows_raw(client, df, dt)
     running = Decimal("0.00")
     for row in rows:
@@ -123,8 +120,7 @@ def client_statement(request, client_id):
 
 
 def all_clients_statement(request):
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
     q = (request.GET.get("q") or "").strip()
     clients = Client.objects.all().order_by("name_en")
     if q:
@@ -153,8 +149,7 @@ def all_clients_statement(request):
 
 def ar_aging(request):
     today = date.today()
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
     data = []
     qs = SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED).select_related("client")
     if df:
@@ -200,10 +195,17 @@ def ar_aging(request):
     )
 
 
+
+
+def _supplier_pdf_subtitle(supplier):
+    parts = [supplier.name, f"Code: {supplier.supplier_code}"]
+    parts.extend(supplier.contact_lines())
+    return " | ".join(parts)
+
+
 def supplier_statement(request, supplier_id):
     supplier = get_object_or_404(Supplier, pk=supplier_id)
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
     rows = build_supplier_statement_rows(supplier, df, dt)
     running = Decimal("0.00")
     for row in rows:
@@ -218,7 +220,7 @@ def supplier_statement(request, supplier_id):
             "date_from": df,
             "date_to": dt,
             "pdf_report_title": "Supplier Statement",
-            "pdf_report_subtitle": f"{supplier.name} ({supplier.supplier_code})",
+            "pdf_report_subtitle": _supplier_pdf_subtitle(supplier),
             "pdf_account_range": f"Supplier code: {supplier.supplier_code}",
         },
         f"supplier_statement_{supplier.supplier_code}.pdf",
@@ -226,8 +228,7 @@ def supplier_statement(request, supplier_id):
 
 
 def all_suppliers_statement(request):
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
     q = (request.GET.get("q") or "").strip()
     suppliers = Supplier.objects.all().order_by("name")
     if q:
@@ -256,8 +257,7 @@ def all_suppliers_statement(request):
 
 def ap_aging(request):
     today = date.today()
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
     data = []
     qs = SupplierBill.objects.filter(status=SupplierBill.Status.POSTED).select_related("supplier")
     if df:
@@ -323,8 +323,7 @@ def cash_movement(request):
 def opex_by_category(request):
     from expenses.models import OperatingExpense
 
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
     qs = OperatingExpense.objects.filter(status=OperatingExpense.Status.POSTED)
     if df:
         qs = qs.filter(expense_date__gte=df)
@@ -360,8 +359,7 @@ def opex_by_category(request):
 
 def activity_trial_balance(request):
     """P&L-style trial listing from posted sales, COGS service lines, and OPEX lines."""
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
 
     inv = SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED)
     if df:
@@ -451,8 +449,7 @@ def activity_trial_balance(request):
 
 
 def clients_trial_balance(request):
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
     q = (request.GET.get("q") or "").strip()
     clients = Client.objects.all().order_by("name_en")
     if q:
@@ -509,8 +506,7 @@ def clients_trial_balance(request):
 
 
 def suppliers_trial_balance(request):
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
     q = (request.GET.get("q") or "").strip()
     suppliers = Supplier.objects.all().order_by("name")
     if q:
@@ -571,8 +567,7 @@ def _parse_report_dates(request):
     from calendar import monthrange
 
     month_str = (request.GET.get("month") or "").strip()
-    df = parse_date(request, "date_from")
-    dt = parse_date(request, "date_to")
+    df, dt, _ = resolve_report_dates(request)
     if month_str and len(month_str) == 7 and "-" in month_str:
         year, month = map(int, month_str.split("-", 1))
         df = date(year, month, 1)

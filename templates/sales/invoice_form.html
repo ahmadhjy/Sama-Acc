@@ -31,7 +31,7 @@
     {% endfor %}
 
     <h3>Invoice selling total</h3>
-    <p class="muted">Calculated automatically from service line selling prices (qty × price − discount) in the invoice currency below.</p>
+    <p class="muted">Calculated automatically from service line selling prices in the invoice currency below.</p>
     <p>
       <strong>Total selling:</strong>
       <span id="invoice-selling-total">{{ invoice.grand_total|default:"0.00" }}</span>
@@ -108,12 +108,12 @@
                     <div class="destination-results"></div>
                     {{ line_form.destination }}
                 </div>
-                <div>{{ line_form.qty.label_tag }} {{ line_form.qty }}</div>
-                <div>{{ line_form.sell_price.label_tag }} {{ line_form.sell_price }}</div>
                 {% if can_view_cost %}
                 <div>{{ line_form.cost_price.label_tag }} {{ line_form.cost_price }}</div>
                 {% endif %}
-                <div>{{ line_form.line_discount.label_tag }} {{ line_form.line_discount }}</div>
+                {{ line_form.qty }}
+                {{ line_form.line_discount }}
+                <div>{{ line_form.sell_price.label_tag }} {{ line_form.sell_price }}</div>
             </div>
             <div class="dynamic-fields" data-dynamic-for="{{ forloop.counter0 }}"></div>
             <div>{{ line_form.notes.label_tag }} {{ line_form.notes }}</div>
@@ -201,10 +201,15 @@
   }
 
   document.getElementById('btn-add-client').addEventListener('click', function() {
-    openQuickModal('Add client', '<p><label>Name (English) *</label><input type="text" id="qc-client-name" class="full-width"></p>', function() {
+    openQuickModal(
+      'Add client',
+      '<p><label>Full name *</label><input type="text" id="qc-client-name" class="full-width"></p>' +
+      '<p><label>Phone number *</label><input type="text" id="qc-client-phone" class="full-width"></p>',
+      function() {
       const name = document.getElementById('qc-client-name').value.trim();
+      const phone = document.getElementById('qc-client-phone').value.trim();
       const errEl = document.getElementById('quick-modal-error');
-      postJson(URL_CLIENT_QC, { name_en: name }).then(function(res) {
+      postJson(URL_CLIENT_QC, { name_en: name, phone: phone }).then(function(res) {
         if (!res.ok) {
           errEl.textContent = res.data.error || 'Could not create client.';
           errEl.style.display = 'block';
@@ -221,11 +226,19 @@
     if (!btn || btn.dataset.wired) return;
     btn.dataset.wired = '1';
     btn.addEventListener('click', function() {
-      openQuickModal('Add supplier', '<p><label>Supplier name *</label><input type="text" id="qc-supplier-name" class="full-width"></p>', function() {
+      openQuickModal(
+        'Add supplier',
+        '<p><label>Supplier name *</label><input type="text" id="qc-supplier-name" class="full-width"></p>' +
+        '<p><label>Managing number</label><input type="text" id="qc-supplier-managing" class="full-width"></p>' +
+        '<p><label>Accounting number</label><input type="text" id="qc-supplier-accounting" class="full-width"></p>' +
+        '<p class="muted">At least one number is required.</p>',
+        function() {
         const name = document.getElementById('qc-supplier-name').value.trim();
+        const managing = document.getElementById('qc-supplier-managing').value.trim();
+        const accounting = document.getElementById('qc-supplier-accounting').value.trim();
         const errEl = document.getElementById('quick-modal-error');
         const sel = box.querySelector('select[name$="-supplier"]');
-        postJson(URL_SUPPLIER_QC, { name: name }).then(function(res) {
+        postJson(URL_SUPPLIER_QC, { name: name, managing_number: managing, accounting_number: accounting }).then(function(res) {
           if (!res.ok) {
             errEl.textContent = res.data.error || 'Could not create supplier.';
             errEl.style.display = 'block';
@@ -350,21 +363,15 @@
   }
 
   function computeSellingTotal() {
-    let subtotal = 0;
-    let discount = 0;
+    let total = 0;
     document.querySelectorAll('#invoice-lines .invoice-line').forEach(function(box) {
       const st = box.querySelector('select[name$="service_type"]');
       if (!st || !st.value) return;
-      const qtyIn = box.querySelector('input[name$="-qty"]');
       const sellIn = box.querySelector('input[name$="-sell_price"]');
-      const discIn = box.querySelector('input[name$="-line_discount"]');
-      const q = parseFloat(qtyIn && qtyIn.value !== '' ? qtyIn.value : '1') || 0;
       const s = parseFloat(sellIn && sellIn.value !== '' ? sellIn.value : '0') || 0;
-      const d = parseFloat(discIn && discIn.value !== '' ? discIn.value : '0') || 0;
-      subtotal += q * s;
-      discount += d;
+      total += s;
     });
-    return Math.max(0, subtotal - discount);
+    return Math.max(0, total);
   }
 
   function updateSellingTotal() {
@@ -660,12 +667,21 @@
     wireLine(clone);
     wireDestinationSearch(clone);
     wireSupplierQuickCreate(clone);
+    const supSel = clone.querySelector('select[name$="-supplier"]');
+    if (supSel) initSearchableSelect(supSel);
     defaultEmptyLineServiceDates();
     renumberLineTitles();
     updateTotalLineCost();
     updateSellingTotal();
   });
   defaultEmptyLineServiceDates();
+  function initSearchableSelect(el) {
+    if (!el || el.dataset.choicesInitialized || typeof Choices === 'undefined') return;
+    new Choices(el, { searchEnabled: true, itemSelectText: '', shouldSort: false, searchResultLimit: 50 });
+    el.dataset.choicesInitialized = '1';
+  }
+  initSearchableSelect(document.getElementById('id_client'));
+  document.querySelectorAll('select[name$="-supplier"]').forEach(initSearchableSelect);
 })();
 </script>
 {% endblock %}

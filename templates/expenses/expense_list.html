@@ -14,7 +14,8 @@
         </select>
     </label>
     <button class="btn" type="submit">Filter</button>
-    <a class="btn" href="?{{ request.GET.urlencode }}&format=pdf">Download PDF</a>
+    <a class="btn btn-ghost" href="{% url 'expenses:expense_list' %}?{{ default_filter_query }}">Clear filters</a>
+    {% include "partials/export_buttons.html" %}
     <a class="btn" href="{% url 'expenses:expense_create' %}">+ New Expense</a>
     <a class="btn" href="{% url 'expenses:expense_category_list' %}">Categories</a>
 </form>

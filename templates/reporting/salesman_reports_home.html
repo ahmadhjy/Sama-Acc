@@ -9,7 +9,7 @@
     <tbody>
     {% for emp in employees %}
         <tr>
-            <td>{{ emp.name }}</td>
+            <td><a href="{% url 'reporting:salesman_brief_report' emp.id %}?{{ request.GET.urlencode }}">{{ emp.name }}</a></td>
             <td>{{ emp.get_role_display }}</td>
             <td><a class="btn" href="{% url 'reporting:salesman_brief_report' emp.id %}">Brief</a></td>
             <td><a class="btn" href="{% url 'reporting:salesman_detailed_report' emp.id %}">Detailed</a></td>

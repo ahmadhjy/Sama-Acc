@@ -109,7 +109,8 @@ class SalesInvoiceLineBaseForm(forms.ModelForm):
         ]
         widgets = {
             "line_data": forms.HiddenInput(attrs={"class": "line-data-json"}),
-            "qty": forms.NumberInput(attrs={"step": "0.01", "min": "0.01"}),
+            "qty": forms.HiddenInput(),
+            "line_discount": forms.HiddenInput(),
             "sell_price": forms.NumberInput(attrs={"step": "0.01", "min": "0", "placeholder": "0.00"}),
             "service_date": forms.DateInput(attrs={"type": "date", "class": "line-service-date"}),
             "destination": forms.Select(attrs={"class": "destination-select"}),
@@ -119,6 +120,10 @@ class SalesInvoiceLineBaseForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.required = False
+        if self.fields.get("qty"):
+            self.fields["qty"].initial = Decimal("1.00")
+        if self.fields.get("line_discount"):
+            self.fields["line_discount"].initial = Decimal("0.00")
         dest = self.fields.get("destination")
         if dest:
             dest.queryset = Destination.objects.filter(is_active=True).order_by("sort_order", "name")[:100]

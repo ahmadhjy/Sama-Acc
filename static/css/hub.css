@@ -47,7 +47,12 @@
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    opacity: 0.9;
+    color: rgba(255, 255, 255, 0.92);
+}
+
+.hub-filter > span {
+    color: rgba(255, 255, 255, 0.95);
+    font-weight: 600;
 }
 
 .hub-filter select,
@@ -55,10 +60,11 @@
     padding: 8px 10px;
     border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
+    background: #fff;
+    color: #0f2744;
     font-size: 14px;
     min-width: 130px;
+    opacity: 1;
 }
 
 .hub-filter select option {
@@ -189,13 +195,16 @@
 
 /* KPI cards */
 .hub-kpis {
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
     gap: 14px;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     margin-bottom: 20px;
 }
 
 .hub-kpi {
+    flex: 1 1 180px;
+    min-width: 180px;
     background: #fff;
     border-radius: 14px;
     padding: 16px 18px;

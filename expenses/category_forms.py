@@ -6,7 +6,7 @@ from purchases.models import ExpenseCategory
 class ExpenseCategoryForm(forms.ModelForm):
     class Meta:
         model = ExpenseCategory
-        fields = ["code", "name", "is_active"]
+        fields = ["code", "name"]
         widgets = {
             "code": forms.TextInput(attrs={"placeholder": "e.g. RENT"}),
         }

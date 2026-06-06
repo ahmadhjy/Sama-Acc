@@ -362,6 +362,8 @@ class SalesInvoiceLine(models.Model):
             raise ValueError(f"Select a supplier for service {st.name}.")
         if not self.line_employee_id:
             raise ValueError(f"Choose the employee responsible for service {st.name}.")
+        if not self.destination_id:
+            raise ValueError(f"Select a destination for service {st.name if st else 'line'}.")
 
     def line_selling_amount(self):
         """Selling amount for this line in invoice document currency."""

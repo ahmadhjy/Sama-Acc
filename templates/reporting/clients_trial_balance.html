@@ -3,7 +3,7 @@
 {% block hub_title %}Clients trial balance{% endblock %}
 {% block hub_subtitle %}Per-client debits, credits, and closing balance for the period.{% endblock %}
 {% block hub_extra_actions %}
-<a class="btn btn-ghost" href="?format=pdf&amp;{{ request.GET.urlencode }}">Download PDF</a>
+{% include "partials/export_buttons.html" %}
 {% endblock %}
 {% block hub_body %}
 <form method="get" class="panel filter-bar" style="margin-bottom:12px;">

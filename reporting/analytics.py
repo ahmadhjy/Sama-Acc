@@ -65,7 +65,6 @@ def build_dashboard_analytics(request):
     cash_out = payments_out.aggregate(t=Sum("amount"))["t"] or Decimal("0.00")
 
     receivables_due = []
-    overdue_receivables = []
     for inv in (
         SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED)
         .select_related("client")
@@ -93,10 +92,9 @@ def build_dashboard_analytics(request):
             "is_overdue": is_overdue,
         }
         receivables_due.append(row)
-        if is_overdue:
-            overdue_receivables.append(row)
     receivables_due.sort(key=lambda x: (0 if x["is_overdue"] else 1, x["due_date"]))
-    overdue_receivables.sort(key=lambda x: x["due_date"])
+    overdue_client_payments = [r for r in receivables_due if r["is_overdue"]]
+    overdue_client_payments.sort(key=lambda x: x["due_date"])
 
     salesman_stats = []
     for emp in Employee.objects.filter(role=Employee.EmployeeRole.SALES).order_by("name"):
@@ -223,8 +221,8 @@ def build_dashboard_analytics(request):
         "cash_out": cash_out,
         "cash_net": cash_in - cash_out,
         "receivables_due": receivables_due[:20],
-        "overdue_receivables": overdue_receivables[:15],
-        "overdue_count": len(overdue_receivables),
+        "overdue_client_payments": overdue_client_payments,
+        "overdue_count": len(overdue_client_payments),
         "due_today_count": sum(1 for r in receivables_due if r["status"] == "today"),
         "salesman_stats": salesman_stats[:15],
         "supplier_stats": supplier_stats[:15],

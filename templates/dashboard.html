@@ -164,6 +164,34 @@ Period: <strong>{{ period_label }}</strong>
             </h2>
             <div class="hub-chart-wrap"><canvas id="chart-salesman"></canvas></div>
         </div>
+        {% if salesman_stats %}
+        <div class="hub-table-wrap hub-table-wrap--salesman hub-chart-card--wide">
+            <h2 class="hub-section-title" style="padding:16px 16px 0;margin:0;display:flex;align-items:center;gap:6px;">
+                Salesman performance
+                {% include "partials/info_tip.html" with tip="Sales, cost, and profit by salesperson for the selected period. Double-click a name or use the link to open the brief report." %}
+            </h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Salesman</th>
+                        <th class="num">Sales (USD)</th>
+                        <th class="num">Cost (USD)</th>
+                        <th class="num">Profit (USD)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for row in salesman_stats %}
+                    <tr>
+                        <td><a href="{% url 'reporting:salesman_brief_report' row.employee.id %}?{{ request.GET.urlencode }}">{{ row.employee.name }}</a></td>
+                        <td class="num">{{ row.sales|money }}</td>
+                        <td class="num">{{ row.cost|money }}</td>
+                        <td class="num"><strong>{{ row.profit|money }}</strong></td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
         <div class="hub-chart-card hub-chart-card--wide">
             <h2>
                 <span class="hub-chart-title">Top supplier balances</span>
@@ -173,7 +201,7 @@ Period: <strong>{{ period_label }}</strong>
         </div>
     </div>
 
-    {% if overdue_receivables %}
+    {% if overdue_client_payments %}
     <div class="hub-table-wrap hub-table-wrap--overdue">
         <h2 class="hub-section-title hub-section-title--danger" style="padding:16px 16px 0;margin:0;display:flex;align-items:center;gap:6px;">
             Overdue client payments
@@ -192,7 +220,7 @@ Period: <strong>{{ period_label }}</strong>
                 </tr>
             </thead>
             <tbody>
-            {% for row in overdue_receivables %}
+            {% for row in overdue_client_payments %}
             <tr class="due-overdue">
                 <td>{{ row.client_name }}</td>
                 <td>{{ row.invoice_no }}</td>
@@ -202,48 +230,13 @@ Period: <strong>{{ period_label }}</strong>
                 <td class="num"><strong>{{ row.remaining|money }}</strong></td>
                 <td>{{ row.currency }}</td>
             </tr>
+            {% empty %}
+            <tr><td colspan="7">No overdue client payments.</td></tr>
             {% endfor %}
             </tbody>
         </table>
     </div>
     {% endif %}
-
-    <div class="hub-table-wrap">
-        <h2 class="hub-section-title" style="padding:16px 16px 0;margin:0;display:flex;align-items:center;gap:6px;">
-            Receivables due
-            {% include "partials/info_tip.html" with tip="Posted invoices with an unpaid balance, sorted by due date (overdue first). Payments appear on the client statement when posted." %}
-        </h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Client</th>
-                    <th>Invoice</th>
-                    <th>Due date</th>
-                    <th class="num">Invoice total</th>
-                    <th class="num">Paid</th>
-                    <th class="num">Remaining</th>
-                    <th>Currency</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for row in receivables_due|slice:":12" %}
-            <tr class="{% if row.is_overdue %}due-overdue{% endif %}">
-                <td>{{ row.client_name }}</td>
-                <td>{{ row.invoice_no }}</td>
-                <td>{{ row.due_date|date:"d/m/Y" }}</td>
-                <td class="num">{{ row.total|money }}</td>
-                <td class="num">{{ row.paid|money }}</td>
-                <td class="num"><strong>{{ row.remaining|money }}</strong></td>
-                <td>{{ row.currency }}</td>
-                <td><span class="badge badge-{{ row.status }}">{{ row.status }}</span></td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="8">No outstanding receivables.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
 </section>
 
 <section class="hub-panel {% if hub_tab == 'reports' %}hub-panel--active{% endif %}" id="panel-reports">

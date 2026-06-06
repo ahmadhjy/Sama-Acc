@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from accounts_core.models import Client, Currency, Employee, Supplier
-from catalog.models import ServiceInstance, ServiceType
+from catalog.models import Destination, ServiceInstance, ServiceType
 from purchases.models import SupplierBill
 from sales.models import SalesInvoice, SalesInvoiceLine
 
@@ -17,7 +17,8 @@ class SalesInvoiceWorkflowTests(TestCase):
         self.client_obj = Client.objects.create(client_code="C0001", name_en="Client A")
         self.employee = Employee.objects.create(name="Emp A", role=Employee.EmployeeRole.SALES)
         self.service_type = ServiceType.objects.create(name="Ticket", code="TKT")
-        self.supplier = Supplier.objects.create(supplier_code="S-TKT", name="Airline Supplier")
+        self.destination = Destination.objects.create(name="Dubai")
+        self.supplier = Supplier.objects.create(supplier_code="S-TKT", name="Airline Supplier", managing_number="+971500000000")
         self.service_instance = ServiceInstance.objects.create(service_type=self.service_type, data={"pnr": "ABC123"})
 
     def test_post_invoice_calculates_totals(self):
@@ -31,7 +32,9 @@ class SalesInvoiceWorkflowTests(TestCase):
         SalesInvoiceLine.objects.create(
             invoice=invoice,
             supplier=self.supplier,
+            service_type=self.service_type,
             service_instance=self.service_instance,
+            destination=self.destination,
             line_employee=self.employee,
             qty=Decimal("2"),
             sell_price=Decimal("100"),
@@ -64,7 +67,9 @@ class SalesInvoiceWorkflowTests(TestCase):
         SalesInvoiceLine.objects.create(
             invoice=invoice,
             supplier=self.supplier,
+            service_type=self.service_type,
             service_instance=self.service_instance,
+            destination=self.destination,
             line_employee=self.employee,
             qty=Decimal("1"),
             sell_price=Decimal("1000"),
@@ -102,7 +107,9 @@ class SalesInvoiceWorkflowTests(TestCase):
         SalesInvoiceLine.objects.create(
             invoice=invoice,
             supplier=self.supplier,
+            service_type=self.service_type,
             service_instance=self.service_instance,
+            destination=self.destination,
             line_employee=self.employee,
             qty=Decimal("1"),
             sell_price=Decimal("50"),
@@ -147,7 +154,9 @@ class SalesInvoiceWorkflowTests(TestCase):
         SalesInvoiceLine.objects.create(
             invoice=posted,
             supplier=self.supplier,
+            service_type=self.service_type,
             service_instance=self.service_instance,
+            destination=self.destination,
             line_employee=self.employee,
             qty=Decimal("1"),
             sell_price=Decimal("50"),
@@ -167,7 +176,9 @@ class SalesInvoiceWorkflowTests(TestCase):
         SalesInvoiceLine.objects.create(
             invoice=invoice,
             supplier=self.supplier,
+            service_type=self.service_type,
             service_instance=self.service_instance,
+            destination=self.destination,
             line_employee=self.employee,
             qty=Decimal("1"),
             sell_price=Decimal("50"),

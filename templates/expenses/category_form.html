@@ -17,10 +17,6 @@
 </form>
 {% if category %}
 <p style="margin-top:12px;">
-    <form method="post" action="{% url 'expenses:expense_category_deactivate' category.id %}" style="display:inline;" onsubmit="return confirm('Deactivate?');">
-        {% csrf_token %}
-        <button type="submit" class="btn">Deactivate</button>
-    </form>
     <form method="post" action="{% url 'expenses:expense_category_delete' category.id %}" style="display:inline;" onsubmit="return confirm('Delete?');">
         {% csrf_token %}
         <button type="submit" class="btn">Delete</button>

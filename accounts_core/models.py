@@ -37,8 +37,10 @@ class Client(TimeStampedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client_code = models.CharField(max_length=32, unique=True)
     type = models.CharField(max_length=20, choices=ClientType.choices, default=ClientType.INDIVIDUAL)
-    name_en = models.CharField(max_length=255)
+    name_en = models.CharField(max_length=255, help_text="Full name (individual) or company name (corporate).")
     name_ar = models.CharField(max_length=255, blank=True)
+    phone = models.CharField(max_length=50, blank=True)
+    contact_person = models.CharField(max_length=255, blank=True, help_text="Corporate: primary contact name.")
     date_of_birth = models.DateField(null=True, blank=True)
     phones = models.JSONField(default=list, blank=True)
     whatsapp = models.CharField(max_length=50, blank=True)
@@ -46,6 +48,11 @@ class Client(TimeStampedModel):
     address = models.TextField(blank=True)
     notes = models.TextField(blank=True)
     main_passport = models.CharField(max_length=50, blank=True)
+    passport_file = models.FileField(upload_to="client_passports/%Y/%m/", null=True, blank=True)
+
+    @property
+    def display_name(self):
+        return self.name_en
 
     def __str__(self):
         return f"{self.client_code} - {self.name_en}"
@@ -82,6 +89,8 @@ class Supplier(TimeStampedModel):
     supplier_code = models.CharField(max_length=32, unique=True)
     type = models.CharField(max_length=20, choices=SupplierType.choices, default=SupplierType.OTHER)
     name = models.CharField(max_length=255)
+    managing_number = models.CharField(max_length=50, blank=True)
+    accounting_number = models.CharField(max_length=50, blank=True)
     phones = models.JSONField(default=list, blank=True)
     whatsapp = models.CharField(max_length=50, blank=True)
     email = models.EmailField(blank=True)
@@ -93,6 +102,15 @@ class Supplier(TimeStampedModel):
 
     def __str__(self):
         return f"{self.supplier_code} - {self.name}"
+
+    def contact_lines(self):
+        """Managing/accounting numbers for statements and exports."""
+        lines = []
+        if self.managing_number:
+            lines.append(f"Managing Number: {self.managing_number}")
+        if self.accounting_number:
+            lines.append(f"Accounting Number: {self.accounting_number}")
+        return lines
 
 
 class Employee(TimeStampedModel):

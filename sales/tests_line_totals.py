@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from accounts_core.models import Client, Currency, Employee, Supplier
-from catalog.models import ServiceFieldDefinition, ServiceInstance, ServiceType
+from catalog.models import Destination, ServiceFieldDefinition, ServiceInstance, ServiceType
 from reporting.client_statement_rows import build_client_statement_rows
 from sales.models import SalesInvoice, SalesInvoiceLine
 
@@ -32,7 +32,9 @@ class InvoiceLineTotalTests(TestCase):
             order=2,
         )
         self.hotel = ServiceType.objects.create(name="Hotel", code="HTL2")
-        self.supplier = Supplier.objects.create(supplier_code="S-LIN", name="Supplier")
+        self.supplier = Supplier.objects.create(supplier_code="S-LIN", name="Supplier", managing_number="+1234567890")
+        self.destination = Destination.objects.create(name="Rome")
+        self.hotel_destination = Destination.objects.create(name="Paris")
         self.instance = ServiceInstance.objects.create(service_type=self.ticket, data={})
 
     def test_grand_total_from_line_sell_prices(self):
@@ -48,6 +50,7 @@ class InvoiceLineTotalTests(TestCase):
             service_type=self.ticket,
             supplier=self.supplier,
             service_instance=self.instance,
+            destination=self.destination,
             line_employee=self.employee,
             qty=Decimal("1"),
             sell_price=Decimal("300"),
@@ -57,6 +60,7 @@ class InvoiceLineTotalTests(TestCase):
             invoice=invoice,
             service_type=self.hotel,
             supplier=self.supplier,
+            destination=self.destination,
             line_employee=self.employee,
             qty=Decimal("1"),
             sell_price=Decimal("200"),
@@ -76,6 +80,7 @@ class InvoiceLineTotalTests(TestCase):
             invoice=invoice,
             service_type=self.ticket,
             supplier=self.supplier,
+            destination=self.destination,
             line_employee=self.employee,
             qty=Decimal("1"),
             sell_price=Decimal("300"),
@@ -86,6 +91,7 @@ class InvoiceLineTotalTests(TestCase):
             invoice=invoice,
             service_type=self.hotel,
             supplier=self.supplier,
+            destination=self.hotel_destination,
             line_employee=self.employee,
             qty=Decimal("1"),
             sell_price=Decimal("200"),
@@ -97,7 +103,7 @@ class InvoiceLineTotalTests(TestCase):
         invoice_rows = [r for r in rows if r["ref"] == invoice.invoice_no]
         self.assertEqual(len(invoice_rows), 2)
         descriptions = {r["description"] for r in invoice_rows}
-        self.assertIn("Jane - Rome", descriptions)
-        self.assertIn("Hotel", descriptions)
+        self.assertTrue(any("Jane" in d and "Rome" in d for d in descriptions))
+        self.assertIn("Paris", descriptions)
         debits = sorted(r["debit"] for r in invoice_rows)
         self.assertEqual(debits, [Decimal("200.00"), Decimal("300.00")])

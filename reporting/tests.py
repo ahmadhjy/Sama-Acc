@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from accounts_core.models import Client, Employee, Supplier
-from catalog.models import ServiceInstance, ServiceType
+from catalog.models import Destination, ServiceInstance, ServiceType
 from reporting.client_statement_rows import build_client_statement_rows
 from reporting.balances import client_ar_balance, supplier_line_purchases
 from reporting.supplier_statement_rows import build_supplier_statement_rows, statement_service_date_upper
@@ -20,7 +20,8 @@ class ClientBalanceOverpaymentTests(TestCase):
         self.client_obj = Client.objects.create(client_code="C0099", name_en="Overpay Client")
         self.employee = Employee.objects.create(name="Emp", role=Employee.EmployeeRole.ACCOUNTING)
         self.service_type = ServiceType.objects.create(name="Tour", code="TR")
-        self.supplier = Supplier.objects.create(supplier_code="S-TR", name="Tour Supplier")
+        self.destination = Destination.objects.create(name="Paris")
+        self.supplier = Supplier.objects.create(supplier_code="S-TR", name="Tour Supplier", managing_number="+33123456789")
         self.service_instance = ServiceInstance.objects.create(service_type=self.service_type, data={})
         self.account = MoneyAccount.objects.create(name="Cash USD", type=MoneyAccount.AccountType.CASH, currency="USD")
 
@@ -34,7 +35,9 @@ class ClientBalanceOverpaymentTests(TestCase):
         SalesInvoiceLine.objects.create(
             invoice=self.invoice,
             supplier=self.supplier,
+            service_type=self.service_type,
             service_instance=self.service_instance,
+            destination=self.destination,
             line_employee=self.employee,
             qty=Decimal("1"),
             sell_price=Decimal("200"),
@@ -76,6 +79,7 @@ class SupplierStatementServiceDateTests(TestCase):
         self.client = Client.objects.create(client_code="C-FUT", name_en="Future Client")
         self.employee = Employee.objects.create(name="Emp", role=Employee.EmployeeRole.ACCOUNTING)
         self.service_type = ServiceType.objects.create(name="Ticket", code="TKF")
+        self.destination = Destination.objects.create(name="London")
         self.account = MoneyAccount.objects.create(name="Cash", type=MoneyAccount.AccountType.CASH, currency="USD")
         self.future_date = date.today() + timedelta(days=30)
 
@@ -91,6 +95,7 @@ class SupplierStatementServiceDateTests(TestCase):
             invoice=inv,
             supplier=self.supplier,
             service_type=self.service_type,
+            destination=self.destination,
             line_employee=self.employee,
             service_date=service_date,
             qty=Decimal("1"),

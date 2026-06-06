@@ -3,7 +3,6 @@
 {% block page_content %}
 <h1 class="title">{{ service_type.name }} <span class="muted">({{ service_type.code }})</span></h1>
 <div class="panel">
-    <p><strong>Active:</strong> {{ service_type.is_active }}</p>
     <p><strong>Requires supplier:</strong> {{ service_type.requires_supplier }}</p>
     <p><strong>Default currency:</strong> {{ service_type.default_currency }}</p>
 </div>
@@ -28,12 +27,6 @@
 <p style="margin-top:14px;">
     <a class="btn" href="{% url 'catalog:service_type_edit' service_type.id %}">Edit</a>
     <a class="btn" href="{% url 'catalog:service_types_list' %}">Back</a>
-    {% if service_type.is_active %}
-    <form method="post" action="{% url 'catalog:service_type_deactivate' service_type.id %}" style="display:inline;" onsubmit="return confirm('Deactivate?');">
-        {% csrf_token %}
-        <button type="submit" class="btn">Deactivate</button>
-    </form>
-    {% endif %}
     <form method="post" action="{% url 'catalog:service_type_delete' service_type.id %}" style="display:inline;" onsubmit="return confirm('Delete permanently?');">
         {% csrf_token %}
         <button type="submit" class="btn">Delete</button>

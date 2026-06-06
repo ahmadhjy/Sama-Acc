@@ -5,8 +5,11 @@
 <form method="post" enctype="multipart/form-data" class="panel" id="expense-form">
     {% csrf_token %}
     {% for field in form %}
-    <p>
+    <p class="expense-field expense-field--{{ field.name }}">
         {{ field.label_tag }} {{ field }}
+        {% if field.name == 'category' %}
+        <button type="button" class="btn btn-secondary" id="btn-add-expense-category" style="margin-left:8px;">Add category</button>
+        {% endif %}
         {% if field.help_text %}<span class="muted">{{ field.help_text }}</span>{% endif %}
         {% if field.errors %}<span class="errorlist">{{ field.errors }}</span>{% endif %}
     </p>
@@ -34,6 +37,20 @@
     <button class="btn" type="submit">Save</button>
     <a class="btn" href="{% url 'expenses:expense_list' %}">Back</a>
 </form>
+
+<div id="expense-category-modal" class="quick-modal" hidden>
+    <div class="quick-modal__box">
+        <h3>Add expense category</h3>
+        <p><label>Code *</label><input type="text" id="qc-cat-code" class="full-width" maxlength="20"></p>
+        <p><label>Name *</label><input type="text" id="qc-cat-name" class="full-width"></p>
+        <p id="expense-cat-modal-error" class="errorlist"></p>
+        <p>
+            <button type="button" class="btn" id="expense-cat-modal-save">Save category</button>
+            <button type="button" class="btn btn-secondary" id="expense-cat-modal-cancel">Cancel</button>
+        </p>
+    </div>
+</div>
+
 <script>
 (function() {
   const cur = document.getElementById('id_currency');
@@ -57,6 +74,46 @@
     if (amt) amt.addEventListener(ev, update);
   });
   update();
+
+  const URL_CAT_QC = '{% url "expenses:expense_category_quick_create" %}';
+  const modal = document.getElementById('expense-category-modal');
+  const catSelect = document.getElementById('id_category');
+  const btnAdd = document.getElementById('btn-add-expense-category');
+  if (btnAdd && modal && catSelect) {
+    btnAdd.addEventListener('click', function() {
+      document.getElementById('qc-cat-code').value = '';
+      document.getElementById('qc-cat-name').value = '';
+      document.getElementById('expense-cat-modal-error').textContent = '';
+      modal.hidden = false;
+    });
+    document.getElementById('expense-cat-modal-cancel').addEventListener('click', function() {
+      modal.hidden = true;
+    });
+    document.getElementById('expense-cat-modal-save').addEventListener('click', function() {
+      const code = document.getElementById('qc-cat-code').value.trim();
+      const name = document.getElementById('qc-cat-name').value.trim();
+      const errEl = document.getElementById('expense-cat-modal-error');
+      fetch(URL_CAT_QC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+        body: JSON.stringify({ code: code, name: name })
+      }).then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }); })
+        .then(function(res) {
+          if (!res.ok) {
+            errEl.textContent = res.j.error || 'Could not create category.';
+            return;
+          }
+          const opt = document.createElement('option');
+          opt.value = res.j.id;
+          opt.textContent = res.j.code + ' — ' + res.j.name;
+          opt.selected = true;
+          catSelect.appendChild(opt);
+          modal.hidden = true;
+        }).catch(function() {
+          errEl.textContent = 'Network error.';
+        });
+    });
+  }
 })();
 </script>
 {% endblock %}

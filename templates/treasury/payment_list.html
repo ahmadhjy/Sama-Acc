@@ -8,13 +8,14 @@
     <a class="btn" href="{% url 'treasury:ap_allocation_create' %}">New AP Allocation</a>
     <a class="btn" href="{% url 'treasury:transfer_create' %}">New Transfer</a>
     <a class="btn" href="{% url 'treasury:reconcile_account' %}">Reconcile</a>
-    <a class="btn" href="?format=pdf">Download PDF</a>
+    {% include "partials/export_buttons.html" %}
 </p>
 <form method="get" class="panel filter-bar">
     <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Receipt / ref / party"></label>
     <label>From <input type="date" name="date_from" value="{{ request.GET.date_from }}"></label>
     <label>To <input type="date" name="date_to" value="{{ request.GET.date_to }}"></label>
     <button class="btn" type="submit">Filter</button>
+    <a class="btn btn-ghost" href="{% url 'treasury:payment_list' %}?{{ default_filter_query }}">Clear filters</a>
 </form>
 <table>
     <thead><tr><th>Receipt</th><th>Ref No</th><th>Party</th><th>Account</th><th>Direction</th><th>Amount</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>

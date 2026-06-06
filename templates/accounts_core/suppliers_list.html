@@ -5,7 +5,7 @@
 <p>
     <a class="btn" href="{% url 'accounts_core:supplier_create' %}">New Supplier</a>
     <a class="btn" href="{% url 'reporting:all_suppliers_statement' %}">All suppliers statement</a>
-    <a class="btn" href="?format=pdf&amp;{{ request.GET.urlencode }}">Download PDF</a>
+    {% include "partials/export_buttons.html" %}
 </p>
 <form method="get" class="panel filter-bar">
     <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Name or code"></label>
@@ -16,19 +16,20 @@
             <option value="balance" {% if sort == 'balance' %}selected{% endif %}>Highest balance</option>
         </select>
     </label>
-    <label><input type="checkbox" name="show_inactive" value="1" {% if request.GET.show_inactive == '1' %}checked{% endif %}> Show inactive</label>
     <button class="btn" type="submit">Filter</button>
+    <a class="btn btn-ghost" href="{% url 'accounts_core:suppliers_list' %}">Clear filters</a>
 </form>
 <table>
-    <thead><tr><th>Code</th><th>Name</th><th>Type</th><th class="num">Balance owed</th><th>Status</th><th></th></tr></thead>
+    <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Managing #</th><th>Accounting #</th><th class="num">Balance owed</th><th></th></tr></thead>
     <tbody>
     {% for row in supplier_rows %}
         <tr>
             <td>{{ row.supplier.supplier_code }}</td>
             <td><a href="{% url 'accounts_core:supplier_detail' row.supplier.id %}">{{ row.supplier.name }}</a></td>
             <td>{{ row.supplier.get_type_display }}</td>
+            <td>{{ row.supplier.managing_number|default:"-" }}</td>
+            <td>{{ row.supplier.accounting_number|default:"-" }}</td>
             <td class="num">{{ row.balance }}</td>
-            <td>{% if row.supplier.is_active %}Active{% else %}Inactive{% endif %}</td>
             <td>
                 <a class="btn" href="{% url 'accounts_core:supplier_edit' row.supplier.id %}">Edit</a>
                 <a class="btn" href="{% url 'reporting:supplier_statement' row.supplier.id %}">Statement</a>

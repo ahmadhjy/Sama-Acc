@@ -444,10 +444,12 @@ def prepare_pdf_export(context):
 
 def build_pdf_context(request, filename, context=None):
     ctx = dict(context or {})
-    is_pdf = request.GET.get("format") == "pdf"
+    export_fmt = (request.GET.get("format") or "").lower()
+    is_pdf = export_fmt == "pdf"
+    is_xlsx = export_fmt == "xlsx"
     company = get_company_branding(request)
     base = {
-        "is_pdf": is_pdf,
+        "is_pdf": is_pdf or is_xlsx,
         "pdf_filename": filename,
         "pdf_generated_on": date.today(),
         "company": company,
@@ -462,7 +464,7 @@ def build_pdf_context(request, filename, context=None):
     merged.setdefault("pdf_ref_column_index", -1)
     merged.setdefault("pdf_description_column_index", -1)
     merged.setdefault("pdf_hide_subtitle_in_body", False)
-    if is_pdf:
+    if is_pdf or is_xlsx:
         prepare_pdf_export(merged)
     return merged
 
@@ -760,10 +762,19 @@ def _reportlab_table_pdf(filename, context):
 
 def render_or_pdf(request, template_name, context, filename):
     merged = build_pdf_context(request, filename, context)
-    if not merged["is_pdf"]:
+    export_fmt = (request.GET.get("format") or "").lower()
+    if export_fmt == "xlsx":
+        from accounts_core.export_utils import build_xlsx_response
+
+        headers = merged.get("pdf_table_headers") or []
+        rows = merged.get("pdf_table_rows") or []
+        xlsx_name = filename.replace(".pdf", "") if filename.endswith(".pdf") else filename
+        return build_xlsx_response(xlsx_name, headers, rows)
+    if export_fmt != "pdf":
+        merged["is_pdf"] = False
         return render(request, template_name, merged)
 
-    prepare_pdf_export(merged)
+    merged["is_pdf"] = True
 
     is_document_pdf = merged.get("invoice") or merged.get("payment")
     use_table_template = not is_document_pdf and (

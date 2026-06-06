@@ -53,6 +53,7 @@ def build_client_summary_rows(clients, date_from=None, date_to=None):
             {
                 "account": client.client_code,
                 "name": client.name_en,
+                "client_id": client.id,
                 "curr": row_curr,
                 "tot_dr": debit,
                 "tot_cr": credit,
@@ -85,6 +86,7 @@ def build_supplier_summary_rows(suppliers, date_from=None, date_to=None):
             {
                 "account": supplier.supplier_code,
                 "name": supplier.name,
+                "supplier_id": supplier.id,
                 "curr": row_curr,
                 "tot_dr": debit,
                 "tot_cr": credit,

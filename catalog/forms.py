@@ -9,7 +9,7 @@ from catalog.models import ServiceFieldDefinition, ServiceType
 class ServiceTypeForm(forms.ModelForm):
     class Meta:
         model = ServiceType
-        fields = ["code", "name", "is_active", "requires_supplier", "default_currency"]
+        fields = ["code", "name", "requires_supplier", "default_currency"]
         widgets = {
             "code": forms.TextInput(attrs={"placeholder": "e.g. TKT"}),
         }
@@ -40,6 +40,8 @@ class ServiceFieldDefinitionForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.required = False
+        if not self.instance.pk and self.fields.get("field_type"):
+            self.fields["field_type"].initial = ServiceFieldDefinition.FieldType.TEXT
         if self.instance.pk and self.instance.choices:
             ch = self.instance.choices
             if isinstance(ch, list):

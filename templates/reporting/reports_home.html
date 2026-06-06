@@ -8,7 +8,7 @@
     <label>From <input type="date" name="date_from" value="{% if date_from %}{{ date_from|date:'Y-m-d' }}{% endif %}"></label>
     <label>To <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}"></label>
     <button class="btn" type="submit">Apply to summary</button>
-    <a class="btn" href="?format=pdf{% if request.GET.urlencode %}&amp;{{ request.GET.urlencode }}{% endif %}">Download PDF</a>
+    {% include "partials/export_buttons.html" %}
 </form>
 
 <div class="report-groups">
