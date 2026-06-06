@@ -39,9 +39,4 @@ Thumbs.db
 PYTHONANYWHERE_REFERENCE.txt
 
 # Production deploy (server-only)
-deploy/update_production.local.conf
-deploy/.update.lock
-deploy/backups/*
-!deploy/backups/.gitkeep
-deploy/logs/*
-!deploy/logs/.gitkeep
+deploy/production.env

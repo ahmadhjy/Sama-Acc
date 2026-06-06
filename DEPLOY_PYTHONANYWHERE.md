@@ -283,53 +283,17 @@ Then **Web** tab → **Reload**.
 
 ## Updating production (after the first deploy)
 
-Use the **safe update script** instead of manual `git pull` + migrate steps. It is designed for accounting data:
+Use the one-command deploy script (same pattern as SAMA-TOURS). Full steps:
 
-- Refuses to run if git has local changes or cannot fast-forward
-- **Backs up the database before any change** (SQLite copy, or `pg_dump` / `mysqldump`)
-- Never runs destructive commands (`flush`, `reset`, `--fake`, `makemigrations`)
-- Logs every step to `deploy/logs/`
+**→ See [deploy/DEPLOY_STEPS.md](deploy/DEPLOY_STEPS.md)**
 
-### One-time setup on PythonAnywhere
+Quick reference:
 
 ```bash
-cd ~/Sama-Acc
-cp deploy/update_production.local.conf.example deploy/update_production.local.conf
-nano deploy/update_production.local.conf   # confirm paths match your account
-chmod +x deploy/update_production.sh
+cd ~/Sama-Acc && ./deploy/update.sh
 ```
 
-Ensure your WSGI file sets `DJANGO_SETTINGS_MODULE=config.settings.production` and database env vars (same as first deploy).
-
-Optional: create `~/Sama-Acc/.env` on the server (gitignored) with DB variables so `pg_dump` works from the Bash console — copy from WSGI, never commit this file.
-
-### Every update
-
-On your PC: push to GitHub (`git push`).
-
-On PythonAnywhere → **Consoles** → **Bash**:
-
-```bash
-cd ~/Sama-Acc
-bash deploy/update_production.sh
-```
-
-When it finishes successfully, **Web** tab → **Reload**.
-
-### If something goes wrong
-
-1. Check the log file path printed at the end (`deploy/logs/update_*.log`)
-2. Restore database from the backup path printed at the start (`deploy/backups/`)
-3. **Web** → **Reload** after restore
-
-For PostgreSQL restore (example — adjust file name):
-
-```bash
-source ~/.virtualenvs/sama-accounting/bin/activate
-cd ~/Sama-Acc
-export PGPASSWORD='your-password'
-psql -h YOUR_HOST.postgres.pythonanywhere-services.com -U sama_app -d sama_acc -f deploy/backups/db_postgresql_sama_acc_YYYYMMDD_HHMMSS.sql
-```
+One-time: `cp deploy/production.env.example deploy/production.env` and `chmod +x deploy/update.sh`.
 
 ---
 

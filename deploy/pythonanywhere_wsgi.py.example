@@ -24,7 +24,7 @@ os.environ["DJANGO_DB_NAME"] = "YOUR_POSTGRES_DATABASE_NAME"
 os.environ["DJANGO_DB_USER"] = "YOUR_POSTGRES_USERNAME"
 os.environ["DJANGO_DB_PASSWORD"] = "YOUR_POSTGRES_PASSWORD"
 os.environ["DJANGO_DB_HOST"] = "YOUR_POSTGRES_HOST"
-os.environ["DJANGO_DB_PORT"] = "5432"
+os.environ["DJANGO_DB_PORT"] = "15298"
 
 from django.core.wsgi import get_wsgi_application
 
