@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 import uuid
 
@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
 
+from accounts_core.list_utils import parse_post_date
 from accounts_core.models import Client, Supplier
 from accounts_core.pdf_utils import render_or_pdf
 from auditlog.models import DocumentEventLog
@@ -140,25 +141,41 @@ def payment_list(request):
     return render_or_pdf(request, "treasury/payment_list.html", {"payments": qs}, "payments.pdf")
 
 
+def _default_payment_date():
+    return date.today() - timedelta(days=1)
+
+
+def _resolve_payment_party_type(direction, party_type):
+    if party_type:
+        return party_type
+    if direction == Payment.Direction.OUT:
+        return Payment.PartyType.SUPPLIER
+    if direction == Payment.Direction.IN:
+        return Payment.PartyType.CLIENT
+    return party_type
+
+
 @login_required
 def payment_create(request):
     if request.method == "POST":
         try:
-            party_type = request.POST.get("party_type")
+            direction = request.POST.get("direction")
+            party_type = _resolve_payment_party_type(direction, request.POST.get("party_type"))
             client_id = request.POST.get("client") or None
             supplier_id = request.POST.get("supplier") or None
             party_name = (request.POST.get("party_name") or "").strip()
             _validate_payment_party_selection(party_type, client_id, supplier_id, party_name)
+            pay_date = parse_post_date(request.POST.get("date"), default=_default_payment_date())
             payment = Payment.objects.create(
-                receipt_no=request.POST.get("receipt_no"),
-                direction=request.POST.get("direction"),
+                receipt_no=request.POST.get("receipt_no") or _next_temp_receipt_no(),
+                direction=direction,
                 party_type=party_type,
                 client_id=client_id if party_type == Payment.PartyType.CLIENT else None,
                 supplier_id=supplier_id if party_type == Payment.PartyType.SUPPLIER else None,
                 party_name=party_name if party_type == Payment.PartyType.OTHER else "",
                 money_account_id=request.POST.get("money_account"),
                 payment_method=request.POST.get("payment_method") or "CASH",
-                date=request.POST.get("date"),
+                date=pay_date,
                 currency=request.POST.get("currency") or "USD",
                 amount=Decimal(request.POST.get("amount") or "0"),
                 reference=(request.POST.get("reference") or "").strip(),
@@ -183,6 +200,7 @@ def payment_create(request):
             "is_edit": False,
             "payment": None,
             "default_receipt_no": _next_temp_receipt_no(),
+            "default_payment_date": _default_payment_date().isoformat(),
             "accounts": MoneyAccount.objects.filter(is_active=True).order_by("name"),
             "clients": Client.objects.order_by("name_en"),
             "suppliers": Supplier.objects.order_by("name"),
@@ -202,14 +220,14 @@ def payment_edit(request, payment_id):
         try:
             receipt_no = request.POST.get("receipt_no") or payment.receipt_no
             direction = request.POST.get("direction") or payment.direction
-            party_type = request.POST.get("party_type") or payment.party_type
+            party_type = _resolve_payment_party_type(direction, request.POST.get("party_type") or payment.party_type)
             client_id = request.POST.get("client") or None
             supplier_id = request.POST.get("supplier") or None
             party_name = (request.POST.get("party_name") or "").strip()
             _validate_payment_party_selection(party_type, client_id, supplier_id, party_name)
             money_account_id = request.POST.get("money_account") or payment.money_account_id
             payment_method = request.POST.get("payment_method") or payment.payment_method or "CASH"
-            pay_date = request.POST.get("date") or payment.date
+            pay_date = parse_post_date(request.POST.get("date"), default=payment.date)
             currency = request.POST.get("currency") or payment.currency
             amount = Decimal(request.POST.get("amount") or "0")
             note = request.POST.get("note") or ""

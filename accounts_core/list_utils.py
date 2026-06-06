@@ -1,4 +1,18 @@
-from datetime import datetime
+from datetime import date, datetime
+
+
+def parse_post_date(value, default=None):
+    """Parse YYYY-MM-DD from a form POST value into a date."""
+    if value is None or value == "":
+        return default
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    try:
+        return datetime.strptime(str(value).strip(), "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError("Invalid date. Use YYYY-MM-DD.") from exc
 
 
 def parse_date(req, key):

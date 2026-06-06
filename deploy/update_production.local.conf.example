@@ -1,0 +1,21 @@
+# Copy to update_production.local.conf on PythonAnywhere (that file is gitignored).
+# Only paths and non-secret options belong here. Database credentials should live in
+# your WSGI file or a private .env on the server (never commit secrets to GitHub).
+
+# Project root (folder containing manage.py)
+SAMA_PROJECT_DIR="/home/Samatours2026/Sama-Acc"
+
+# Virtualenv created with mkvirtualenv
+SAMA_VENV_DIR="/home/Samatours2026/.virtualenvs/sama-accounting"
+
+# Git branch to deploy
+SAMA_GIT_BRANCH="main"
+
+# Django settings module (must match WSGI)
+DJANGO_SETTINGS_MODULE="config.settings.production"
+
+# Keep this many database backup files (older ones are deleted)
+SAMA_BACKUP_KEEP=10
+
+# Set to 0 to skip automatic backup (NOT recommended for production)
+SAMA_REQUIRE_BACKUP=1

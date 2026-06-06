@@ -76,6 +76,18 @@ class Payment(models.Model):
     def remaining_amount(self):
         return self.amount - self.allocated_amount
 
+    def _date_as_date(self):
+        from datetime import date, datetime
+
+        d = self.date
+        if isinstance(d, date) and not isinstance(d, datetime):
+            return d
+        if isinstance(d, datetime):
+            return d.date()
+        if isinstance(d, str) and d.strip():
+            return datetime.strptime(d.strip()[:10], "%Y-%m-%d").date()
+        raise ValueError("Payment date is missing or invalid.")
+
     def post(self, user=None):
         if self.status != self.Status.DRAFT:
             raise ValueError("Only draft payments can be posted.")
@@ -84,7 +96,9 @@ class Payment(models.Model):
         if not self.receipt_no or self.receipt_no.startswith("TMP-"):
             from accounts_core.models import DocumentSequence
 
-            self.receipt_no = DocumentSequence.next_value("PAY", "PAY-", self.date.year)
+            pay_date = self._date_as_date()
+            self.date = pay_date
+            self.receipt_no = DocumentSequence.next_value("PAY", "PAY-", pay_date.year)
         self.status = self.Status.POSTED
         self.posted_by = user
         self.posted_at = timezone.now()

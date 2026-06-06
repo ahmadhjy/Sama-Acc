@@ -3,7 +3,7 @@
 {% block page_content %}
 <h1 class="title">Invoice {{ invoice.invoice_no }}</h1>
 <div class="panel">
-    <p><strong>Client:</strong> {{ invoice.client.name_en }}</p>
+    <p><strong>Client:</strong> {{ invoice.client.name_en|default:"—" }}</p>
     <p><strong>Status:</strong> <span class="badge">{{ invoice.status }}</span>
         {% if invoice.package_type %}<span class="badge">{{ invoice.get_package_type_display }}</span>{% endif %}
     </p>
@@ -62,6 +62,12 @@
             <input type="hidden" name="reason" value="Void from invoice view">
             <button type="submit" class="btn">Void</button>
         </form>
+    {% endif %}
+    {% if can_delete %}
+    <form method="post" action="{% url 'sales:invoice_delete' invoice.id %}" style="display:inline;" onsubmit="return confirm('Delete this invoice permanently?');">
+        {% csrf_token %}
+        <button type="submit" class="btn">Delete</button>
+    </form>
     {% endif %}
     <a class="btn" href="{% url 'sales:invoice_list' %}">Back to list</a>
 </p>

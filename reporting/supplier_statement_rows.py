@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.db.models import Q
 
 from reporting.statement_refs import invoice_ref_url, payment_ref_url
+from reporting.statement_sort import sort_statement_rows
 from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import Payment
 
@@ -35,10 +36,7 @@ def _payment_supplier_description(payment: Payment) -> str:
 
 
 def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
-    """One debit row per posted invoice service line (cost); one credit per supplier payment.
-
-    Service lines appear only once their service date has been reached (supplier SOA only).
-    """
+    """One credit row per posted invoice service line (cost); one debit per supplier payment."""
     upper = statement_service_date_upper(date_to)
     lines = (
         SalesInvoiceLine.objects.filter(
@@ -64,7 +62,7 @@ def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
     )
 
     rows = []
-    for line in lines.order_by("service_date", "invoice__issue_date"):
+    for line in lines.order_by("service_date", "invoice__issue_date", "invoice__created_at", "id"):
         inv = line.invoice
         amt = line.line_cost_amount_usd().quantize(Decimal("0.01"))
         st = line.service_type
@@ -77,8 +75,10 @@ def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
                 "description": line.supplier_statement_description(),
                 "ref": inv.invoice_no,
                 "ref_url": invoice_ref_url(inv.id),
-                "debit": amt,
-                "credit": Decimal("0.00"),
+                "debit": Decimal("0.00"),
+                "credit": amt,
+                "sort_seq": inv.created_at,
+                "sort_id": str(line.id),
             }
         )
 
@@ -90,10 +90,11 @@ def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
                 "description": _payment_supplier_description(pay),
                 "ref": pay.receipt_no,
                 "ref_url": payment_ref_url(pay.id),
-                "debit": Decimal("0.00"),
-                "credit": pay.amount,
+                "debit": pay.amount,
+                "credit": Decimal("0.00"),
+                "sort_seq": pay.created_at,
+                "sort_id": str(pay.id),
             }
         )
 
-    rows.sort(key=lambda x: (x["date"] or date.today(), x["type"], x["ref"]))
-    return rows
+    return sort_statement_rows(rows)

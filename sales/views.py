@@ -3,8 +3,11 @@ import uuid
 from decimal import Decimal
 
 from django.contrib import messages
+from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import ProtectedError
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
@@ -118,7 +121,7 @@ def invoice_create(request):
             messages.success(request, f"Invoice {saved_invoice.invoice_no} created.")
             return redirect("sales:invoice_edit", invoice_id=saved_invoice.id)
     else:
-        initial = {}
+        initial = {"issue_date": timezone.localdate()}
         emp = get_default_employee_for_accounting()
         if emp:
             initial["sales_employee"] = emp
@@ -177,6 +180,9 @@ def invoice_open(request, invoice_id):
             ).all(),
             "attachments": invoice.attachments.all(),
             "can_adjust": can_adjust,
+            "can_delete": invoice.can_delete()
+            and not invoice.allocations.exists()
+            and not invoice.credit_notes.exists(),
         },
     )
 
@@ -198,7 +204,7 @@ def invoice_pdf(request, invoice_id):
             "lines": lines,
             "show_costs": show_costs,
             "pdf_report_title": pdf_title,
-            "pdf_report_subtitle": f"{invoice.invoice_no} — {invoice.client.name_en}",
+            "pdf_report_subtitle": f"{invoice.invoice_no} — {invoice.client.name_en if invoice.client_id else 'Draft'}",
             "pdf_currency": invoice.currency,
         },
         f"invoice_{invoice.invoice_no}_{version}.pdf",
@@ -214,6 +220,30 @@ def invoice_delete_attachment(request, invoice_id, attachment_id):
     att.delete()
     messages.success(request, "Attachment removed.")
     return redirect("sales:invoice_edit", invoice_id=invoice.id)
+
+
+@login_required
+@require_http_methods(["POST"])
+def invoice_delete(request, invoice_id):
+    invoice = get_object_or_404(SalesInvoice, pk=invoice_id)
+    if not invoice.can_delete():
+        messages.error(request, "Only draft or voided invoices can be deleted.")
+        return redirect("sales:invoice_list")
+    if invoice.allocations.exists():
+        messages.error(request, "Cannot delete invoice with payment allocations.")
+        return redirect("sales:invoice_open", invoice_id=invoice.id)
+    if invoice.credit_notes.exists():
+        messages.error(request, "Cannot delete invoice with linked credit notes.")
+        return redirect("sales:invoice_open", invoice_id=invoice.id)
+    try:
+        invoice_no = invoice.invoice_no
+        invoice.delete()
+        log_audit("DELETE_INVOICE", invoice, actor=request.user, before={"invoice_no": invoice_no})
+        messages.success(request, f"Invoice {invoice_no} deleted.")
+    except ProtectedError:
+        messages.error(request, "Cannot delete this invoice because it is linked to other records.")
+        return redirect("sales:invoice_open", invoice_id=invoice.id)
+    return redirect("sales:invoice_list")
 
 
 @login_required
@@ -263,8 +293,10 @@ def adjust_invoice(request, invoice_id):
             messages.error(request, "Adjustment reason is required.")
             return render(request, "sales/invoice_adjust_form.html", {"invoice": invoice})
         with transaction.atomic():
+            old_invoice_no = invoice.invoice_no
+            old_invoice_id = invoice.id
             corrected = SalesInvoice.objects.create(
-                invoice_no="",
+                invoice_no=_next_temp_invoice_no(),
                 client=invoice.client,
                 file=invoice.file,
                 sales_employee=invoice.sales_employee,
@@ -312,23 +344,24 @@ def adjust_invoice(request, invoice_id):
                 request.user,
                 {"reason": reason, "adjusted_to": corrected.invoice_no},
             )
+            invoice.delete()
             log_document_event(
                 DocumentEventLog.EventType.CREATED,
                 corrected,
                 request.user,
-                {"adjusted_from": invoice.invoice_no, "reason": reason},
+                {"adjusted_from": old_invoice_no, "reason": reason},
             )
             log_audit(
                 "ADJUST_INVOICE",
                 corrected,
                 actor=request.user,
                 reason=reason,
-                before={"invoice_no": invoice.invoice_no},
+                before={"invoice_no": old_invoice_no, "invoice_id": str(old_invoice_id)},
                 after={"invoice_no": corrected.invoice_no},
             )
         messages.success(
             request,
-            f"Invoice {invoice.invoice_no} adjusted. Correction draft {corrected.invoice_no} created.",
+            f"Invoice {old_invoice_no} adjusted. Correction draft {corrected.invoice_no} created.",
         )
         return redirect("sales:invoice_edit", invoice_id=corrected.id)
 

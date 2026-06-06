@@ -76,6 +76,24 @@ class TreasuryAllocationTests(TestCase):
         self.assertEqual(payment.allocated_amount, Decimal("200"))
         self.assertEqual(payment.remaining_amount, Decimal("300"))
 
+    def test_post_assigns_receipt_when_date_was_string(self):
+        """Regression: form POST used to leave date as str and break post()."""
+        payment = Payment.objects.create(
+            receipt_no="TMP-PSTR",
+            direction=Payment.Direction.IN,
+            party_type=Payment.PartyType.CLIENT,
+            client=self.client_obj,
+            money_account=self.account,
+            date="2026-06-01",
+            currency="USD",
+            amount=Decimal("50"),
+            status=Payment.Status.DRAFT,
+        )
+        payment.post(self.user)
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, Payment.Status.POSTED)
+        self.assertTrue(payment.receipt_no.startswith("PAY-2026-"))
+
     def test_payment_currency_mismatch_requires_rate(self):
         payment = Payment.objects.create(
             receipt_no="TMP-P2",

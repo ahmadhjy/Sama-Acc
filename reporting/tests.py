@@ -117,7 +117,12 @@ class SupplierStatementServiceDateTests(TestCase):
         self._post_invoice_with_line(past)
         rows = build_supplier_statement_rows(self.supplier)
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["debit"], Decimal("60.00"))
+        self.assertEqual(rows[0]["credit"], Decimal("60.00"))
+        self.assertEqual(rows[0]["debit"], Decimal("0.00"))
+        running = Decimal("0.00")
+        for row in rows:
+            running = running + row["credit"] - row["debit"]
+        self.assertEqual(running, Decimal("60.00"))
 
     def test_statement_upper_bound_caps_future_date_to(self):
         future_to = date.today() + timedelta(days=60)

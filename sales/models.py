@@ -14,11 +14,15 @@ class SalesInvoice(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     invoice_no = models.CharField(max_length=32, unique=True, blank=True)
-    client = models.ForeignKey("accounts_core.Client", on_delete=models.PROTECT, related_name="sales_invoices")
+    client = models.ForeignKey(
+        "accounts_core.Client", null=True, blank=True, on_delete=models.PROTECT, related_name="sales_invoices"
+    )
     file = models.ForeignKey(
         "accounts_core.BookingFile", null=True, blank=True, on_delete=models.SET_NULL, related_name="sales_invoices"
     )
-    sales_employee = models.ForeignKey("accounts_core.Employee", on_delete=models.PROTECT, related_name="sales_invoices")
+    sales_employee = models.ForeignKey(
+        "accounts_core.Employee", null=True, blank=True, on_delete=models.PROTECT, related_name="sales_invoices"
+    )
     class PackageType(models.TextChoices):
         FULL_PACKAGE = "FULL_PACKAGE", "Full package"
         VISA = "VISA", "Visa"
@@ -37,7 +41,7 @@ class SalesInvoice(models.Model):
         default="",
         help_text="Primary service category for this invoice (e.g. full package, ticket, hotel).",
     )
-    issue_date = models.DateField()
+    issue_date = models.DateField(default=timezone.localdate)
     due_date = models.DateField(null=True, blank=True)
     currency = models.CharField(max_length=3, default="USD")
     exchange_rate_to_usd = models.DecimalField(
@@ -191,7 +195,12 @@ class SalesInvoice(models.Model):
             )
             bill.post(user)
 
+    def can_delete(self):
+        return self.status in (self.Status.DRAFT, self.Status.VOIDED)
+
     def save(self, *args, **kwargs):
+        if not self.issue_date:
+            self.issue_date = timezone.localdate()
         if self.issue_date and self.due_date is None:
             self.due_date = self.issue_date
         if self.pk:
@@ -215,6 +224,12 @@ class SalesInvoice(models.Model):
     def post(self, user=None):
         if self.status != self.Status.DRAFT:
             raise ValueError("Only draft invoices can be posted.")
+        if not self.client_id:
+            raise ValueError("Select a client before posting.")
+        if not self.sales_employee_id:
+            raise ValueError("Select the sales employee before posting.")
+        if not self.issue_date:
+            raise ValueError("Set the issue date before posting.")
         lines = list(
             self.lines.select_related("service_type", "service_instance__service_type", "supplier").prefetch_related(
                 "service_type__field_definitions"
@@ -345,6 +360,8 @@ class SalesInvoiceLine(models.Model):
                 raise ValueError(f'"{fd.label}" is required for service {st.name}.')
         if not self.supplier_id:
             raise ValueError(f"Select a supplier for service {st.name}.")
+        if not self.line_employee_id:
+            raise ValueError(f"Choose the employee responsible for service {st.name}.")
 
     def line_selling_amount(self):
         """Selling amount for this line in invoice document currency."""

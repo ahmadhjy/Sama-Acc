@@ -2,7 +2,6 @@ import json
 from decimal import Decimal
 
 from django import forms
-from django.core.exceptions import ValidationError
 from django.forms import BaseInlineFormSet, inlineformset_factory
 from django.utils import timezone
 
@@ -46,6 +45,14 @@ class SalesInvoiceForm(forms.ModelForm):
         self.fields["exchange_rate_to_usd"].help_text = (
             "Required when currency is not USD. USD total = invoice amount × rate. Example: 1000 EUR × 1.20 = 1200 USD."
         )
+        self.fields["client"].required = False
+        self.fields["sales_employee"].required = False
+        if not self.is_bound:
+            if not self.initial.get("issue_date") and not getattr(self.instance, "issue_date", None):
+                self.initial["issue_date"] = timezone.localdate()
+            issue = self.initial.get("issue_date") or getattr(self.instance, "issue_date", None)
+            if issue and not self.initial.get("due_date") and not getattr(self.instance, "due_date", None):
+                self.initial["due_date"] = issue
 
     @staticmethod
     def _currency_choices():
@@ -57,6 +64,10 @@ class SalesInvoiceForm(forms.ModelForm):
     def clean(self):
         data = super().clean()
         issue = data.get("issue_date")
+        if not issue:
+            issue = timezone.localdate()
+            data["issue_date"] = issue
+            self.cleaned_data["issue_date"] = issue
         due = data.get("due_date")
         if issue and not due:
             data["due_date"] = issue
@@ -70,17 +81,16 @@ class SalesInvoiceForm(forms.ModelForm):
         if cur == "USD":
             data["exchange_rate_to_usd"] = None
             self.cleaned_data["exchange_rate_to_usd"] = None
-        else:
-            if rate in (None, "") or (isinstance(rate, Decimal) and rate <= 0):
-                self.add_error(
-                    "exchange_rate_to_usd",
-                    "Enter the rate to convert this currency to USD (multiply invoice amount by this rate).",
-                )
+        elif rate not in (None, "") and isinstance(rate, Decimal) and rate <= 0:
+            self.add_error(
+                "exchange_rate_to_usd",
+                "Enter a positive rate to convert this currency to USD, or leave blank until posting.",
+            )
         return data
 
 
 class SalesInvoiceLineBaseForm(forms.ModelForm):
-    """Blank rows (no service type) are allowed; filled rows are validated in clean()."""
+    """Blank rows (no service type) are allowed; posting validates filled rows."""
 
     class Meta:
         model = SalesInvoiceLine
@@ -111,7 +121,7 @@ class SalesInvoiceLineBaseForm(forms.ModelForm):
             field.required = False
         dest = self.fields.get("destination")
         if dest:
-            dest.queryset = Destination.objects.filter(is_active=True).order_by("sort_order", "name")
+            dest.queryset = Destination.objects.filter(is_active=True).order_by("sort_order", "name")[:100]
             dest.empty_label = "— Destination —"
         if not self.instance.pk:
             sd = self.fields.get("service_date")
@@ -149,12 +159,6 @@ class SalesInvoiceLineBaseForm(forms.ModelForm):
         if cleaned.get("cost_price") in (None, ""):
             cleaned["cost_price"] = Decimal("0.00")
 
-        if not cleaned.get("line_employee"):
-            self.add_error("line_employee", "Choose the employee responsible for this line.")
-
-        if not cleaned.get("supplier"):
-            self.add_error("supplier", "Select the supplier for this service line.")
-
         return cleaned
 
 
@@ -179,20 +183,6 @@ class SalesInvoiceLineSalesForm(SalesInvoiceLineBaseForm):
 
 
 class SalesInvoiceLineInlineFormSet(BaseInlineFormSet):
-    def clean(self):
-        super().clean()
-        active = 0
-        for form in self.forms:
-            if not hasattr(form, "cleaned_data"):
-                continue
-            cd = form.cleaned_data
-            if cd.get("DELETE"):
-                continue
-            if cd.get("service_type"):
-                active += 1
-        if active < 1:
-            raise ValidationError("Add at least one service line (choose a service type, price, and employee per line).")
-
     def save_new(self, form, commit=True):
         if form.cleaned_data and not form.cleaned_data.get("service_type"):
             return None

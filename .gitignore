@@ -34,3 +34,14 @@ Thumbs.db
 
 # Logs
 *.log
+
+# PythonAnywhere private notes (may contain account hints)
+PYTHONANYWHERE_REFERENCE.txt
+
+# Production deploy (server-only)
+deploy/update_production.local.conf
+deploy/.update.lock
+deploy/backups/*
+!deploy/backups/.gitkeep
+deploy/logs/*
+!deploy/logs/.gitkeep

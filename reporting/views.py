@@ -207,7 +207,7 @@ def supplier_statement(request, supplier_id):
     rows = build_supplier_statement_rows(supplier, df, dt)
     running = Decimal("0.00")
     for row in rows:
-        running = running + row["debit"] - row["credit"]
+        running = running + row["credit"] - row["debit"]
         row["running_balance"] = running
     return render_or_pdf(
         request,
@@ -520,7 +520,7 @@ def suppliers_trial_balance(request):
     for supplier in suppliers:
         opening = supplier_ap_balance(supplier, day_before) if df else Decimal("0.00")
         debit, credit = _supplier_period_movement(supplier, df, dt)
-        closing = opening + debit - credit
+        closing = opening + credit - debit
         if debit == 0 and credit == 0 and opening == 0 and closing == 0:
             continue
         bill_q = SupplierBill.objects.filter(supplier=supplier, status=SupplierBill.Status.POSTED)

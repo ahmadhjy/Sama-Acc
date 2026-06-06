@@ -6,6 +6,7 @@ app_name = "catalog"
 
 urlpatterns = [
     path("destinations/search/", views.destination_search, name="destination_search"),
+    path("destinations/quick-create/", views.destination_quick_create, name="destination_quick_create"),
     path("service-types/", views.service_types_list, name="service_types_list"),
     path("service-types/new/", views.service_type_create, name="service_type_create"),
     path("service-types/<uuid:service_type_id>/", views.service_type_detail, name="service_type_detail"),

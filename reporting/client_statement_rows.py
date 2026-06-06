@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from reporting.payment_amounts import payment_usd_amount
 from reporting.statement_refs import invoice_ref_url, payment_ref_url
+from reporting.statement_sort import sort_statement_rows
 from sales.models import SalesInvoice
 from treasury.models import Payment
 
@@ -57,6 +58,8 @@ def build_client_statement_rows(client, date_from=None, date_to=None):
                     "ref_url": invoice_ref_url(inv.id),
                     "debit": amt,
                     "credit": Decimal("0.00"),
+                    "sort_seq": inv.created_at,
+                    "sort_id": str(line.id),
                 }
             )
 
@@ -70,8 +73,9 @@ def build_client_statement_rows(client, date_from=None, date_to=None):
                 "ref_url": payment_ref_url(pay.id),
                 "debit": Decimal("0.00"),
                 "credit": payment_usd_amount(pay),
+                "sort_seq": pay.created_at,
+                "sort_id": str(pay.id),
             }
         )
 
-    rows.sort(key=lambda x: (x["date"] or date.today(), x["type"], x["ref"]))
-    return rows
+    return sort_statement_rows(rows)

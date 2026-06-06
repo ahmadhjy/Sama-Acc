@@ -92,6 +92,70 @@ class SalesInvoiceWorkflowTests(TestCase):
         with self.assertRaises(ValueError):
             invoice.post(self.user)
 
+    def test_cannot_post_without_client(self):
+        invoice = SalesInvoice.objects.create(
+            invoice_no="TMP-NC",
+            sales_employee=self.employee,
+            issue_date=date.today(),
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=invoice,
+            supplier=self.supplier,
+            service_instance=self.service_instance,
+            line_employee=self.employee,
+            qty=Decimal("1"),
+            sell_price=Decimal("50"),
+        )
+        invoice.recalc_usd_amounts()
+        with self.assertRaises(ValueError) as ctx:
+            invoice.post(self.user)
+        self.assertIn("client", str(ctx.exception).lower())
+
+    def test_draft_save_without_lines_or_client(self):
+        invoice = SalesInvoice.objects.create(
+            invoice_no="TMP-DRAFT",
+            issue_date=date.today(),
+            currency="USD",
+        )
+        self.assertEqual(invoice.status, SalesInvoice.Status.DRAFT)
+        self.assertIsNone(invoice.client_id)
+
+    def test_can_delete_draft_and_voided_only(self):
+        draft = SalesInvoice.objects.create(
+            invoice_no="TMP-DEL",
+            issue_date=date.today(),
+            currency="USD",
+        )
+        self.assertTrue(draft.can_delete())
+        voided = SalesInvoice.objects.create(
+            invoice_no="TMP-VOID",
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=date.today(),
+            currency="USD",
+            status=SalesInvoice.Status.VOIDED,
+        )
+        self.assertTrue(voided.can_delete())
+        posted = SalesInvoice.objects.create(
+            invoice_no="TMP-PST",
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=date.today(),
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=posted,
+            supplier=self.supplier,
+            service_instance=self.service_instance,
+            line_employee=self.employee,
+            qty=Decimal("1"),
+            sell_price=Decimal("50"),
+        )
+        posted.recalc_usd_amounts()
+        posted.post(self.user)
+        self.assertFalse(posted.can_delete())
+
     def test_cannot_change_grand_total_after_post(self):
         invoice = SalesInvoice.objects.create(
             invoice_no="TMP-LOCK",

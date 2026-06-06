@@ -51,7 +51,7 @@
             {% endfor %}
         </select>
     </p>
-    <p><label>Date</label><input type="date" name="date" value="{{ payment.date|date:'Y-m-d' }}" required></p>
+    <p><label>Date</label><input type="date" name="date" value="{% if payment.date %}{{ payment.date|date:'Y-m-d' }}{% else %}{{ default_payment_date }}{% endif %}" required></p>
     <p><label>Currency</label><input name="currency" value="{{ payment.currency|default:'USD' }}"></p>
     <p><label>Amount</label><input name="amount" type="number" step="0.01" value="{{ payment.amount|default:'' }}" required></p>
     <p><label>Ref No</label><input name="reference" maxlength="255" placeholder="Cheque no., bank ref, transfer ID…" value="{{ payment.reference|default:'' }}"></p>
@@ -63,6 +63,7 @@
 <script>
 (function() {
   const partyType = document.getElementById("id_party_type");
+  const directionEl = document.querySelector('[name="direction"]');
   const clientWrap = document.getElementById("client-field-wrap");
   const supplierWrap = document.getElementById("supplier-field-wrap");
   const partyNameWrap = document.getElementById("party-name-wrap");
@@ -97,6 +98,16 @@
   }
 
   partyType.addEventListener("change", syncPartyFields);
+  if (directionEl) {
+    directionEl.addEventListener("change", function() {
+      if (directionEl.value === "OUT") {
+        partyType.value = "SUPPLIER";
+      } else if (directionEl.value === "IN" && partyType.value === "SUPPLIER") {
+        partyType.value = "CLIENT";
+      }
+      syncPartyFields();
+    });
+  }
   syncPartyFields();
 })();
 </script>

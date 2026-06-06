@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sama Tours ERP — Users, Groups &amp; Roles</title>
+  <style>
+    @page { size: A4; margin: 18mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.45;
+      color: #1e293b;
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 12mm 14mm;
+    }
+    h1 {
+      font-size: 20pt;
+      color: #0f2744;
+      margin: 0 0 6px;
+      border-bottom: 3px solid #0f2744;
+      padding-bottom: 8px;
+    }
+    .subtitle { color: #64748b; font-size: 10pt; margin-bottom: 20px; }
+    h2 {
+      font-size: 13pt;
+      color: #0f2744;
+      margin: 22px 0 8px;
+      page-break-after: avoid;
+    }
+    h3 { font-size: 11pt; margin: 14px 0 6px; color: #334155; }
+    p { margin: 0 0 10px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px;
+      font-size: 10pt;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #eef2f7; color: #0f2744; font-weight: 600; }
+    tr:nth-child(even) td { background: #f8fafc; }
+    .box {
+      background: #f0f9ff;
+      border-left: 4px solid #0f2744;
+      padding: 12px 14px;
+      margin: 12px 0;
+      page-break-inside: avoid;
+    }
+    .box-warn {
+      background: #fffbeb;
+      border-left-color: #d97706;
+    }
+    ul, ol { margin: 6px 0 12px; padding-left: 22px; }
+    li { margin-bottom: 4px; }
+    code, .mono {
+      font-family: Consolas, monospace;
+      font-size: 9.5pt;
+      background: #f1f5f9;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    .footer {
+      margin-top: 28px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 9pt;
+      color: #64748b;
+    }
+    @media print {
+      body { padding: 0; }
+      a { color: #1e293b; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>Sama Tours ERP</h1>
+<p class="subtitle">Guide for owners &amp; managers — Users, Groups, Employees, and who can do what<br>
+<strong>Save as PDF:</strong> Open this file in a browser → File → Print → Save as PDF</p>
+
+<h2>What is a “Group”? Do I need to use it?</h2>
+
+<div class="box">
+  <p><strong>Yes — you should use Groups.</strong> A <strong>Group</strong> is simply a <strong>job role</strong> attached to a login account. The system has three groups:</p>
+  <ul>
+    <li><strong>Sales</strong> — sales staff</li>
+    <li><strong>Accounting</strong> — finance / accountants</li>
+    <li><strong>Admin</strong> — manager or owner with full control</li>
+  </ul>
+  <p>When you create a user, you pick <strong>one Group</strong>. That decides what they can see in the ERP (e.g. Sales cannot see supplier costs on invoices).</p>
+  <p><strong>Groups are not optional</strong> if you want different access for sales vs accounting. Without a group, the user may not behave as expected.</p>
+</div>
+
+<p>In Django Admin, Groups appear under <strong>Authentication and Authorization → Groups</strong>. You normally <strong>do not create new groups</strong> — only assign users to <strong>Sales</strong>, <strong>Accounting</strong>, or <strong>Admin</strong> (already set up on your server).</p>
+
+<h2>Two different things (do not confuse them)</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th></th>
+      <th>Login User + Group</th>
+      <th>Employee (staff list)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Where</strong></td>
+      <td>Admin → <strong>Users</strong> → Groups</td>
+      <td>Admin → <strong>Employees</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Purpose</strong></td>
+      <td>Username, password, and <strong>permissions</strong></td>
+      <td>Name on <strong>invoices</strong> and <strong>salesman reports</strong></td>
+    </tr>
+    <tr>
+      <td><strong>Example</strong></td>
+      <td>“Rana” logs in as <strong>Sales</strong></td>
+      <td>“Rana” appears as salesperson on an invoice</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The <strong>Employee role</strong> (Sales / Accounting / Admin on the employee record) is for <strong>reporting labels</strong>, not for login security. Login security comes from the user’s <strong>Group</strong>.</p>
+
+<h2>Two websites inside one system</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Screen</th>
+      <th>Address</th>
+      <th>Who uses it</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Main ERP</strong> (daily work)</td>
+      <td><code>/login/</code> then Dashboard, Invoices, etc.</td>
+      <td>Everyone with a user account</td>
+    </tr>
+    <tr>
+      <td><strong>Admin panel</strong> (settings &amp; users)</td>
+      <td><code>/admin/</code></td>
+      <td>Only <strong>Staff</strong> users (owner, IT, lead accountant)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>What each Group can do in the ERP (main system)</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Area</th>
+      <th>Sales</th>
+      <th>Accounting</th>
+      <th>Admin</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Dashboard &amp; reports</td>
+      <td>Yes</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Clients</td>
+      <td>Yes</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Create / edit draft invoices</td>
+      <td>Yes</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>See supplier <strong>cost</strong> &amp; profit on invoices</td>
+      <td><strong>No</strong></td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Accountant copy of invoice PDF</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Supplier bills, payments, expenses</td>
+      <td>Limited / not for daily use</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Adjust posted invoices</td>
+      <td>No</td>
+      <td>Yes</td>
+      <td>Yes</td>
+    </tr>
+    <tr>
+      <td>Full <code>/admin/</code> panel</td>
+      <td>No (unless Staff ticked)</td>
+      <td>Only if <strong>Staff</strong> ticked</td>
+      <td>Yes if <strong>Staff</strong> ticked</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Who should access the Admin panel (<code>/admin/</code>)?</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Person</th>
+      <th>Group</th>
+      <th>Staff?</th>
+      <th>Superuser?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Developer / IT support</td>
+      <td>—</td>
+      <td>Yes</td>
+      <td><strong>Yes</strong> (you only)</td>
+    </tr>
+    <tr>
+      <td>CEO / owner</td>
+      <td><strong>Admin</strong></td>
+      <td>Yes</td>
+      <td>No (unless needed)</td>
+    </tr>
+    <tr>
+      <td>Main accountant</td>
+      <td><strong>Accounting</strong></td>
+      <td>Optional</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Other accountants</td>
+      <td><strong>Accounting</strong></td>
+      <td>No</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>Sales employees</td>
+      <td><strong>Sales</strong></td>
+      <td><strong>No</strong></td>
+      <td>No</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Staff</strong> = checkbox on the user page; required to open <code>/admin/</code>.<br>
+<strong>Superuser</strong> = full technical control; keep for 1–2 people only.</p>
+
+<h2>“Is main accountant” — should I use it?</h2>
+
+<div class="box">
+  <p><strong>Yes — for one person only:</strong> your lead / head accountant.</p>
+  <p>When adding or editing a user in Admin, under <strong>Profile</strong>, tick <strong>Is main accountant</strong> for that person only.</p>
+  <p><strong>Effect:</strong> New invoices automatically default the salesperson/employee field to that person’s <strong>Employee</strong> record (if linked).</p>
+</div>
+
+<p><strong>Also for the main accountant:</strong></p>
+<ol>
+  <li>Admin → <strong>Employees</strong> → create or edit their record (name, role <strong>Accounting</strong>).</li>
+  <li>Link <strong>User</strong> = their login account.</li>
+  <li>User → Group = <strong>Accounting</strong>.</li>
+  <li>Tick <strong>Is main accountant</strong> on their profile.</li>
+</ol>
+<p>Other accountants: Group <strong>Accounting</strong>, do <strong>not</strong> tick main accountant.</p>
+
+<h2>Step-by-step: create a new sales employee</h2>
+<ol>
+  <li>Admin → <strong>Employees</strong> → Add → name, role <strong>Sales</strong>, active.</li>
+  <li>Admin → <strong>Users</strong> → Add user → username &amp; password.</li>
+  <li>On user: tick <strong>Staff</strong> = <strong>off</strong>. Superuser = <strong>off</strong>.</li>
+  <li>Under <strong>Groups</strong>, choose <strong>Sales</strong> only → Save.</li>
+  <li>Edit the Employee record → link <strong>User</strong> to this account.</li>
+  <li>Send them the main site URL and login (not <code>/admin/</code>).</li>
+</ol>
+
+<h2>Step-by-step: create the main accountant</h2>
+<ol>
+  <li>Admin → <strong>Users</strong> → Add user → username &amp; password.</li>
+  <li>Group = <strong>Accounting</strong>. Staff = optional. Superuser = off.</li>
+  <li>Tick <strong>Is main accountant</strong> on profile → Save.</li>
+  <li>Admin → <strong>Employees</strong> → add their name, role Accounting, link <strong>User</strong>.</li>
+</ol>
+
+<h2>Step-by-step: CEO / owner</h2>
+<ol>
+  <li>User with Group <strong>Admin</strong>, <strong>Staff</strong> ticked.</li>
+  <li>Uses main ERP for overview and <code>/admin/</code> to manage users if needed.</li>
+  <li>Do not give every employee superuser access.</li>
+</ol>
+
+<div class="box box-warn">
+  <p><strong>Security reminder</strong></p>
+  <ul>
+    <li>Give <strong>Sales</strong> the <strong>Sales</strong> group — not Admin.</li>
+    <li>Keep <strong>superuser</strong> for technical support only.</li>
+    <li>Change passwords if they were shared insecurely.</li>
+  </ul>
+</div>
+
+<h2>Quick reference</h2>
+<table>
+  <thead>
+    <tr><th>Question</th><th>Answer</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>What is a Group?</td><td>A role: Sales, Accounting, or Admin — assigned to each user.</td></tr>
+    <tr><td>Must I use Groups?</td><td><strong>Yes</strong>, for every login user.</td></tr>
+    <tr><td>Where do I assign it?</td><td>Admin → Users → [user] → Groups.</td></tr>
+    <tr><td>Employee vs Group?</td><td>Employee = name on documents; Group = permissions.</td></tr>
+    <tr><td>Main accountant checkbox?</td><td>One person only; defaults employee on new invoices.</td></tr>
+  </tbody>
+</table>
+
+<p class="footer">Sama Tours — Sama Accounting ERP · User &amp; roles guide · For internal use</p>
+
+</body>
+</html>

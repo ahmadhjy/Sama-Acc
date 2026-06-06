@@ -15,13 +15,36 @@ def destination_search(request):
     q = (request.GET.get("q") or "").strip()
     qs = Destination.objects.filter(is_active=True).order_by("sort_order", "name")
     if q:
-        qs = qs.filter(Q(name__icontains=q) | Q(country__icontains=q))
-    qs = qs[:30]
+        qs = qs.filter(Q(name__icontains=q) | Q(country__icontains=q))[:30]
+    else:
+        qs = qs[:100]
     return JsonResponse(
         [{"id": str(d.id), "name": d.name, "country": d.country} for d in qs],
         safe=False,
     )
 
+
+@login_required
+@require_http_methods(["POST"])
+def destination_quick_create(request):
+    import json
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON."}, status=400)
+
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return JsonResponse({"error": "Destination name is required."}, status=400)
+
+    country = (payload.get("country") or "").strip()
+    if Destination.objects.filter(name__iexact=name).exists():
+        dest = Destination.objects.get(name__iexact=name)
+        return JsonResponse({"id": str(dest.id), "name": dest.name, "country": dest.country})
+
+    dest = Destination.objects.create(name=name, country=country, is_active=True)
+    return JsonResponse({"id": str(dest.id), "name": dest.name, "country": dest.country})
 
 @login_required
 def service_types_list(request):

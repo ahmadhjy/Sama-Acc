@@ -2,12 +2,14 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.db.models import ProtectedError
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
 from accounts_core.forms import ClientForm, SupplierForm
 from accounts_core.list_utils import client_list_filters, supplier_list_filters
 from accounts_core.models import BookingFile, Client, Employee, Supplier
+from accounts_core.party_codes import next_client_code, next_supplier_code
 from accounts_core.pdf_utils import render_or_pdf
 from purchases.models import SupplierBill
 from sales.models import SalesInvoice
@@ -49,15 +51,6 @@ def dashboard(request):
     return render(request, "dashboard.html", context)
 
 
-def _next_client_code():
-    """Suggest next client code C-0001, C-0002, …"""
-    max_n = 0
-    for code in Client.objects.values_list("client_code", flat=True):
-        if code.startswith("C-") and len(code) > 2 and code[2:].isdigit():
-            max_n = max(max_n, int(code[2:]))
-    return f"C-{max_n + 1:04d}"
-
-
 @login_required
 def clients_list(request):
     qs = Client.objects.order_by("name_en")
@@ -74,7 +67,7 @@ def client_create(request):
             messages.success(request, f"Client {client.name_en} created.")
             return redirect("accounts_core:client_edit", client_id=client.id)
     else:
-        form = ClientForm(initial={"client_code": _next_client_code()})
+        form = ClientForm(initial={"client_code": next_client_code()})
     return render(request, "accounts_core/client_form.html", {"form": form, "client": None, "is_edit": False})
 
 
@@ -90,14 +83,6 @@ def client_edit(request, client_id):
     else:
         form = ClientForm(instance=client)
     return render(request, "accounts_core/client_form.html", {"form": form, "client": client, "is_edit": True})
-
-
-def _next_supplier_code():
-    max_n = 0
-    for code in Supplier.objects.values_list("supplier_code", flat=True):
-        if code.startswith("S-") and len(code) > 2 and code[2:].isdigit():
-            max_n = max(max_n, int(code[2:]))
-    return f"S-{max_n + 1:04d}"
 
 
 @login_required
@@ -144,7 +129,7 @@ def supplier_create(request):
             messages.success(request, f"Supplier {supplier.name} created.")
             return redirect("accounts_core:supplier_edit", supplier_id=supplier.id)
     else:
-        form = SupplierForm(initial={"supplier_code": _next_supplier_code(), "is_active": True})
+        form = SupplierForm(initial={"supplier_code": next_supplier_code(), "is_active": True})
     return render(
         request,
         "accounts_core/supplier_form.html",
@@ -208,3 +193,58 @@ def supplier_delete(request, supplier_id):
     except ProtectedError:
         messages.error(request, "Cannot delete: this supplier is used on invoices, bills, or other records. Deactivate instead.")
         return redirect("accounts_core:supplier_detail", supplier_id=supplier_id)
+
+
+@login_required
+@require_http_methods(["POST"])
+def client_quick_create(request):
+    """Minimal client create from invoice form (JSON)."""
+    import json
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON."}, status=400)
+
+    name_en = (payload.get("name_en") or "").strip()
+    if not name_en:
+        return JsonResponse({"error": "Client name is required."}, status=400)
+
+    client_code = (payload.get("client_code") or "").strip() or next_client_code()
+    if Client.objects.filter(client_code=client_code).exists():
+        return JsonResponse({"error": f"Client code {client_code} already exists."}, status=400)
+
+    client = Client.objects.create(
+        client_code=client_code,
+        name_en=name_en,
+        type=(payload.get("type") or Client.ClientType.INDIVIDUAL),
+    )
+    return JsonResponse({"id": str(client.id), "name": client.name_en, "client_code": client.client_code})
+
+
+@login_required
+@require_http_methods(["POST"])
+def supplier_quick_create(request):
+    """Minimal supplier create from invoice service line (JSON)."""
+    import json
+
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON."}, status=400)
+
+    name = (payload.get("name") or "").strip()
+    if not name:
+        return JsonResponse({"error": "Supplier name is required."}, status=400)
+
+    supplier_code = (payload.get("supplier_code") or "").strip() or next_supplier_code()
+    if Supplier.objects.filter(supplier_code=supplier_code).exists():
+        return JsonResponse({"error": f"Supplier code {supplier_code} already exists."}, status=400)
+
+    supplier = Supplier.objects.create(
+        supplier_code=supplier_code,
+        name=name,
+        type=(payload.get("type") or Supplier.SupplierType.OTHER),
+        is_active=True,
+    )
+    return JsonResponse({"id": str(supplier.id), "name": supplier.name, "supplier_code": supplier.supplier_code})
