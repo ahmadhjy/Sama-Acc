@@ -10,7 +10,7 @@
   .quick-inline-btn { margin-left: 8px; font-size: 0.9em; }
   .quick-modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 1000; align-items: center; justify-content: center; }
   .quick-modal-backdrop.open { display: flex; }
-  .quick-modal { background: #fff; padding: 20px; border-radius: 8px; min-width: 320px; max-width: 420px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+  .quick-modal { background: #fff; padding: 20px; border-radius: 8px; min-width: 320px; max-width: 520px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
   .quick-modal h4 { margin-top: 0; }
   .quick-modal p { margin: 10px 0; }
   .quick-modal-actions { margin-top: 14px; display: flex; gap: 8px; }
@@ -193,23 +193,41 @@
 
   function appendSelectOption(select, id, label) {
     if (!select) return;
+    if (select.choices && typeof select.choices.destroy === 'function') {
+      select.choices.destroy();
+      delete select.dataset.choicesInitialized;
+    }
     const opt = document.createElement('option');
     opt.value = id;
     opt.textContent = label;
     select.appendChild(opt);
     select.value = id;
+    initSearchableSelect(select);
+    if (select.choices && typeof select.choices.setChoiceByValue === 'function') {
+      select.choices.setChoiceByValue(id);
+    }
   }
 
   document.getElementById('btn-add-client').addEventListener('click', function() {
     openQuickModal(
       'Add client',
-      '<p><label>Full name *</label><input type="text" id="qc-client-name" class="full-width"></p>' +
-      '<p><label>Phone number *</label><input type="text" id="qc-client-phone" class="full-width"></p>',
+      '<p><label>Type</label><select id="qc-client-type" class="full-width"><option value="INDIVIDUAL">Individual</option><option value="CORPORATE">Corporate</option></select></p>' +
+      '<p><label id="qc-client-name-label">Full name *</label><input type="text" id="qc-client-name" class="full-width"></p>' +
+      '<p id="qc-client-contact-wrap" style="display:none;"><label>Contact person *</label><input type="text" id="qc-client-contact" class="full-width"></p>' +
+      '<p><label>Phone number *</label><input type="text" id="qc-client-phone" class="full-width"></p>' +
+      '<p><label>Email</label><input type="email" id="qc-client-email" class="full-width"></p>' +
+      '<p id="qc-client-dob-wrap"><label>Date of birth</label><input type="date" id="qc-client-dob" class="full-width"></p>' +
+      '<p><label>Address</label><textarea id="qc-client-address" class="full-width" rows="2"></textarea></p>',
       function() {
+      const type = document.getElementById('qc-client-type').value;
       const name = document.getElementById('qc-client-name').value.trim();
       const phone = document.getElementById('qc-client-phone').value.trim();
+      const email = document.getElementById('qc-client-email').value.trim();
+      const address = document.getElementById('qc-client-address').value.trim();
+      const contact = document.getElementById('qc-client-contact').value.trim();
+      const dob = document.getElementById('qc-client-dob').value;
       const errEl = document.getElementById('quick-modal-error');
-      postJson(URL_CLIENT_QC, { name_en: name, phone: phone }).then(function(res) {
+      postJson(URL_CLIENT_QC, { type: type, name_en: name, phone: phone, email: email, address: address, contact_person: contact, date_of_birth: dob }).then(function(res) {
         if (!res.ok) {
           errEl.textContent = res.data.error || 'Could not create client.';
           errEl.style.display = 'block';
@@ -219,6 +237,19 @@
         closeQuickModal();
       });
     });
+    setTimeout(function() {
+      const typeSel = document.getElementById('qc-client-type');
+      const nameLbl = document.getElementById('qc-client-name-label');
+      const contactWrap = document.getElementById('qc-client-contact-wrap');
+      const dobWrap = document.getElementById('qc-client-dob-wrap');
+      function syncQcClient() {
+        const corp = typeSel && typeSel.value === 'CORPORATE';
+        if (nameLbl) nameLbl.textContent = corp ? 'Company name *' : 'Full name *';
+        if (contactWrap) contactWrap.style.display = corp ? '' : 'none';
+        if (dobWrap) dobWrap.style.display = corp ? 'none' : '';
+      }
+      if (typeSel) { typeSel.addEventListener('change', syncQcClient); syncQcClient(); }
+    }, 0);
   });
 
   function wireSupplierQuickCreate(box) {
@@ -228,17 +259,32 @@
     btn.addEventListener('click', function() {
       openQuickModal(
         'Add supplier',
-        '<p><label>Supplier name *</label><input type="text" id="qc-supplier-name" class="full-width"></p>' +
+        '<p><label>Type</label><select id="qc-supplier-type" class="full-width">' +
+        '<option value="AIRLINE">Airline</option><option value="HOTEL">Hotel</option><option value="DMC">DMC</option>' +
+        '<option value="VISA">Visa</option><option value="INSURANCE">Insurance</option><option value="TRANSFER">Transfer</option>' +
+        '<option value="OTHER" selected>Other</option></select></p>' +
+        '<p><label>Official name *</label><input type="text" id="qc-supplier-name" class="full-width"></p>' +
         '<p><label>Managing number</label><input type="text" id="qc-supplier-managing" class="full-width"></p>' +
         '<p><label>Accounting number</label><input type="text" id="qc-supplier-accounting" class="full-width"></p>' +
-        '<p class="muted">At least one number is required.</p>',
+        '<p class="muted">At least one number is required.</p>' +
+        '<p><label>Email</label><input type="email" id="qc-supplier-email" class="full-width"></p>' +
+        '<p><label>Address</label><textarea id="qc-supplier-address" class="full-width" rows="2"></textarea></p>' +
+        '<p><label>Default currency</label><input type="text" id="qc-supplier-currency" class="full-width" value="USD" maxlength="3"></p>',
         function() {
         const name = document.getElementById('qc-supplier-name').value.trim();
         const managing = document.getElementById('qc-supplier-managing').value.trim();
         const accounting = document.getElementById('qc-supplier-accounting').value.trim();
         const errEl = document.getElementById('quick-modal-error');
         const sel = box.querySelector('select[name$="-supplier"]');
-        postJson(URL_SUPPLIER_QC, { name: name, managing_number: managing, accounting_number: accounting }).then(function(res) {
+        postJson(URL_SUPPLIER_QC, {
+          type: document.getElementById('qc-supplier-type').value,
+          name: name,
+          managing_number: managing,
+          accounting_number: accounting,
+          email: document.getElementById('qc-supplier-email').value.trim(),
+          address: document.getElementById('qc-supplier-address').value.trim(),
+          default_currency: document.getElementById('qc-supplier-currency').value.trim()
+        }).then(function(res) {
           if (!res.ok) {
             errEl.textContent = res.data.error || 'Could not create supplier.';
             errEl.style.display = 'block';
@@ -657,6 +703,7 @@
       } else {
         el.selectedIndex = 0;
       }
+      initSearchableSelect(el);
     });
     const hid = clone.querySelector('.line-data-json');
     if (hid) hid.value = '{}';
@@ -676,12 +723,10 @@
   });
   defaultEmptyLineServiceDates();
   function initSearchableSelect(el) {
-    if (!el || el.dataset.choicesInitialized || typeof Choices === 'undefined') return;
-    new Choices(el, { searchEnabled: true, itemSelectText: '', shouldSort: false, searchResultLimit: 50 });
-    el.dataset.choicesInitialized = '1';
+    if (window.initSearchableSelect) window.initSearchableSelect(el);
   }
   initSearchableSelect(document.getElementById('id_client'));
-  document.querySelectorAll('select[name$="-supplier"]').forEach(initSearchableSelect);
+  document.querySelectorAll('#invoice-form select').forEach(initSearchableSelect);
 })();
 </script>
 {% endblock %}

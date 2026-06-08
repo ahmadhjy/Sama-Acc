@@ -428,6 +428,33 @@ def activity_trial_balance(request):
     tot_cr = sum((r["tot_cr"] for r in rows), Decimal("0.00"))
     bal_dr = sum((r["bal_dr"] for r in rows), Decimal("0.00"))
     bal_cr = sum((r["bal_cr"] for r in rows), Decimal("0.00"))
+    gross_profit = sales_total - cogs_total
+    opex_sum = sum((r["tot_dr"] for r in rows if r["account"].startswith("632")), Decimal("0.00"))
+    net_profit = gross_profit - opex_sum
+    rows.append(
+        {
+            "account": "",
+            "name": "Gross profit (Revenue − COGS)",
+            "curr": "USD",
+            "tot_dr": Decimal("0.00"),
+            "tot_cr": gross_profit if gross_profit > 0 else Decimal("0.00"),
+            "bal_dr": Decimal("0.00"),
+            "bal_cr": gross_profit if gross_profit > 0 else Decimal("0.00"),
+            "is_summary": True,
+        }
+    )
+    rows.append(
+        {
+            "account": "",
+            "name": "Net profit (Gross profit − OPEX)",
+            "curr": "USD",
+            "tot_dr": Decimal("0.00"),
+            "tot_cr": net_profit if net_profit > 0 else Decimal("0.00"),
+            "bal_dr": Decimal("0.00"),
+            "bal_cr": net_profit if net_profit > 0 else Decimal("0.00"),
+            "is_summary": True,
+        }
+    )
 
     return render_or_pdf(
         request,
@@ -440,6 +467,11 @@ def activity_trial_balance(request):
             "tot_cr": tot_cr,
             "bal_dr": bal_dr,
             "bal_cr": bal_cr,
+            "gross_profit": gross_profit,
+            "net_profit": net_profit,
+            "sales_total": sales_total,
+            "cogs_total": cogs_total,
+            "opex_total": opex_sum,
             "pdf_report_title": "Income Statement",
             "pdf_report_subtitle": "Posted sales revenue, cost of sales, and operating expenses (USD) for the selected period",
             "pdf_account_range": "Activity trial balance — accounts 401 (revenue), 501 (COGS), 632 (OPEX)",
@@ -473,10 +505,16 @@ def clients_trial_balance(request):
         rows.append(
             {
                 "account": f"411{client.client_code}"[:32],
-                "name": f"{client.name_en} ({inv_n})",
+                "name": client.name_en,
+                "client_id": client.id,
+                "client_code": client.client_code,
+                "invoice_count": inv_n,
                 "curr": row_curr,
+                "opening_dr": _split_balance_dr_cr(opening)[0],
+                "opening_cr": _split_balance_dr_cr(opening)[1],
                 "tot_dr": debit,
                 "tot_cr": credit,
+                "closing": closing,
                 "bal_dr": bd,
                 "bal_cr": bc,
             }
@@ -530,10 +568,16 @@ def suppliers_trial_balance(request):
         rows.append(
             {
                 "account": f"211{supplier.supplier_code}"[:32],
-                "name": f"{supplier.name} ({bill_n})",
+                "name": supplier.name,
+                "supplier_id": supplier.id,
+                "supplier_code": supplier.supplier_code,
+                "bill_count": bill_n,
                 "curr": row_curr,
+                "opening_dr": _split_balance_dr_cr(opening)[0],
+                "opening_cr": _split_balance_dr_cr(opening)[1],
                 "tot_dr": debit,
                 "tot_cr": credit,
+                "closing": closing,
                 "bal_dr": bd,
                 "bal_cr": bc,
             }

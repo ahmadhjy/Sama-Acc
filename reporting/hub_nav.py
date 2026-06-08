@@ -31,7 +31,7 @@ def resolve_hub_section(request):
     tab = request.GET.get("tab", "").lower()
 
     if path in ("", "/"):
-        return tab if tab in ("reports",) else "overview"
+        return tab if tab in ("reports", "destinations") else "overview"
 
     if path == "/reporting":
         return "reports"
@@ -87,6 +87,8 @@ def resolve_hub_subsection(request):
         return "salesman_detailed"
     if request.GET.get("tab") == "reports":
         return "reports_home"
+    if request.GET.get("tab") == "destinations":
+        return "destinations_home"
     return ""
 
 
@@ -102,6 +104,13 @@ def build_hub_nav(request):
             "icon": "fa-chart-line",
             "url": _home_url(request),
             "active": section == "overview",
+        },
+        {
+            "id": "destinations",
+            "label": "Destinations",
+            "icon": "fa-location-dot",
+            "url": _home_url(request, "destinations"),
+            "active": section == "destinations",
         },
         {
             "id": "reports",

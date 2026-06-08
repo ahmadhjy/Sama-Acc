@@ -8,9 +8,9 @@
         </div>
         <form method="get" class="hub-hero__filters">
             {% block hub_filter_preserve %}{% endblock %}
-            <label class="hub-filter">
+            <label class="hub-filter hub-filter--preset">
                 <span>Preset</span>
-                <select name="preset" onchange="this.form.submit()">
+                <select name="preset" class="hub-preset-select" onchange="this.form.submit()">
                     <option value="">Custom</option>
                     <option value="today" {% if request.GET.preset == 'today' %}selected{% endif %}>Today</option>
                     <option value="week" {% if request.GET.preset == 'week' %}selected{% endif %}>This week</option>
@@ -27,7 +27,7 @@
                 <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}">
             </label>
             <button class="btn hub-btn-apply" type="submit">Apply</button>
-            <a class="btn btn-ghost hub-btn-clear" href="{{ request.path }}?{{ default_filter_query }}{% if hub_tab == 'reports' %}&tab=reports{% endif %}">Clear filters</a>
+            <a class="btn btn-ghost hub-btn-clear" href="{{ request.path }}?{{ default_filter_query }}{% if hub_tab == 'reports' %}&tab=reports{% elif hub_tab == 'destinations' %}&tab=destinations{% endif %}">Clear filters</a>
             {% block hub_extra_actions %}{% endblock %}
         </form>
     </header>

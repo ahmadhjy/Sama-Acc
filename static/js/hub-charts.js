@@ -27,7 +27,11 @@
         return v;
     }
 
-    function barChart(id, labels, values, label) {
+    function querySuffix() {
+        return window.location.search || "";
+    }
+
+    function barChart(id, labels, values, label, onClick) {
         var ctx = document.getElementById(id);
         if (!ctx) return;
         new Chart(ctx, {
@@ -45,6 +49,8 @@
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                onHover: onClick ? function (ev, els) { ev.native.target.style.cursor = els.length ? "pointer" : "default"; } : undefined,
+                onClick: onClick || undefined,
                 plugins: { legend: { display: !!label } },
                 scales: {
                     y: { beginAtZero: true, grid: { color: gridColor }, ticks: { callback: moneyTick } },
@@ -54,7 +60,7 @@
         });
     }
 
-    function doughnut(id, labels, values, colors) {
+    function doughnut(id, labels, values, colors, onClick) {
         var ctx = document.getElementById(id);
         if (!ctx || !labels.length) return;
         new Chart(ctx, {
@@ -67,6 +73,8 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 cutout: "62%",
+                onHover: onClick ? function (ev, els) { ev.native.target.style.cursor = els.length ? "pointer" : "default"; } : undefined,
+                onClick: onClick || undefined,
                 plugins: { legend: { position: "bottom", labels: { boxWidth: 12, padding: 14 } } }
             }
         });
@@ -74,12 +82,20 @@
 
     barChart("chart-revenue-trend", readJson("chart-monthly-labels", []), readJson("chart-monthly-values", []));
 
+    var salesmanReportUrl = s.salesmanReportUrl || ("/reporting/salesman/" + querySuffix());
+
     doughnut("chart-profit", ["Revenue", "COGS", "OPEX", "Net profit"], [
         Math.max(s.revenue || 0, 0),
         Math.max(s.cogs || 0, 0),
         Math.max(s.opex || 0, 0),
         Math.max(s.netProfit || 0, 0)
-    ], [palette.blue, palette.orange, palette.red, palette.green]);
+    ], [palette.blue, palette.orange, palette.red, palette.green], function (ev, elements) {
+        if (!elements.length) return;
+        var idx = elements[0].index;
+        if (idx === 0) {
+            window.location.href = salesmanReportUrl;
+        }
+    });
 
     var cashCtx = document.getElementById("chart-cash");
     if (cashCtx) {
@@ -113,6 +129,7 @@
     ]);
 
     var salesmanLabels = readJson("chart-salesman-labels", []);
+    var salesmanIds = readJson("chart-salesman-ids", []);
     if (salesmanLabels.length) {
         var salesmanCtx = document.getElementById("chart-salesman");
         if (salesmanCtx) {
@@ -123,6 +140,37 @@
                     datasets: [
                         { label: "Sales", data: readJson("chart-salesman-sales", []), backgroundColor: "rgba(37,99,235,0.75)", borderRadius: 6 },
                         { label: "Profit", data: readJson("chart-salesman-profit", []), backgroundColor: "rgba(5,150,105,0.8)", borderRadius: 6 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onHover: function (ev, els) { ev.native.target.style.cursor = els.length ? "pointer" : "default"; },
+                    onClick: function (ev, elements) {
+                        if (!elements.length || !salesmanIds.length) return;
+                        var idx = elements[0].index;
+                        var empId = salesmanIds[idx];
+                        if (empId) {
+                            window.location.href = "/reporting/salesman/" + empId + "/brief/" + querySuffix();
+                        }
+                    },
+                    scales: { y: { beginAtZero: true, ticks: { callback: moneyTick } } }
+                }
+            });
+        }
+    }
+
+    var destLabels = readJson("chart-destination-labels", []);
+    if (destLabels.length) {
+        var destCtx = document.getElementById("chart-destinations");
+        if (destCtx) {
+            new Chart(destCtx, {
+                type: "bar",
+                data: {
+                    labels: destLabels,
+                    datasets: [
+                        { label: "Sales", data: readJson("chart-destination-sales", []), backgroundColor: "rgba(37,99,235,0.75)", borderRadius: 6 },
+                        { label: "Profit", data: readJson("chart-destination-profit", []), backgroundColor: "rgba(5,150,105,0.8)", borderRadius: 6 }
                     ]
                 },
                 options: {

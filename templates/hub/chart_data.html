@@ -3,6 +3,7 @@
 {{ chart_salesman_labels|json_script:"chart-salesman-labels" }}
 {{ chart_salesman_sales|json_script:"chart-salesman-sales" }}
 {{ chart_salesman_profit|json_script:"chart-salesman-profit" }}
+{{ chart_salesman_ids|json_script:"chart-salesman-ids" }}
 {{ chart_supplier_labels|json_script:"chart-supplier-labels" }}
 {{ chart_supplier_balances|json_script:"chart-supplier-balances" }}
 {{ chart_opex_labels|json_script:"chart-opex-labels" }}
@@ -11,4 +12,7 @@
 {{ chart_ar_aging_values|json_script:"chart-ar-aging-values" }}
 {{ chart_summary_labels|json_script:"chart-summary-labels" }}
 {{ chart_summary_values|json_script:"chart-summary-values" }}
-<script id="hub-chart-scalars" type="application/json">{"cashIn":{{ chart_cash_in|default:0 }},"cashOut":{{ chart_cash_out|default:0 }},"revenue":{{ chart_revenue|default:0 }},"cogs":{{ chart_cogs|default:0 }},"opex":{{ chart_opex|default:0 }},"netProfit":{{ chart_net_profit|default:0 }},"totalAr":{{ chart_total_ar|default:0 }},"totalAp":{{ chart_total_ap|default:0 }},"grossMargin":{{ gross_margin_estimate|default:0 }}}</script>
+{{ chart_destination_labels|json_script:"chart-destination-labels" }}
+{{ chart_destination_sales|json_script:"chart-destination-sales" }}
+{{ chart_destination_profit|json_script:"chart-destination-profit" }}
+<script id="hub-chart-scalars" type="application/json">{"cashIn":{{ chart_cash_in|default:0 }},"cashOut":{{ chart_cash_out|default:0 }},"revenue":{{ chart_revenue|default:0 }},"cogs":{{ chart_cogs|default:0 }},"opex":{{ chart_opex|default:0 }},"netProfit":{{ chart_net_profit|default:0 }},"totalAr":{{ chart_total_ar|default:0 }},"totalAp":{{ chart_total_ap|default:0 }},"grossMargin":{{ gross_margin_estimate|default:0 }},"salesmanReportUrl":"{% url 'reporting:salesman_reports_home' %}?{{ request.GET.urlencode|escapejs }}"}</script>

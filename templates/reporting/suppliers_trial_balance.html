@@ -1,7 +1,8 @@
 {% extends "hub/layout.html" %}
+{% load formatting %}
 {% block title %}Suppliers Trial Balance{% endblock %}
 {% block hub_title %}Suppliers trial balance{% endblock %}
-{% block hub_subtitle %}Per-supplier debits, credits, and closing balance for the period.{% endblock %}
+{% block hub_subtitle %}Opening balance, period movement, and closing balance per supplier.{% endblock %}
 {% block hub_extra_actions %}
 {% include "partials/export_buttons.html" %}
 {% endblock %}
@@ -12,33 +13,54 @@
     <input type="hidden" name="preset" value="{{ request.GET.preset }}">
     <label>Search <input type="search" name="q" value="{{ q }}" placeholder="Name or code"></label>
     <button class="btn" type="submit">Search</button>
+    <a class="btn btn-ghost hub-btn-clear" href="{% url 'reporting:suppliers_trial_balance' %}?{{ default_filter_query }}">Clear filters</a>
 </form>
 <div class="hub-table-wrap">
 <table>
     <thead>
         <tr>
-            <th>Account</th><th>Name</th><th>Curr</th>
-            <th class="num">Total Debit</th><th class="num">Total Credit</th>
-            <th class="num">Balance Debit</th><th class="num">Balance Credit</th>
+            <th>Account</th>
+            <th>Supplier</th>
+            <th>Code</th>
+            <th>Bills</th>
+            <th>Curr</th>
+            <th class="num">Open Dr</th>
+            <th class="num">Open Cr</th>
+            <th class="num">Period Dr</th>
+            <th class="num">Period Cr</th>
+            <th class="num">Close Dr</th>
+            <th class="num">Close Cr</th>
         </tr>
     </thead>
     <tbody>
     {% for r in rows %}
         <tr>
-            <td>{{ r.account }}</td><td>{{ r.name }}</td><td>{{ r.curr }}</td>
-            <td class="num">{{ r.tot_dr }}</td><td class="num">{{ r.tot_cr }}</td>
-            <td class="num">{{ r.bal_dr }}</td><td class="num">{{ r.bal_cr }}</td>
+            <td>{{ r.account }}</td>
+            <td><a href="{% url 'reporting:supplier_statement' r.supplier_id %}?{{ request.GET.urlencode }}">{{ r.name }}</a></td>
+            <td>{{ r.supplier_code }}</td>
+            <td>{{ r.bill_count }}</td>
+            <td>{{ r.curr }}</td>
+            <td class="num">{{ r.opening_dr|money }}</td>
+            <td class="num">{{ r.opening_cr|money }}</td>
+            <td class="num">{{ r.tot_dr|money }}</td>
+            <td class="num">{{ r.tot_cr|money }}</td>
+            <td class="num">{{ r.bal_dr|money }}</td>
+            <td class="num">{{ r.bal_cr|money }}</td>
         </tr>
     {% empty %}
-        <tr><td colspan="7">No supplier balances in this range.</td></tr>
+        <tr><td colspan="11">No supplier balances in this range.</td></tr>
     {% endfor %}
     </tbody>
     {% if rows %}
     <tfoot>
         <tr>
-            <th colspan="3">Totals</th>
-            <th class="num">{{ tot_dr }}</th><th class="num">{{ tot_cr }}</th>
-            <th class="num">{{ bal_dr }}</th><th class="num">{{ bal_cr }}</th>
+            <th colspan="5">Totals</th>
+            <th class="num"></th>
+            <th class="num"></th>
+            <th class="num">{{ tot_dr|money }}</th>
+            <th class="num">{{ tot_cr|money }}</th>
+            <th class="num">{{ bal_dr|money }}</th>
+            <th class="num">{{ bal_cr|money }}</th>
         </tr>
     </tfoot>
     {% endif %}

@@ -76,21 +76,27 @@
 </body>
 <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 <script>
-document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll("select").forEach(function (el) {
-        if (el.closest && (el.closest("#invoice-form") || el.closest("#payment-form"))) return;
-        if (el.name && el.name.endsWith("-DELETE")) return;
-        if (el.classList.contains("choices__input")) return;
-        if (!el.dataset.choicesInitialized) {
-            new Choices(el, {
-                searchEnabled: true,
-                itemSelectText: "",
-                shouldSort: false,
-                searchResultLimit: 50
-            });
-            el.dataset.choicesInitialized = "1";
-        }
+window.initSearchableSelect = function(el) {
+    if (!el || el.dataset.choicesInitialized || typeof Choices === "undefined") return;
+    if (el.name && el.name.endsWith("-DELETE")) return;
+    if (el.closest && el.closest(".hub-hero__filters")) return;
+    if (el.classList.contains("hub-preset-select")) return;
+    new Choices(el, {
+        searchEnabled: true,
+        itemSelectText: "",
+        shouldSort: false,
+        searchResultLimit: 50,
+        searchPlaceholderValue: "Type to search…"
     });
+    el.dataset.choicesInitialized = "1";
+};
+
+window.initSearchableSelects = function(root) {
+    (root || document).querySelectorAll("select").forEach(window.initSearchableSelect);
+};
+
+document.addEventListener("DOMContentLoaded", function () {
+    window.initSearchableSelects(document);
 });
 </script>
 </html>

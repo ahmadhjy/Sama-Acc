@@ -85,10 +85,80 @@
     background: #e8eefc !important;
 }
 
-.btn-ghost {
+.hub-hero .btn-ghost {
     background: rgba(255, 255, 255, 0.15) !important;
     color: #fff !important;
     border: 1px solid rgba(255, 255, 255, 0.35) !important;
+}
+
+.hub-hero .btn-export {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #0e1f3d !important;
+    border: 1px solid rgba(255, 255, 255, 0.5) !important;
+}
+
+.btn-export {
+    background: #fff !important;
+    color: #0e1f3d !important;
+    border: 1px solid #cbd5e1 !important;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-export:hover {
+    background: #f1f5f9 !important;
+    color: #0e1f3d !important;
+}
+
+.btn-export i {
+    opacity: 0.85;
+}
+
+/* Preset filter — native select, readable on dark hero */
+.hub-hero__filters .hub-filter--preset select {
+    position: relative;
+    z-index: 120;
+    color: #0f2744 !important;
+    background: #fff !important;
+    -webkit-text-fill-color: #0f2744;
+}
+
+.hub-hero__filters .hub-filter--preset select option {
+    color: #0f2744;
+    background: #fff;
+}
+
+.hub-hero__filters .choices {
+    position: relative;
+    z-index: 120;
+}
+
+.hub-hero__filters .choices__list--dropdown,
+.hub-hero__filters .choices__list[aria-expanded] {
+    z-index: 200 !important;
+    color: #0f2744;
+    background: #fff;
+}
+
+.hub-hero__filters .choices__item--choice {
+    color: #0f2744 !important;
+}
+
+.tb-summary-row {
+    font-weight: 600;
+    background: #f8fafc;
+}
+
+.hub-alert--link {
+    cursor: pointer;
+    text-decoration: none;
+    color: inherit;
+}
+
+.hub-alert--link:hover {
+    filter: brightness(1.05);
 }
 
 /* Main tabs */

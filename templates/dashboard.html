@@ -9,16 +9,17 @@ Period: <strong>{{ period_label }}</strong>
 
 {% block hub_filter_preserve %}
 {% if hub_tab == 'reports' %}<input type="hidden" name="tab" value="reports">{% endif %}
+{% if hub_tab == 'destinations' %}<input type="hidden" name="tab" value="destinations">{% endif %}
 {% endblock %}
 
 {% block hub_body %}
 {% if overdue_count or due_today_count %}
 <div class="hub-alerts">
     {% if overdue_count %}
-    <div class="hub-alert hub-alert--danger">
-        <i class="fa-solid fa-triangle-exclamation"></i> {{ overdue_count }} overdue receivable(s)
+    <a class="hub-alert hub-alert--danger hub-alert--link" href="#overdue-client-payments">
+        <i class="fa-solid fa-triangle-exclamation"></i> {{ overdue_count }} overdue receivable(s) — view table
         {% include "partials/info_tip.html" with tip="Posted invoices past their due date with money still owed by clients." %}
-    </div>
+    </a>
     {% endif %}
     {% if due_today_count %}
     <div class="hub-alert hub-alert--warn">
@@ -29,7 +30,7 @@ Period: <strong>{{ period_label }}</strong>
 </div>
 {% endif %}
 
-<section class="hub-panel {% if hub_tab != 'reports' %}hub-panel--active{% endif %}" id="panel-overview">
+<section class="hub-panel {% if hub_tab != 'reports' and hub_tab != 'destinations' %}hub-panel--active{% endif %}" id="panel-overview">
     <div class="hub-kpis">
         <div class="hub-kpi">
             <div class="hub-kpi__head">
@@ -202,7 +203,7 @@ Period: <strong>{{ period_label }}</strong>
     </div>
 
     {% if overdue_client_payments %}
-    <div class="hub-table-wrap hub-table-wrap--overdue">
+    <div class="hub-table-wrap hub-table-wrap--overdue" id="overdue-client-payments">
         <h2 class="hub-section-title hub-section-title--danger" style="padding:16px 16px 0;margin:0;display:flex;align-items:center;gap:6px;">
             Overdue client payments
             {% include "partials/info_tip.html" with tip="Posted invoices past their due date with an unpaid balance (due date, total, paid, and remaining)." %}
@@ -236,6 +237,72 @@ Period: <strong>{{ period_label }}</strong>
             </tbody>
         </table>
     </div>
+    {% endif %}
+</section>
+
+<section class="hub-panel {% if hub_tab == 'destinations' %}hub-panel--active{% endif %}" id="panel-destinations">
+    <div class="hub-kpis">
+        <div class="hub-kpi">
+            <div class="hub-kpi__head"><span class="hub-kpi__label">Destinations</span></div>
+            <p class="hub-kpi__value">{{ destination_totals.destinations }}</p>
+        </div>
+        <div class="hub-kpi">
+            <div class="hub-kpi__head"><span class="hub-kpi__label">Service lines</span></div>
+            <p class="hub-kpi__value">{{ destination_totals.lines }}</p>
+        </div>
+        <div class="hub-kpi">
+            <div class="hub-kpi__head"><span class="hub-kpi__label">Sales (USD)</span></div>
+            <p class="hub-kpi__value">{{ destination_totals.sales|money }}</p>
+        </div>
+        <div class="hub-kpi hub-kpi--profit">
+            <div class="hub-kpi__head"><span class="hub-kpi__label">Profit (USD)</span></div>
+            <p class="hub-kpi__value">{{ destination_totals.profit|money }}</p>
+        </div>
+    </div>
+    <div class="hub-charts">
+        <div class="hub-chart-card hub-chart-card--wide">
+            <h2><span class="hub-chart-title">Sales by destination</span></h2>
+            <div class="hub-chart-wrap"><canvas id="chart-destinations"></canvas></div>
+        </div>
+    </div>
+    {% if destination_stats %}
+    <div class="hub-table-wrap">
+        <h2 class="hub-section-title" style="padding:16px 16px 0;margin:0;">Destination detail</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Destination</th>
+                    <th>Country</th>
+                    <th class="num">Lines</th>
+                    <th class="num">Invoices</th>
+                    <th class="num">Clients</th>
+                    <th class="num">Sales (USD)</th>
+                    <th class="num">Cost (USD)</th>
+                    <th class="num">Profit (USD)</th>
+                    <th>Service types</th>
+                    <th>Top clients</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in destination_stats %}
+                <tr>
+                    <td><strong>{{ row.destination.name }}</strong></td>
+                    <td>{{ row.country|default:"—" }}</td>
+                    <td class="num">{{ row.line_count }}</td>
+                    <td class="num">{{ row.invoice_count }}</td>
+                    <td class="num">{{ row.client_count }}</td>
+                    <td class="num">{{ row.sales|money }}</td>
+                    <td class="num">{{ row.cost|money }}</td>
+                    <td class="num"><strong>{{ row.profit|money }}</strong></td>
+                    <td>{{ row.service_types|join:", "|default:"—" }}</td>
+                    <td>{% for name, amt in row.top_clients %}{{ name }} ({{ amt|money }}){% if not forloop.last %}; {% endif %}{% empty %}—{% endfor %}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="muted" style="padding:16px;">No posted invoice lines with destinations in this period.</p>
     {% endif %}
 </section>
 

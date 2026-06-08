@@ -465,6 +465,26 @@ def build_pdf_context(request, filename, context=None):
     merged.setdefault("pdf_description_column_index", -1)
     merged.setdefault("pdf_hide_subtitle_in_body", False)
     if is_pdf or is_xlsx:
+        if not merged.get("date_from") and not merged.get("date_to"):
+            from reporting.date_ranges import resolve_report_dates
+
+            df, dt, period_label = resolve_report_dates(request)
+            merged.setdefault("date_from", df)
+            merged.setdefault("date_to", dt)
+            merged.setdefault("period_label", period_label)
+        if merged.get("date_from") or merged.get("date_to"):
+            df = merged.get("date_from")
+            dt = merged.get("date_to")
+            period_note = ""
+            if df and dt:
+                period_note = f"Period: {df.strftime('%d/%m/%Y')} – {dt.strftime('%d/%m/%Y')}"
+            elif df:
+                period_note = f"From: {df.strftime('%d/%m/%Y')}"
+            elif dt:
+                period_note = f"Until: {dt.strftime('%d/%m/%Y')}"
+            sub = (merged.get("pdf_report_subtitle") or "").strip()
+            if period_note and period_note not in sub:
+                merged["pdf_report_subtitle"] = f"{sub} | {period_note}" if sub else period_note
         prepare_pdf_export(merged)
     return merged
 

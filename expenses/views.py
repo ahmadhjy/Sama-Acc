@@ -53,6 +53,8 @@ def expense_list(request):
 
 @login_required
 def expense_create(request):
+    from datetime import date
+
     expense = OperatingExpense(expense_no=_next_temp_expense_no())
     if request.method == "POST":
         form = OperatingExpenseForm(request.POST, instance=expense)
@@ -65,7 +67,7 @@ def expense_create(request):
             messages.success(request, f"Expense {exp.expense_no} created.")
             return redirect("expenses:expense_edit", expense_id=exp.id)
     else:
-        form = OperatingExpenseForm(instance=expense)
+        form = OperatingExpenseForm(instance=expense, initial={"expense_date": date.today()})
     return render(
         request,
         "expenses/expense_form.html",

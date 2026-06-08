@@ -163,6 +163,7 @@ def build_dashboard_analytics(request):
     chart_salesman_labels = [s["employee"].name for s in top_salesmen]
     chart_salesman_sales = [float(s["sales"]) for s in top_salesmen]
     chart_salesman_profit = [float(s["profit"]) for s in top_salesmen]
+    chart_salesman_ids = [str(s["employee"].id) for s in top_salesmen]
 
     top_suppliers = supplier_stats[:8]
     chart_supplier_labels = [s["supplier"].name for s in top_suppliers]
@@ -233,6 +234,7 @@ def build_dashboard_analytics(request):
         "chart_salesman_labels": chart_salesman_labels,
         "chart_salesman_sales": chart_salesman_sales,
         "chart_salesman_profit": chart_salesman_profit,
+        "chart_salesman_ids": chart_salesman_ids,
         "chart_supplier_labels": chart_supplier_labels,
         "chart_supplier_balances": chart_supplier_balances,
         "chart_cash_in": float(cash_in),

@@ -40,8 +40,9 @@
         </select>
     </p>
     <p id="party-name-wrap" style="display:none;">
-        <label>Party name <span class="muted">*</span></label>
-        <input type="text" name="party_name" id="id_party_name" maxlength="255" placeholder="e.g. Landlord, Bank fee" value="{{ payment.party_name|default:'' }}">
+        <label>Description <span class="muted">*</span></label>
+        <textarea name="party_name" id="id_party_name" rows="3" maxlength="255" placeholder="Describe the party or purpose of this payment" required>{{ payment.party_name|default:'' }}</textarea>
+        <span class="muted">Required when party type is Other (e.g. landlord, bank fee, petty cash).</span>
     </p>
     <p>
         <label>Money Account</label>

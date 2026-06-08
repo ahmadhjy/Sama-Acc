@@ -85,6 +85,7 @@ class SupplierForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["supplier_code"].help_text = "Unique supplier code (e.g. S-0001)."
+        self.fields["name"].label = "Official name"
         self.fields["managing_number"].label = "Managing number"
         self.fields["accounting_number"].label = "Accounting number"
 

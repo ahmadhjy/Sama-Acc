@@ -1,4 +1,5 @@
 {% extends "hub/layout.html" %}
+{% load formatting %}
 {% block title %}Income Statement{% endblock %}
 {% block hub_title %}Income statement{% endblock %}
 {% block hub_subtitle %}Posted sales revenue, cost of sales, and operating expenses for the selected period.{% endblock %}
@@ -6,6 +7,13 @@
 {% include "partials/export_buttons.html" %}
 {% endblock %}
 {% block hub_body %}
+<div class="hub-kpis" style="margin-bottom:16px;">
+    <div class="hub-kpi"><div class="hub-kpi__head"><span class="hub-kpi__label">Sales revenue</span></div><p class="hub-kpi__value">{{ sales_total|money }}</p></div>
+    <div class="hub-kpi"><div class="hub-kpi__head"><span class="hub-kpi__label">COGS</span></div><p class="hub-kpi__value">{{ cogs_total|money }}</p></div>
+    <div class="hub-kpi hub-kpi--profit"><div class="hub-kpi__head"><span class="hub-kpi__label">Gross profit</span></div><p class="hub-kpi__value">{{ gross_profit|money }}</p></div>
+    <div class="hub-kpi hub-kpi--warning"><div class="hub-kpi__head"><span class="hub-kpi__label">Operating expenses</span></div><p class="hub-kpi__value">{{ opex_total|money }}</p></div>
+    <div class="hub-kpi hub-kpi--profit"><div class="hub-kpi__head"><span class="hub-kpi__label">Net profit</span></div><p class="hub-kpi__value">{{ net_profit|money }}</p></div>
+</div>
 <div class="hub-table-wrap">
 <table>
     <thead>
@@ -17,10 +25,10 @@
     </thead>
     <tbody>
     {% for r in rows %}
-        <tr>
+        <tr{% if r.is_summary %} class="tb-summary-row"{% endif %}>
             <td>{{ r.account }}</td><td>{{ r.name }}</td><td>{{ r.curr }}</td>
-            <td class="num">{{ r.tot_dr }}</td><td class="num">{{ r.tot_cr }}</td>
-            <td class="num">{{ r.bal_dr }}</td><td class="num">{{ r.bal_cr }}</td>
+            <td class="num">{{ r.tot_dr|money }}</td><td class="num">{{ r.tot_cr|money }}</td>
+            <td class="num">{{ r.bal_dr|money }}</td><td class="num">{{ r.bal_cr|money }}</td>
         </tr>
     {% empty %}
         <tr><td colspan="7">No rows for this period.</td></tr>
@@ -30,8 +38,8 @@
     <tfoot>
         <tr>
             <th colspan="3">Totals</th>
-            <th class="num">{{ tot_dr }}</th><th class="num">{{ tot_cr }}</th>
-            <th class="num">{{ bal_dr }}</th><th class="num">{{ bal_cr }}</th>
+            <th class="num">{{ tot_dr|money }}</th><th class="num">{{ tot_cr|money }}</th>
+            <th class="num">{{ bal_dr|money }}</th><th class="num">{{ bal_cr|money }}</th>
         </tr>
     </tfoot>
     {% endif %}

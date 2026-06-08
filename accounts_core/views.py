@@ -28,8 +28,10 @@ def dashboard(request):
 
     date_from, date_to, period_label = resolve_report_dates(request)
     hub_tab = (request.GET.get("tab") or "overview").lower()
-    if hub_tab not in ("overview", "reports"):
+    if hub_tab not in ("overview", "reports", "destinations"):
         hub_tab = "overview"
+
+    from reporting.destination_stats import build_destination_stats
 
     context = {
         "hub_tab": hub_tab,
@@ -47,6 +49,7 @@ def dashboard(request):
         "latest_payments": Payment.objects.select_related("money_account").order_by("-created_at")[:10],
         **build_dashboard_analytics(request),
         **build_report_summary(request),
+        **build_destination_stats(date_from, date_to),
     }
     return render(request, "dashboard.html", context)
 
@@ -213,6 +216,12 @@ def client_quick_create(request):
     if not phone:
         return JsonResponse({"error": "Phone number is required."}, status=400)
 
+    client_type = (payload.get("type") or Client.ClientType.INDIVIDUAL)
+    if client_type == Client.ClientType.CORPORATE:
+        contact = (payload.get("contact_person") or "").strip()
+        if not contact:
+            return JsonResponse({"error": "Contact person is required for corporate clients."}, status=400)
+
     client_code = (payload.get("client_code") or "").strip() or next_client_code()
     if Client.objects.filter(client_code=client_code).exists():
         return JsonResponse({"error": f"Client code {client_code} already exists."}, status=400)
@@ -221,8 +230,19 @@ def client_quick_create(request):
         client_code=client_code,
         name_en=name_en,
         phone=phone,
-        type=(payload.get("type") or Client.ClientType.INDIVIDUAL),
+        type=client_type,
+        email=(payload.get("email") or "").strip(),
+        address=(payload.get("address") or "").strip(),
+        contact_person=(payload.get("contact_person") or "").strip(),
     )
+    if payload.get("date_of_birth"):
+        from accounts_core.list_utils import parse_post_date
+
+        try:
+            client.date_of_birth = parse_post_date(payload.get("date_of_birth"))
+            client.save(update_fields=["date_of_birth"])
+        except ValueError:
+            pass
     return JsonResponse({"id": str(client.id), "name": client.name_en, "client_code": client.client_code})
 
 
@@ -257,6 +277,9 @@ def supplier_quick_create(request):
         accounting_number=accounting,
         phones=[n for n in (managing, accounting) if n],
         type=(payload.get("type") or Supplier.SupplierType.OTHER),
+        email=(payload.get("email") or "").strip(),
+        address=(payload.get("address") or "").strip(),
+        default_currency=(payload.get("default_currency") or "USD").strip()[:3] or "USD",
         is_active=True,
     )
     return JsonResponse({"id": str(supplier.id), "name": supplier.name, "supplier_code": supplier.supplier_code})
