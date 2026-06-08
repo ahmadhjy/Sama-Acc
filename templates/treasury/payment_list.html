@@ -15,7 +15,7 @@
     <label>From <input type="date" name="date_from" value="{{ request.GET.date_from }}"></label>
     <label>To <input type="date" name="date_to" value="{{ request.GET.date_to }}"></label>
     <button class="btn" type="submit">Filter</button>
-    <a class="btn btn-ghost" href="{% url 'treasury:payment_list' %}?{{ default_filter_query }}">Clear filters</a>
+    <a class="btn btn-clear hub-btn-clear" href="{% url 'treasury:payment_list' %}?{{ default_filter_query }}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
 </form>
 <table>
     <thead><tr><th>Receipt</th><th>Ref No</th><th>Party</th><th>Account</th><th>Direction</th><th>Amount</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>

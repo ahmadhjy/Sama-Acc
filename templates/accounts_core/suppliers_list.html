@@ -17,7 +17,7 @@
         </select>
     </label>
     <button class="btn" type="submit">Filter</button>
-    <a class="btn btn-ghost" href="{% url 'accounts_core:suppliers_list' %}">Clear filters</a>
+    <a class="btn btn-clear hub-btn-clear" href="{% url 'accounts_core:suppliers_list' %}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
 </form>
 <table>
     <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Managing #</th><th>Accounting #</th><th class="num">Balance owed</th><th></th></tr></thead>

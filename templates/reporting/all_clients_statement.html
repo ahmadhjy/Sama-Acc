@@ -13,7 +13,7 @@
     <input type="hidden" name="preset" value="{{ request.GET.preset }}">
     <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Client name or code"></label>
     <button class="btn" type="submit">Search</button>
-    <a class="btn btn-ghost hub-btn-clear" href="{% url 'reporting:all_clients_statement' %}?{{ default_filter_query }}">Clear filters</a>
+    <a class="btn btn-clear hub-btn-clear" href="{% url 'reporting:all_clients_statement' %}?{{ default_filter_query }}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
 </form>
 <div class="hub-table-wrap">
 <table>

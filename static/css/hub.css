@@ -97,6 +97,68 @@
     border: 1px solid rgba(255, 255, 255, 0.5) !important;
 }
 
+/* Clear filters — always readable (hub hero + light pages) */
+.hub-btn-clear,
+.btn-clear {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.2;
+    text-decoration: none;
+    -webkit-text-fill-color: currentColor;
+}
+
+.hub-hero .hub-btn-clear,
+.hub-hero .btn-clear {
+    background: rgba(255, 255, 255, 0.92) !important;
+    color: #0e1f3d !important;
+    border: 1px solid rgba(255, 255, 255, 0.55) !important;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08) !important;
+}
+
+.hub-hero .hub-btn-clear:hover,
+.hub-hero .btn-clear:hover {
+    background: #e8eefc !important;
+    color: #0e1f3d !important;
+}
+
+.hub-body .hub-btn-clear,
+.panel.filter-bar .hub-btn-clear,
+.panel.filter-bar .btn-clear,
+.page-toolbar .btn-clear {
+    background: #fff !important;
+    color: #0e1f3d !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 1px 3px rgba(15, 39, 68, 0.06) !important;
+}
+
+.hub-body .hub-btn-clear:hover,
+.panel.filter-bar .hub-btn-clear:hover,
+.panel.filter-bar .btn-clear:hover {
+    background: #f1f5f9 !important;
+    color: #0e1f3d !important;
+}
+
+.hub-btn-clear i,
+.btn-clear i {
+    opacity: 0.85;
+    font-size: 0.95em;
+}
+
+.btn.btn-clear,
+.btn.hub-btn-clear {
+    color: #0e1f3d !important;
+    -webkit-text-fill-color: #0e1f3d !important;
+}
+
+.btn.btn-clear:hover,
+.btn.hub-btn-clear:hover {
+    color: #0e1f3d !important;
+    -webkit-text-fill-color: #0e1f3d !important;
+}
+
 .btn-export {
     background: #fff !important;
     color: #0e1f3d !important;

@@ -27,7 +27,7 @@
                 <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}">
             </label>
             <button class="btn hub-btn-apply" type="submit">Apply</button>
-            <a class="btn btn-ghost hub-btn-clear" href="{{ request.path }}?{{ default_filter_query }}{% if hub_tab == 'reports' %}&tab=reports{% elif hub_tab == 'destinations' %}&tab=destinations{% endif %}">Clear filters</a>
+            <a class="btn btn-clear hub-btn-clear" href="{{ request.path }}?{{ default_filter_query }}{% if hub_tab == 'reports' %}&tab=reports{% elif hub_tab == 'destinations' %}&tab=destinations{% endif %}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
             {% block hub_extra_actions %}{% endblock %}
         </form>
     </header>
