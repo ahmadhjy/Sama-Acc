@@ -3,17 +3,13 @@
 {% block page_content %}
 <style>
   .destination-select { display: none; }
-  .destination-results { display: none; max-height: 200px; overflow-y: auto; border: 1px solid #ddd; background: #fff; position: relative; z-index: 5; }
+  .destination-results { display: none; max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border, #cbd5e1); background: #fff; position: absolute; left: 0; right: 0; z-index: 20; border-radius: 8px; box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12)); }
   .destination-results.open { display: block; }
-  .destination-pick { display: block; width: 100%; text-align: left; padding: 6px 10px; border: none; background: #fff; cursor: pointer; }
+  .destination-pick { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: #fff; cursor: pointer; font-size: 14px; }
   .destination-pick:hover { background: #f0f5fb; }
-  .quick-inline-btn { margin-left: 8px; font-size: 0.9em; }
-  .quick-modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 1000; align-items: center; justify-content: center; }
-  .quick-modal-backdrop.open { display: flex; }
-  .quick-modal { background: #fff; padding: 20px; border-radius: 8px; min-width: 320px; max-width: 520px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
-  .quick-modal h4 { margin-top: 0; }
-  .quick-modal p { margin: 10px 0; }
-  .quick-modal-actions { margin-top: 14px; display: flex; gap: 8px; }
+  .quick-inline-btn { margin-left: 8px; font-size: 0.9em; vertical-align: middle; }
+  .supplier-wrap { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+  .supplier-wrap label { width: 100%; }
 </style>
 <h1 class="title">{% if invoice_is_new %}New Invoice{% else %}Edit Invoice{% endif %}</h1>
 <form method="post" enctype="multipart/form-data" class="panel" id="invoice-form" data-formset-prefix="{{ formset.prefix }}">
@@ -136,15 +132,18 @@
     <a class="btn" href="{% url 'sales:invoice_list' %}">Back</a>
 </form>
 
-<div class="quick-modal-backdrop" id="quick-modal-backdrop" aria-hidden="true">
-  <div class="quick-modal" role="dialog">
-    <h4 id="quick-modal-title">Quick create</h4>
-    <div id="quick-modal-body"></div>
-    <div class="quick-modal-actions">
-      <button type="button" class="btn" id="quick-modal-save">Save</button>
-      <button type="button" class="btn" id="quick-modal-cancel">Cancel</button>
+<div class="qc-modal-backdrop" id="quick-modal-backdrop" aria-hidden="true">
+  <div class="qc-modal" role="dialog" aria-labelledby="quick-modal-title">
+    <div class="qc-modal__header">
+      <h3 id="quick-modal-title">Quick create</h3>
+      <button type="button" class="qc-modal__close" id="quick-modal-close" aria-label="Close">&times;</button>
     </div>
-    <p class="errorlist" id="quick-modal-error" style="display:none;"></p>
+    <div class="qc-modal__body" id="quick-modal-body"></div>
+    <p class="errorlist qc-modal__error" id="quick-modal-error" style="display:none;"></p>
+    <div class="qc-modal__footer">
+      <button type="button" class="btn btn-secondary" id="quick-modal-cancel">Cancel</button>
+      <button type="button" class="btn" id="quick-modal-save"><i class="fa-solid fa-check"></i> Save</button>
+    </div>
   </div>
 </div>
 
@@ -166,18 +165,29 @@
     document.getElementById('quick-modal-title').textContent = title;
     document.getElementById('quick-modal-body').innerHTML = fieldsHtml;
     document.getElementById('quick-modal-error').style.display = 'none';
+    document.getElementById('quick-modal-error').textContent = '';
     quickModalContext = { onSave: onSave };
     document.getElementById('quick-modal-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    const firstInput = document.querySelector('#quick-modal-body input, #quick-modal-body select, #quick-modal-body textarea');
+    if (firstInput) setTimeout(function() { firstInput.focus(); }, 50);
   }
 
   function closeQuickModal() {
     document.getElementById('quick-modal-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
     quickModalContext = null;
   }
 
   document.getElementById('quick-modal-cancel').addEventListener('click', closeQuickModal);
+  document.getElementById('quick-modal-close').addEventListener('click', closeQuickModal);
   document.getElementById('quick-modal-backdrop').addEventListener('click', function(ev) {
     if (ev.target === ev.currentTarget) closeQuickModal();
+  });
+  document.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Escape' && document.getElementById('quick-modal-backdrop').classList.contains('open')) {
+      closeQuickModal();
+    }
   });
   document.getElementById('quick-modal-save').addEventListener('click', function() {
     if (quickModalContext && quickModalContext.onSave) quickModalContext.onSave();
@@ -192,32 +202,32 @@
   }
 
   function appendSelectOption(select, id, label) {
-    if (!select) return;
-    if (select.choices && typeof select.choices.destroy === 'function') {
-      select.choices.destroy();
-      delete select.dataset.choicesInitialized;
-    }
-    const opt = document.createElement('option');
-    opt.value = id;
-    opt.textContent = label;
-    select.appendChild(opt);
-    select.value = id;
-    initSearchableSelect(select);
-    if (select.choices && typeof select.choices.setChoiceByValue === 'function') {
-      select.choices.setChoiceByValue(id);
+    if (window.appendSelectChoice) {
+      window.appendSelectChoice(select, id, label);
+    } else if (select) {
+      var opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = label;
+      select.appendChild(opt);
+      select.value = id;
     }
   }
 
   document.getElementById('btn-add-client').addEventListener('click', function() {
     openQuickModal(
       'Add client',
-      '<p><label>Type</label><select id="qc-client-type" class="full-width"><option value="INDIVIDUAL">Individual</option><option value="CORPORATE">Corporate</option></select></p>' +
-      '<p><label id="qc-client-name-label">Full name *</label><input type="text" id="qc-client-name" class="full-width"></p>' +
-      '<p id="qc-client-contact-wrap" style="display:none;"><label>Contact person *</label><input type="text" id="qc-client-contact" class="full-width"></p>' +
-      '<p><label>Phone number *</label><input type="text" id="qc-client-phone" class="full-width"></p>' +
-      '<p><label>Email</label><input type="email" id="qc-client-email" class="full-width"></p>' +
-      '<p id="qc-client-dob-wrap"><label>Date of birth</label><input type="date" id="qc-client-dob" class="full-width"></p>' +
-      '<p><label>Address</label><textarea id="qc-client-address" class="full-width" rows="2"></textarea></p>',
+      '<div class="qc-modal__grid qc-modal__grid--2">' +
+      '<div class="qc-field qc-field--full"><label for="qc-client-type">Client type</label>' +
+      '<select id="qc-client-type"><option value="INDIVIDUAL">Individual</option><option value="CORPORATE">Corporate</option></select></div>' +
+      '<div class="qc-field qc-field--full"><label for="qc-client-name" id="qc-client-name-label">Full name *</label>' +
+      '<input type="text" id="qc-client-name" autocomplete="off"></div>' +
+      '<div class="qc-field qc-field--full" id="qc-client-contact-wrap" style="display:none;"><label for="qc-client-contact">Contact person *</label>' +
+      '<input type="text" id="qc-client-contact" autocomplete="off"></div>' +
+      '<div class="qc-field"><label for="qc-client-phone">Phone number *</label><input type="text" id="qc-client-phone" autocomplete="off"></div>' +
+      '<div class="qc-field"><label for="qc-client-email">Email</label><input type="email" id="qc-client-email" autocomplete="off"></div>' +
+      '<div class="qc-field" id="qc-client-dob-wrap"><label for="qc-client-dob">Date of birth</label><input type="date" id="qc-client-dob"></div>' +
+      '<div class="qc-field qc-field--full"><label for="qc-client-address">Address</label><textarea id="qc-client-address" rows="2"></textarea></div>' +
+      '</div>',
       function() {
       const type = document.getElementById('qc-client-type').value;
       const name = document.getElementById('qc-client-name').value.trim();
@@ -259,17 +269,21 @@
     btn.addEventListener('click', function() {
       openQuickModal(
         'Add supplier',
-        '<p><label>Type</label><select id="qc-supplier-type" class="full-width">' +
+        '<div class="qc-modal__grid qc-modal__grid--2">' +
+        '<div class="qc-field qc-field--full"><label for="qc-supplier-type">Supplier type</label>' +
+        '<select id="qc-supplier-type">' +
         '<option value="AIRLINE">Airline</option><option value="HOTEL">Hotel</option><option value="DMC">DMC</option>' +
         '<option value="VISA">Visa</option><option value="INSURANCE">Insurance</option><option value="TRANSFER">Transfer</option>' +
-        '<option value="OTHER" selected>Other</option></select></p>' +
-        '<p><label>Official name *</label><input type="text" id="qc-supplier-name" class="full-width"></p>' +
-        '<p><label>Managing number</label><input type="text" id="qc-supplier-managing" class="full-width"></p>' +
-        '<p><label>Accounting number</label><input type="text" id="qc-supplier-accounting" class="full-width"></p>' +
-        '<p class="muted">At least one number is required.</p>' +
-        '<p><label>Email</label><input type="email" id="qc-supplier-email" class="full-width"></p>' +
-        '<p><label>Address</label><textarea id="qc-supplier-address" class="full-width" rows="2"></textarea></p>' +
-        '<p><label>Default currency</label><input type="text" id="qc-supplier-currency" class="full-width" value="USD" maxlength="3"></p>',
+        '<option value="OTHER" selected>Other</option></select></div>' +
+        '<div class="qc-field qc-field--full"><label for="qc-supplier-name">Official name *</label>' +
+        '<input type="text" id="qc-supplier-name" autocomplete="off"></div>' +
+        '<div class="qc-field"><label for="qc-supplier-managing">Managing number</label><input type="text" id="qc-supplier-managing"></div>' +
+        '<div class="qc-field"><label for="qc-supplier-accounting">Accounting number</label><input type="text" id="qc-supplier-accounting"></div>' +
+        '<div class="qc-field qc-field--full"><span class="muted">At least one phone number is required.</span></div>' +
+        '<div class="qc-field"><label for="qc-supplier-email">Email</label><input type="email" id="qc-supplier-email"></div>' +
+        '<div class="qc-field"><label for="qc-supplier-currency">Default currency</label><input type="text" id="qc-supplier-currency" value="USD" maxlength="3"></div>' +
+        '<div class="qc-field qc-field--full"><label for="qc-supplier-address">Address</label><textarea id="qc-supplier-address" rows="2"></textarea></div>' +
+        '</div>',
         function() {
         const name = document.getElementById('qc-supplier-name').value.trim();
         const managing = document.getElementById('qc-supplier-managing').value.trim();
@@ -293,7 +307,6 @@
           document.querySelectorAll('select[name$="-supplier"]').forEach(function(s) {
             appendSelectOption(s, res.data.id, res.data.name);
           });
-          if (sel) sel.value = res.data.id;
           closeQuickModal();
         });
       });
@@ -307,8 +320,10 @@
     btn.addEventListener('click', function() {
       openQuickModal(
         'Add destination',
-        '<p><label>Destination *</label><input type="text" id="qc-dest-name" class="full-width"></p>' +
-        '<p><label>Country</label><input type="text" id="qc-dest-country" class="full-width"></p>',
+        '<div class="qc-modal__grid">' +
+        '<div class="qc-field"><label for="qc-dest-name">Destination *</label><input type="text" id="qc-dest-name" autocomplete="off"></div>' +
+        '<div class="qc-field"><label for="qc-dest-country">Country</label><input type="text" id="qc-dest-country" autocomplete="off"></div>' +
+        '</div>',
         function() {
           const name = document.getElementById('qc-dest-name').value.trim();
           const country = document.getElementById('qc-dest-country').value.trim();
@@ -323,7 +338,6 @@
             }
             if (select) {
               appendSelectOption(select, res.data.id, res.data.name);
-              select.value = res.data.id;
             }
             if (search) search.value = res.data.name;
             closeQuickModal();
@@ -594,6 +608,9 @@
             if (select.options[i].value === item.id) { found = true; break; }
           }
           if (!found) appendSelectOption(select, item.id, item.name);
+          if (select._choicesInstance) {
+            select._choicesInstance.setChoiceByValue(String(item.id));
+          }
           select.value = item.id;
         }
         search.value = item.name;
@@ -697,13 +714,21 @@
     clone.querySelectorAll('.line-service-date').forEach(function(inp) {
       inp.value = todayIso();
     });
+    clone.querySelectorAll('.choices').forEach(function(wrap) {
+      var sel = wrap.querySelector('select');
+      if (sel && wrap.parentNode) {
+        wrap.parentNode.insertBefore(sel, wrap);
+        wrap.remove();
+      }
+    });
     clone.querySelectorAll('select').forEach(function(el) {
       if (el.name && el.name.endsWith('-DELETE')) {
         el.checked = false;
-      } else {
+      } else if (!el.classList.contains('destination-select')) {
         el.selectedIndex = 0;
       }
-      initSearchableSelect(el);
+      delete el.dataset.choicesInitialized;
+      el._choicesInstance = null;
     });
     const hid = clone.querySelector('.line-data-json');
     if (hid) hid.value = '{}';
@@ -714,19 +739,26 @@
     wireLine(clone);
     wireDestinationSearch(clone);
     wireSupplierQuickCreate(clone);
-    const supSel = clone.querySelector('select[name$="-supplier"]');
-    if (supSel) initSearchableSelect(supSel);
+    initInvoiceSelects(clone);
     defaultEmptyLineServiceDates();
     renumberLineTitles();
     updateTotalLineCost();
     updateSellingTotal();
   });
   defaultEmptyLineServiceDates();
-  function initSearchableSelect(el) {
-    if (window.initSearchableSelect) window.initSearchableSelect(el);
+
+  function initInvoiceSelects(root) {
+    var scope = root || document;
+    scope.querySelectorAll('#invoice-form select:not(.destination-select)').forEach(function(el) {
+      if (window.initSearchableSelect) window.initSearchableSelect(el);
+    });
   }
-  initSearchableSelect(document.getElementById('id_client'));
-  document.querySelectorAll('#invoice-form select').forEach(initSearchableSelect);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { initInvoiceSelects(); });
+  } else {
+    initInvoiceSelects();
+  }
 })();
 </script>
 {% endblock %}

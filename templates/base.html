@@ -77,18 +77,84 @@
 <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 <script>
 window.initSearchableSelect = function(el) {
-    if (!el || el.dataset.choicesInitialized || typeof Choices === "undefined") return;
-    if (el.name && el.name.endsWith("-DELETE")) return;
-    if (el.closest && el.closest(".hub-hero__filters")) return;
-    if (el.classList.contains("hub-preset-select")) return;
-    new Choices(el, {
+    if (!el || typeof Choices === "undefined") return null;
+    if (el.name && el.name.endsWith("-DELETE")) return null;
+    if (el.closest && el.closest(".hub-hero__filters")) return null;
+    if (el.classList.contains("hub-preset-select")) return null;
+    if (el.classList.contains("destination-select")) return null;
+    if (el.dataset.choicesInitialized && el._choicesInstance) return el._choicesInstance;
+    if (el._choicesInstance) {
+        window.destroySearchableSelect(el);
+    }
+    el._choicesInstance = new Choices(el, {
         searchEnabled: true,
         itemSelectText: "",
         shouldSort: false,
         searchResultLimit: 50,
-        searchPlaceholderValue: "Type to search…"
+        searchPlaceholderValue: "Type to search…",
+        allowHTML: false,
     });
     el.dataset.choicesInitialized = "1";
+    return el._choicesInstance;
+};
+
+window.destroySearchableSelect = function(el) {
+    if (!el) return;
+    if (el._choicesInstance) {
+        try {
+            el._choicesInstance.destroy();
+        } catch (e) { /* ignore */ }
+        el._choicesInstance = null;
+    }
+    delete el.dataset.choicesInitialized;
+};
+
+/** Append option to a native select and refresh Choices.js if active. */
+window.appendSelectChoice = function(select, id, label) {
+    if (!select) return;
+    id = String(id);
+    label = String(label || id);
+    var exists = false;
+    for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === id) {
+            exists = true;
+            select.options[i].textContent = label;
+            break;
+        }
+    }
+    if (!exists) {
+        var opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = label;
+        select.appendChild(opt);
+    }
+    select.value = id;
+
+    if (select._choicesInstance) {
+        try {
+            if (!exists) {
+                select._choicesInstance.setChoices(
+                    [{ value: id, label: label, selected: true }],
+                    "value",
+                    "label",
+                    false
+                );
+            }
+            select._choicesInstance.setChoiceByValue(id);
+        } catch (e) {
+            window.destroySearchableSelect(select);
+            window.initSearchableSelect(select);
+            if (select._choicesInstance) {
+                select._choicesInstance.setChoiceByValue(id);
+            }
+        }
+    } else {
+        window.initSearchableSelect(select);
+        if (select._choicesInstance) {
+            select._choicesInstance.setChoiceByValue(id);
+        }
+    }
+    select.dispatchEvent(new Event("change", { bubbles: true }));
 };
 
 window.initSearchableSelects = function(root) {
