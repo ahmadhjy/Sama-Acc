@@ -2,7 +2,7 @@
 {% block title %}{% if is_edit %}Edit Service Type{% else %}New Service Type{% endif %}{% endblock %}
 {% block page_content %}
 <h1 class="title">{% if is_edit %}Edit Service Type{% else %}New Service Type{% endif %}</h1>
-<form method="post" class="panel">
+<form method="post" class="panel" id="service-type-form">
     {% csrf_token %}
     <h3>Service type</h3>
     {% for field in form %}
@@ -15,25 +15,52 @@
     {% endfor %}
 
     <h3>Custom fields (per invoice line)</h3>
-    <p class="muted">Define dynamic fields shown on invoice service lines (e.g. passenger name, travel date).</p>
+    <p class="muted">Define dynamic fields shown on invoice service lines (e.g. passenger name, travel date). Click <strong>+ Add custom field</strong> for each extra field.</p>
     {{ formset.management_form }}
-    <div class="field-def-grid">
+    <div id="field-def-forms" class="field-def-grid">
     {% for f in formset %}
-    <div class="field-def-row line-box">
+    <div class="field-def-row line-box" data-form-row>
         {% for field in f %}
           {% if field.name != 'DELETE' %}
+          {% if field.is_hidden %}
+          {{ field }}
+          {% else %}
           <label class="field-def-cell">
             <span class="field-def-label">{{ field.label }}</span>
             {{ field }}
             {% if field.errors %}<span class="errorlist">{{ field.errors }}</span>{% endif %}
           </label>
+          {% endif %}
           {% else %}
-          <label class="field-def-cell field-def-cell--delete">{{ field }} Remove</label>
+          <label class="field-def-cell field-def-cell--delete">{{ field }} Remove field</label>
           {% endif %}
         {% endfor %}
     </div>
     {% endfor %}
     </div>
+
+    <div id="field-def-empty-template" style="display:none;" aria-hidden="true">
+        <div class="field-def-row line-box" data-form-row>
+            {% for field in formset.empty_form %}
+              {% if field.name != 'DELETE' %}
+              {% if field.is_hidden %}
+              {{ field }}
+              {% else %}
+              <label class="field-def-cell">
+                <span class="field-def-label">{{ field.label }}</span>
+                {{ field }}
+              </label>
+              {% endif %}
+              {% else %}
+              <label class="field-def-cell field-def-cell--delete">{{ field }} Remove field</label>
+              {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+
+    <p style="margin-top:12px;">
+        <button type="button" class="btn btn-secondary" id="btn-add-field-def"><i class="fa-solid fa-plus"></i> Add custom field</button>
+    </p>
     {% if formset.non_form_errors %}<ul class="errorlist">{% for e in formset.non_form_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
 
     <button class="btn" type="submit">{% if is_edit %}Save{% else %}Create{% endif %}</button>
@@ -42,4 +69,67 @@
     <a class="btn" href="{% url 'catalog:service_type_detail' service_type.id %}">View</a>
     {% endif %}
 </form>
+<script>
+(function() {
+  var prefix = "{{ formset.prefix|escapejs }}";
+  var totalInput = document.getElementById("id_" + prefix + "-TOTAL_FORMS");
+  var maxInput = document.getElementById("id_" + prefix + "-MAX_NUM_FORMS");
+  var container = document.getElementById("field-def-forms");
+  var tmpl = document.getElementById("field-def-empty-template");
+  var addBtn = document.getElementById("btn-add-field-def");
+
+  if (!totalInput || !container || !tmpl || !addBtn) return;
+
+  function renumberOrderFields() {
+    var rows = container.querySelectorAll("[data-form-row]");
+    var order = 1;
+    rows.forEach(function(row) {
+      var del = row.querySelector('input[name$="-DELETE"]');
+      if (del && del.checked) return;
+      var orderInput = row.querySelector('input[name$="-order"]');
+      if (orderInput && !orderInput.value) {
+        orderInput.value = order;
+      }
+      order += 1;
+    });
+  }
+
+  function wireRemoveHints() {
+    container.querySelectorAll('input[name$="-DELETE"]').forEach(function(cb) {
+      if (cb.dataset.wired) return;
+      cb.dataset.wired = "1";
+      cb.addEventListener("change", function() {
+        if (cb.checked) {
+          cb.closest("[data-form-row]").style.opacity = "0.45";
+        } else {
+          cb.closest("[data-form-row]").style.opacity = "";
+        }
+      });
+    });
+  }
+
+  addBtn.addEventListener("click", function() {
+    var total = parseInt(totalInput.value, 10) || 0;
+    var max = maxInput ? parseInt(maxInput.value, 10) : 40;
+    if (total >= max) {
+      alert("Maximum number of custom fields reached (" + max + ").");
+      return;
+    }
+    var html = tmpl.innerHTML.replace(/__prefix__/g, String(total));
+    var wrap = document.createElement("div");
+    wrap.innerHTML = html.trim();
+    var row = wrap.querySelector("[data-form-row]") || wrap.firstElementChild;
+    if (!row) return;
+    container.appendChild(row);
+    totalInput.value = String(total + 1);
+    renumberOrderFields();
+    wireRemoveHints();
+    var firstInput = row.querySelector("input:not([type=hidden]), select, textarea");
+    if (firstInput) firstInput.focus();
+  });
+
+  renumberOrderFields();
+  wireRemoveHints();
+})();
+</script>
 {% endblock %}

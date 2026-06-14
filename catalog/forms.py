@@ -112,4 +112,5 @@ ServiceFieldInlineFormSet = inlineformset_factory(
     extra=1,
     can_delete=True,
     max_num=40,
+    validate_max=True,
 )
