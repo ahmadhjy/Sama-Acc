@@ -147,7 +147,17 @@ def _statement_pdf_meta(context, rows, *, with_party=False):
         {"label": "Closing Balance", "value": _format_cell(closing), "kind": "balance"},
     ]
     context.setdefault("pdf_section_title", "Transaction Details")
-    context.setdefault("pdf_section_subtitle", "Account activity for the selected period.")
+    df = context.get("date_from")
+    dt = context.get("date_to")
+    if df and dt:
+        period_text = f"From {df.strftime('%d/%m/%Y')} to {dt.strftime('%d/%m/%Y')}"
+    elif df:
+        period_text = f"From {df.strftime('%d/%m/%Y')}"
+    elif dt:
+        period_text = f"Until {dt.strftime('%d/%m/%Y')}"
+    else:
+        period_text = "All dates"
+    context["pdf_section_subtitle"] = period_text
     context["pdf_totals_closing_last"] = True
     context["pdf_currency"] = context.get("pdf_currency") or "USD"
     context["pdf_hide_subtitle_in_body"] = True
