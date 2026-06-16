@@ -13,12 +13,13 @@ from django.template.loader import render_to_string
 
 from accounts_core.branding import get_company_branding
 
-STATEMENT_HEADERS = ["Date", "Reference", "Description", "Debit", "Credit", "Balance"]
+STATEMENT_HEADERS = ["Date", "Reference", "Description", "Type", "Debit", "Credit", "Balance"]
 STATEMENT_HEADERS_WITH_PARTY = [
     "Account",
     "Date",
     "Reference",
     "Description",
+    "Type",
     "Debit",
     "Credit",
     "Balance",
@@ -84,6 +85,7 @@ def _flatten_statement_row(r):
         _format_cell(r.get("date")),
         _format_cell(r.get("ref")),
         _statement_description(r),
+        _format_cell(r.get("type")),
         _format_cell(r.get("debit")),
         _format_cell(r.get("credit")),
         _format_cell(r.get("running_balance")),
@@ -96,6 +98,7 @@ def _flatten_statement_row_with_party(r, party_label):
         _format_cell(r.get("date")),
         _format_cell(r.get("ref")),
         _statement_description(r),
+        _format_cell(r.get("type")),
         _format_cell(r.get("debit")),
         _format_cell(r.get("credit")),
         _format_cell(r.get("running_balance")),
@@ -111,15 +114,24 @@ def _statement_pdf_meta(context, rows, *, with_party=False):
     closing = rows[-1].get("running_balance") if rows else Decimal("0")
     if with_party:
         context["pdf_table_headers"] = STATEMENT_HEADERS_WITH_PARTY
-        context["pdf_numeric_column_indexes"] = [4, 5, 6]
+        context["pdf_numeric_column_indexes"] = [5, 6, 7]
         context["pdf_ref_column_index"] = 2
         context["pdf_description_column_index"] = 3
     else:
         context["pdf_table_headers"] = STATEMENT_HEADERS
-        context["pdf_numeric_column_indexes"] = [3, 4, 5]
+        context["pdf_numeric_column_indexes"] = [4, 5, 6]
         context["pdf_ref_column_index"] = 1
         context["pdf_description_column_index"] = 2
     context["pdf_totals"] = [
+        ("Total Debit", _format_cell(total_dr)),
+        ("Total Credit", _format_cell(total_cr)),
+        ("Closing Balance", _format_cell(closing)),
+    ]
+    account_name = context.get("pdf_account_name") or context.get("pdf_report_subtitle") or "—"
+    account_id = context.get("pdf_account_id") or context.get("pdf_account_range") or "—"
+    context["pdf_summary_cards"] = [
+        ("Account Name", account_name),
+        ("Account ID", account_id),
         ("Total Debit", _format_cell(total_dr)),
         ("Total Credit", _format_cell(total_cr)),
         ("Closing Balance", _format_cell(closing)),
@@ -229,7 +241,8 @@ def _prepare_invoice_document_pdf(context):
         row.extend([_format_cell(line.qty), _format_cell(line.sell_price)])
         if show_costs:
             row.extend([_format_cell(line.cost_price), _format_cell(line.cost_price_usd)])
-        row.append(line.statement_description or "—")
+        desc = line.statement_description() if callable(getattr(line, "statement_description", None)) else ""
+        row.append(desc or "—")
         table_rows.append(row)
 
     numeric_start = 3 if not show_costs else 4

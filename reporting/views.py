@@ -114,6 +114,8 @@ def client_statement(request, client_id):
             "pdf_report_title": "Statement of Account",
             "pdf_report_subtitle": f"{client.name_en} ({client.client_code})",
             "pdf_account_range": f"Client code: {client.client_code}",
+            "pdf_account_name": client.name_en,
+            "pdf_account_id": client.client_code,
         },
         f"client_statement_{client.client_code}.pdf",
     )
@@ -222,6 +224,8 @@ def supplier_statement(request, supplier_id):
             "pdf_report_title": "Supplier Statement",
             "pdf_report_subtitle": _supplier_pdf_subtitle(supplier),
             "pdf_account_range": f"Supplier code: {supplier.supplier_code}",
+            "pdf_account_name": supplier.name,
+            "pdf_account_id": supplier.supplier_code,
         },
         f"supplier_statement_{supplier.supplier_code}.pdf",
     )
