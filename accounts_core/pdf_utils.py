@@ -244,7 +244,7 @@ def _prepare_invoice_document_pdf(context):
     table_rows = []
     for line in lines:
         row = [
-            _format_cell(line.effective_service_date),
+            _format_cell(line.effective_service_date() if callable(getattr(line, "effective_service_date", None)) else line.effective_service_date),
             line.service_type.name if line.service_type_id else "—",
             line.destination.name if line.destination_id else "—",
         ]
