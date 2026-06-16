@@ -265,6 +265,37 @@ def _prepare_invoice_document_pdf(context):
     _apply_pdf_table_layout(context)
 
 
+def _prepare_payment_document_pdf(context):
+    """Standardized payment receipt PDF using the shared table-report layout."""
+    payment = context.get("payment")
+    if not payment:
+        return
+    party = _party_label(payment)
+    context["pdf_table_headers"] = ["Field", "Value"]
+    context["pdf_table_rows"] = [
+        ["Receipt number", payment.receipt_no or "—"],
+        ["Reference", payment.reference or "—"],
+        ["Party", party],
+        ["Date", _format_cell(payment.date)],
+        ["Money account", payment.money_account.name if payment.money_account_id else "—"],
+        ["Direction", payment.get_direction_display() or payment.direction],
+        ["Status", payment.status],
+        ["Amount", f"{_format_cell(payment.amount)} {payment.currency}"],
+        ["Note", payment.note or "—"],
+    ]
+    context["pdf_wrap_column_indexes"] = [1]
+    context["pdf_summary_cards"] = [
+        ("Receipt", payment.receipt_no or "—"),
+        ("Party", party),
+        ("Amount", f"{_format_cell(payment.amount)} {payment.currency}"),
+        ("Date", _format_cell(payment.date)),
+    ]
+    context["pdf_totals"] = [("Paid amount", f"{_format_cell(payment.amount)} {payment.currency}")]
+    context["pdf_totals_closing_last"] = True
+    context["pdf_hide_subtitle_in_body"] = True
+    _apply_pdf_table_layout(context)
+
+
 def _flatten_payment(p):
     return [
         p.receipt_no,
@@ -362,6 +393,10 @@ def prepare_pdf_export(context):
 
     if context.get("invoice") and context.get("lines") is not None:
         _prepare_invoice_document_pdf(context)
+        return context
+
+    if context.get("payment"):
+        _prepare_payment_document_pdf(context)
         return context
 
     rows = context.get("rows")

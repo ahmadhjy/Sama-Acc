@@ -52,13 +52,13 @@
 </div>
 {% endif %}
 {% if pdf_summary_cards %}
-<table class="pdf-data-table" style="margin-top:12px;">
-    <thead><tr><th>Metric</th><th class="num">Value</th></tr></thead>
-    <tbody>
-        {% for label, value in pdf_summary_cards %}
-        <tr><td>{{ label }}</td><td class="num">{{ value }}</td></tr>
-        {% endfor %}
-    </tbody>
-</table>
+<div class="pdf-summary-cards">
+    {% for label, value in pdf_summary_cards %}
+    <div class="pdf-summary-card">
+        <div class="pdf-summary-card__label">{{ label }}</div>
+        <div class="pdf-summary-card__value">{{ value }}</div>
+    </div>
+    {% endfor %}
+</div>
 {% endif %}
 {% endblock %}

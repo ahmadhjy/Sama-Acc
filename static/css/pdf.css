@@ -416,6 +416,40 @@ body.is-pdf tfoot th,
     color: #e2e8f0;
 }
 
+/* Unified summary cards (used by all table_report PDFs) */
+.pdf-summary-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 12px;
+    page-break-inside: avoid;
+}
+
+.pdf-summary-card {
+    flex: 1 1 calc(50% - 10px);
+    min-width: 140px;
+    border: 1px solid #d8e2ee;
+    border-radius: 6px;
+    background: #f8fafc;
+    padding: 8px 10px;
+}
+
+.pdf-summary-card__label {
+    font-size: 7pt;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #64748b;
+    margin-bottom: 3px;
+}
+
+.pdf-summary-card__value {
+    font-size: 10pt;
+    font-weight: 700;
+    color: #0f2744;
+    line-height: 1.2;
+    word-break: break-word;
+}
+
 /* Summary cards in PDF reports */
 body.is-pdf .cards {
     display: block;
