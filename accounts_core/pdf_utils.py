@@ -202,6 +202,69 @@ def _flatten_invoice(inv):
     ]
 
 
+def _prepare_invoice_document_pdf(context):
+    """Statement-style PDF for a single sales invoice."""
+    invoice = context.get("invoice")
+    lines = context.get("lines")
+    if not invoice or lines is None:
+        return
+    show_costs = context.get("show_costs")
+    headers = ["Date", "Service", "Destination"]
+    if show_costs:
+        headers.append("Supplier")
+    headers.extend(["Qty", "Sell"])
+    if show_costs:
+        headers.extend(["Cost", "Cost USD"])
+    headers.append("Description")
+
+    table_rows = []
+    for line in lines:
+        row = [
+            _format_cell(line.effective_service_date),
+            line.service_type.name if line.service_type_id else "—",
+            line.destination.name if line.destination_id else "—",
+        ]
+        if show_costs:
+            row.append(line.supplier.name if line.supplier_id else "—")
+        row.extend([_format_cell(line.qty), _format_cell(line.sell_price)])
+        if show_costs:
+            row.extend([_format_cell(line.cost_price), _format_cell(line.cost_price_usd)])
+        row.append(line.statement_description or "—")
+        table_rows.append(row)
+
+    numeric_start = 3 if not show_costs else 4
+    numeric_indexes = list(range(numeric_start, numeric_start + (4 if show_costs else 2)))
+    context["pdf_table_headers"] = headers
+    context["pdf_table_rows"] = table_rows
+    context["pdf_numeric_column_indexes"] = numeric_indexes
+    context["pdf_description_column_index"] = len(headers) - 1
+    context["pdf_wrap_column_indexes"] = [len(headers) - 1]
+    context["pdf_hide_subtitle_in_body"] = True
+
+    summary = [
+        ("Client", invoice.client.name_en if invoice.client_id else "—"),
+        ("Invoice", invoice.invoice_no or "—"),
+        ("Issue date", _format_cell(invoice.issue_date)),
+        ("Due date", _format_cell(invoice.due_date)),
+    ]
+    if invoice.main_destination_id:
+        summary.append(("Destination", invoice.main_destination.name))
+    if invoice.sales_employee_id:
+        summary.append(("Sales employee", invoice.sales_employee.name))
+    summary.append(("Currency", invoice.currency or "USD"))
+    context["pdf_summary_cards"] = summary
+
+    totals = [("Grand total", f"{_format_cell(invoice.grand_total)} {invoice.currency}")]
+    if invoice.grand_total_usd:
+        totals.append(("Total (USD)", f"{_format_cell(invoice.grand_total_usd)} USD"))
+    if show_costs:
+        totals.append(("Total cost (USD)", _format_cell(invoice.total_line_cost_usd())))
+        totals.append(("Profit (USD)", _format_cell(invoice.profit_amount)))
+    context["pdf_totals"] = totals
+    context["pdf_totals_closing_last"] = True
+    _apply_pdf_table_layout(context)
+
+
 def _flatten_payment(p):
     return [
         p.receipt_no,
@@ -295,6 +358,10 @@ def prepare_pdf_export(context):
     """
     if context.get("pdf_table_rows"):
         _apply_pdf_table_layout(context)
+        return context
+
+    if context.get("invoice") and context.get("lines") is not None:
+        _prepare_invoice_document_pdf(context)
         return context
 
     rows = context.get("rows")
@@ -796,7 +863,7 @@ def render_or_pdf(request, template_name, context, filename):
 
     merged["is_pdf"] = True
 
-    is_document_pdf = merged.get("invoice") or merged.get("payment")
+    is_document_pdf = merged.get("payment") and not merged.get("pdf_table_rows")
     use_table_template = not is_document_pdf and (
         merged.get("pdf_table_rows")
         or merged.get("pdf_summary_cards")

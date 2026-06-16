@@ -2,12 +2,37 @@ import json
 from decimal import Decimal
 
 from django import forms
+from django.db.models import Q
 from django.forms import BaseInlineFormSet, inlineformset_factory
 from django.utils import timezone
 
 from accounts_core.models import Currency
 from catalog.models import Destination
 from sales.models import SalesInvoice, SalesInvoiceLine
+
+
+def _destination_queryset(extra_pk=None):
+    """Active destinations; always include extra_pk when set (search / saved value)."""
+    qs = Destination.objects.filter(is_active=True).order_by("sort_order", "name")
+    if extra_pk:
+        qs = (
+            Destination.objects.filter(Q(is_active=True) | Q(pk=extra_pk))
+            .order_by("sort_order", "name")
+            .distinct()
+        )
+    return qs
+
+
+def _bound_pk(form, field_name):
+    if form.instance.pk:
+        fk_id = getattr(form.instance, f"{field_name}_id", None)
+        if fk_id:
+            return fk_id
+    if form.is_bound:
+        raw = form.data.get(form.add_prefix(field_name))
+        if raw:
+            return raw
+    return None
 
 
 class SalesInvoiceForm(forms.ModelForm):
@@ -19,6 +44,7 @@ class SalesInvoiceForm(forms.ModelForm):
             "invoice_no",
             "client",
             "sales_employee",
+            "main_destination",
             "package_type",
             "issue_date",
             "due_date",
@@ -30,6 +56,7 @@ class SalesInvoiceForm(forms.ModelForm):
             "due_date": forms.DateInput(attrs={"type": "date"}),
             "package_type": forms.Select(),
             "exchange_rate_to_usd": forms.NumberInput(attrs={"step": "0.000001", "min": "0"}),
+            "main_destination": forms.Select(attrs={"class": "destination-select main-destination-select"}),
         }
 
     def __init__(self, *args, **kwargs):
@@ -53,6 +80,11 @@ class SalesInvoiceForm(forms.ModelForm):
             issue = self.initial.get("issue_date") or getattr(self.instance, "issue_date", None)
             if issue and not self.initial.get("due_date") and not getattr(self.instance, "due_date", None):
                 self.initial["due_date"] = issue
+        md = self.fields.get("main_destination")
+        if md:
+            md.label = "Destination"
+            md.empty_label = "— Destination —"
+            md.queryset = _destination_queryset(_bound_pk(self, "main_destination"))
 
     @staticmethod
     def _currency_choices():
@@ -126,7 +158,7 @@ class SalesInvoiceLineBaseForm(forms.ModelForm):
             self.fields["line_discount"].initial = Decimal("0.00")
         dest = self.fields.get("destination")
         if dest:
-            dest.queryset = Destination.objects.filter(is_active=True).order_by("sort_order", "name")[:100]
+            dest.queryset = _destination_queryset(_bound_pk(self, "destination"))
             dest.empty_label = "— Destination —"
         if not self.instance.pk:
             sd = self.fields.get("service_date")

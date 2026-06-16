@@ -78,6 +78,7 @@ def _invoice_is_persisted(invoice):
 
 def _invoice_page_context(form, formset, invoice, can_view_cost):
     emp = get_default_employee_for_accounting()
+    default_emp = invoice.sales_employee if invoice.sales_employee_id else emp
     if _invoice_is_persisted(invoice):
         line_cost_total = invoice.total_line_cost()
         line_cost_total_usd = invoice.total_line_cost_usd()
@@ -92,7 +93,7 @@ def _invoice_page_context(form, formset, invoice, can_view_cost):
         "invoice": invoice,
         "can_view_cost": can_view_cost,
         "service_field_defs_json": _service_field_defs_json(),
-        "default_line_employee_id": str(emp.pk) if emp else "",
+        "default_line_employee_id": str(default_emp.pk) if default_emp else "",
         "initial_line_cost_total": line_cost_total,
         "initial_line_cost_total_usd": line_cost_total_usd,
         "attachments": attachments,
@@ -188,14 +189,55 @@ def invoice_open(request, invoice_id):
 
 
 @login_required
+@require_http_methods(["POST"])
+def invoice_autosave(request, invoice_id=None):
+    """Save draft invoice without redirect (navigation away / periodic autosave)."""
+    if invoice_id:
+        invoice = get_object_or_404(SalesInvoice, pk=invoice_id, status=SalesInvoice.Status.DRAFT)
+    else:
+        invoice = SalesInvoice()
+        if not invoice.invoice_no:
+            invoice.invoice_no = _next_temp_invoice_no()
+    can_view_cost = not request.user.groups.filter(name="Sales").exists()
+    line_formset_cls = SalesInvoiceLineFormSet if can_view_cost else SalesInvoiceLineSalesFormSet
+    form = SalesInvoiceForm(request.POST, instance=invoice)
+    formset = line_formset_cls(request.POST, instance=invoice)
+    if form.is_valid() and formset.is_valid():
+        saved = _save_draft_invoice_with_recalc(form, formset)
+        return JsonResponse(
+            {
+                "ok": True,
+                "invoice_id": str(saved.id),
+                "invoice_no": saved.invoice_no,
+                "edit_url": f"/sales/invoices/{saved.id}/edit/",
+            }
+        )
+    errors = {}
+    if form.errors:
+        errors["form"] = form.errors.get_json_data()
+    if formset.errors:
+        errors["lines"] = formset.errors
+    if formset.non_form_errors():
+        errors["non_form"] = [str(e) for e in formset.non_form_errors()]
+    return JsonResponse({"ok": False, "errors": errors}, status=400)
+
+
+@login_required
 def invoice_pdf(request, invoice_id):
-    invoice = get_object_or_404(SalesInvoice.objects.select_related("client"), pk=invoice_id)
+    invoice = get_object_or_404(
+        SalesInvoice.objects.select_related("client", "main_destination", "sales_employee"),
+        pk=invoice_id,
+    )
     version = (request.GET.get("version") or "client").lower()
     show_costs = version == "accountant" and not request.user.groups.filter(name="Sales").exists()
     lines = invoice.lines.select_related("service_type", "supplier", "destination").all()
     pdf_title = "INVOICE"
     if show_costs:
         pdf_title = "INVOICE — Accountant Copy"
+    client_name = invoice.client.name_en if invoice.client_id else "Draft"
+    subtitle_parts = [invoice.invoice_no, client_name]
+    if invoice.main_destination_id:
+        subtitle_parts.append(invoice.main_destination.name)
     return render_or_pdf(
         request,
         "sales/invoice_pdf.html",
@@ -204,8 +246,9 @@ def invoice_pdf(request, invoice_id):
             "lines": lines,
             "show_costs": show_costs,
             "pdf_report_title": pdf_title,
-            "pdf_report_subtitle": f"{invoice.invoice_no} — {invoice.client.name_en if invoice.client_id else 'Draft'}",
+            "pdf_report_subtitle": " — ".join(subtitle_parts),
             "pdf_currency": invoice.currency,
+            "pdf_account_range": f"Client: {client_name}",
         },
         f"invoice_{invoice.invoice_no}_{version}.pdf",
     )

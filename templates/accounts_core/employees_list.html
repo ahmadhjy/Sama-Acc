@@ -1,0 +1,42 @@
+{% extends "page/layout.html" %}
+{% block title %}Employees{% endblock %}
+{% block page_content %}
+<h1 class="title">Employees</h1>
+<div class="filter-bar panel">
+    <form method="get" class="filter-form">
+        <input type="search" name="q" value="{{ q }}" placeholder="Search by name…">
+        <button class="btn" type="submit">Search</button>
+    </form>
+    <a class="btn" href="{% url 'accounts_core:employee_create' %}">+ New employee</a>
+    <a class="btn btn-clear hub-btn-clear" href="{% url 'accounts_core:employees_list' %}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
+</div>
+<table>
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Monthly salary</th>
+            <th>Status</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for emp in employees %}
+        <tr>
+            <td>{{ emp.name }}</td>
+            <td>{{ emp.get_role_display }}</td>
+            <td class="num">{{ emp.monthly_salary|floatformat:2 }} USD</td>
+            <td>{% if emp.is_active %}Active{% else %}Inactive{% endif %}</td>
+            <td>
+                <a class="btn" href="{% url 'accounts_core:employee_edit' emp.id %}">Edit</a>
+                {% if emp.monthly_salary %}
+                <a class="btn" href="{% url 'accounts_core:employee_salary_pdf' emp.id %}?format=pdf">Salary PDF</a>
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="5">No employees yet.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

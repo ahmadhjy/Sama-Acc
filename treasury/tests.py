@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 
 from accounts_core.models import Client, Employee, Supplier
-from catalog.models import ServiceInstance, ServiceType
+from catalog.models import Destination, ServiceInstance, ServiceType
 from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import ARAllocation, MoneyAccount, Payment
 from treasury.payment_flow import post_payment_and_allocate
@@ -17,6 +17,7 @@ class TreasuryAllocationTests(TestCase):
         self.client_obj = Client.objects.create(client_code="C0002", name_en="Client B")
         self.employee = Employee.objects.create(name="Emp B", role=Employee.EmployeeRole.ACCOUNTING)
         self.service_type = ServiceType.objects.create(name="Hotel", code="HTL")
+        self.destination = Destination.objects.create(name="Cairo", country="Egypt")
         self.supplier = Supplier.objects.create(supplier_code="S-HTL", name="Hotel Supplier")
         self.service_instance = ServiceInstance.objects.create(service_type=self.service_type, data={"voucher": "V-1"})
         self.account = MoneyAccount.objects.create(name="Cashbox USD", type=MoneyAccount.AccountType.CASH, currency="USD")
@@ -33,6 +34,7 @@ class TreasuryAllocationTests(TestCase):
             supplier=self.supplier,
             service_instance=self.service_instance,
             line_employee=self.employee,
+            destination=self.destination,
             qty=Decimal("1"),
             sell_price=Decimal("200"),
             line_discount=Decimal("0"),

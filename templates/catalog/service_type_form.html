@@ -122,6 +122,8 @@
     if (!row) return;
     container.appendChild(row);
     totalInput.value = String(total + 1);
+    var typeSelect = row.querySelector('select[name$="-field_type"]');
+    if (typeSelect) typeSelect.value = 'TEXT';
     renumberOrderFields();
     wireRemoveHints();
     var firstInput = row.querySelector("input:not([type=hidden]), select, textarea");

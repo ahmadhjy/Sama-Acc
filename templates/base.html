@@ -34,6 +34,9 @@
                 <a class="sidebar-link{% if '/sales/invoices/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'sales:invoice_list' %}">
                     <i class="fa-solid fa-file-invoice"></i> Invoices
                 </a>
+                <a class="sidebar-link{% if '/employees/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'accounts_core:employees_list' %}">
+                    <i class="fa-solid fa-id-badge"></i> Employees
+                </a>
                 <a class="sidebar-link{% if '/catalog/service-types/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'catalog:service_types_list' %}">
                     <i class="fa-solid fa-tags"></i> Service types
                 </a>

@@ -23,6 +23,14 @@ class SalesInvoice(models.Model):
     sales_employee = models.ForeignKey(
         "accounts_core.Employee", null=True, blank=True, on_delete=models.PROTECT, related_name="sales_invoices"
     )
+    main_destination = models.ForeignKey(
+        "catalog.Destination",
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="invoices_main",
+        verbose_name="Destination",
+    )
     class PackageType(models.TextChoices):
         FULL_PACKAGE = "FULL_PACKAGE", "Full package"
         VISA = "VISA", "Visa"

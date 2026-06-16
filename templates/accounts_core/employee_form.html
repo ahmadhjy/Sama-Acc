@@ -1,0 +1,27 @@
+{% extends "page/layout.html" %}
+{% block title %}{% if is_edit %}Edit Employee{% else %}New Employee{% endif %}{% endblock %}
+{% block page_content %}
+<h1 class="title">{% if is_edit %}Edit Employee{% else %}New Employee{% endif %}</h1>
+<form method="post" enctype="multipart/form-data" class="panel">
+    {% csrf_token %}
+    {% for field in form %}
+    <p class="employee-field employee-field--{{ field.name }}">
+        {{ field.label_tag }}
+        {{ field }}
+        {% if field.help_text %}<span class="muted">{{ field.help_text }}</span>{% endif %}
+        {% if field.errors %}<span class="errorlist">{{ field.errors }}</span>{% endif %}
+    </p>
+    {% endfor %}
+    <button class="btn" type="submit">{% if is_edit %}Save{% else %}Create employee{% endif %}</button>
+    <a class="btn" href="{% url 'accounts_core:employees_list' %}">Back</a>
+    {% if employee and employee.monthly_salary %}
+    <a class="btn" href="{% url 'accounts_core:employee_salary_pdf' employee.id %}?format=pdf">Download salary PDF</a>
+    {% endif %}
+</form>
+{% if employee and employee.passport_file %}
+<p class="panel" style="margin-top:12px;">
+    <strong>Passport on file:</strong>
+    <a href="{{ employee.passport_file.url }}" target="_blank" download>Download passport</a>
+</p>
+{% endif %}
+{% endblock %}

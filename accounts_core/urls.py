@@ -19,4 +19,8 @@ urlpatterns = [
     path("suppliers/<uuid:supplier_id>/edit/", views.supplier_edit, name="supplier_edit"),
     path("suppliers/<uuid:supplier_id>/deactivate/", views.supplier_deactivate, name="supplier_deactivate"),
     path("suppliers/<uuid:supplier_id>/delete/", views.supplier_delete, name="supplier_delete"),
+    path("employees/", views.employees_list, name="employees_list"),
+    path("employees/new/", views.employee_create, name="employee_create"),
+    path("employees/<uuid:employee_id>/edit/", views.employee_edit, name="employee_edit"),
+    path("employees/<uuid:employee_id>/salary-pdf/", views.employee_salary_pdf, name="employee_salary_pdf"),
 ]

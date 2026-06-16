@@ -123,10 +123,33 @@ class Employee(TimeStampedModel):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="employee_profile"
     )
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, help_text="Display name (auto-filled from name parts).")
+    first_name = models.CharField(max_length=100, blank=True)
+    father_name = models.CharField(max_length=100, blank=True)
+    last_name = models.CharField(max_length=100, blank=True)
+    address = models.TextField(blank=True)
+    passport_file = models.FileField(upload_to="employee_passports/%Y/%m/", null=True, blank=True)
+    monthly_salary = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=0,
+        help_text="Monthly salary in USD; posted to operating expenses at month end.",
+    )
     role = models.CharField(max_length=20, choices=EmployeeRole.choices, default=EmployeeRole.SALES)
     start_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+
+    def full_name_parts(self):
+        parts = [self.first_name, self.father_name, self.last_name]
+        return " ".join(p.strip() for p in parts if p and p.strip())
+
+    def save(self, *args, **kwargs):
+        composed = self.full_name_parts()
+        if composed:
+            self.name = composed
+        elif not self.name:
+            self.name = "Employee"
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name

@@ -6,7 +6,7 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from accounts_core.models import Client, Currency, Employee, Supplier
-from catalog.models import ServiceInstance, ServiceType
+from catalog.models import Destination, ServiceInstance, ServiceType
 from sales.models import SalesInvoice, SalesInvoiceLine
 
 
@@ -20,6 +20,7 @@ class ApiSmokeTests(APITestCase):
         self.client_obj = Client.objects.create(client_code="CAPI1", name_en="API Client")
         self.employee = Employee.objects.create(name="API Emp", role=Employee.EmployeeRole.ADMIN)
         st = ServiceType.objects.create(name="Visa", code="VISA")
+        dest = Destination.objects.create(name="Dubai", country="UAE")
         sup = Supplier.objects.create(supplier_code="S-VIS", name="Visa Supplier")
         si = ServiceInstance.objects.create(service_type=st, data={"ref": "X"})
         self.invoice = SalesInvoice.objects.create(
@@ -34,6 +35,7 @@ class ApiSmokeTests(APITestCase):
             supplier=sup,
             service_instance=si,
             line_employee=self.employee,
+            destination=dest,
             qty=Decimal("1"),
             sell_price=Decimal("50"),
         )

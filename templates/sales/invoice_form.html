@@ -3,6 +3,7 @@
 {% block page_content %}
 <style>
   .destination-select { display: none; }
+  .destination-wrap { position: relative; display: block; }
   .destination-results { display: none; max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border, #cbd5e1); background: #fff; position: absolute; left: 0; right: 0; z-index: 20; border-radius: 8px; box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12)); }
   .destination-results.open { display: block; }
   .destination-pick { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: #fff; cursor: pointer; font-size: 14px; }
@@ -12,9 +13,10 @@
   .supplier-wrap label { width: 100%; }
 </style>
 <h1 class="title">{% if invoice_is_new %}New Invoice{% else %}Edit Invoice{% endif %}</h1>
-<form method="post" enctype="multipart/form-data" class="panel" id="invoice-form" data-formset-prefix="{{ formset.prefix }}">
+<form method="post" enctype="multipart/form-data" class="panel" id="invoice-form" data-formset-prefix="{{ formset.prefix }}"{% if not invoice_is_new %} data-invoice-id="{{ invoice.id }}"{% endif %}>
     {% csrf_token %}
     {% for field in form %}
+      {% if field.name != "main_destination" %}
       <p class="invoice-field-{{ field.name }}">
         {{ field.label_tag }}
         {{ field }}
@@ -24,7 +26,18 @@
         {% if field.help_text %}<span class="muted">{{ field.help_text }}</span>{% endif %}
         {% if field.errors %}<span class="errorlist">{{ field.errors }}</span>{% endif %}
       </p>
+      {% endif %}
     {% endfor %}
+    <p class="invoice-field-main_destination">
+      <label for="id_main_destination">Destination</label>
+      <span class="destination-wrap destination-wrap--header">
+        <input type="text" class="destination-search main-destination-search" placeholder="Type to search…" autocomplete="off">
+        <button type="button" class="btn quick-inline-btn" id="btn-add-main-destination">+ Add destination</button>
+        <div class="destination-results"></div>
+        {{ form.main_destination }}
+      </span>
+      {% if form.main_destination.errors %}<span class="errorlist">{{ form.main_destination.errors }}</span>{% endif %}
+    </p>
 
     <h3>Invoice selling total</h3>
     <p class="muted">Calculated automatically from service line selling prices in the invoice currency below.</p>
@@ -158,8 +171,20 @@
   const URL_CLIENT_QC = "{% url 'accounts_core:client_quick_create' %}";
   const URL_SUPPLIER_QC = "{% url 'accounts_core:supplier_quick_create' %}";
   const URL_DEST_QC = "{% url 'catalog:destination_quick_create' %}";
+  const AUTOSAVE_URL_NEW = "{% url 'sales:invoice_autosave_new' %}";
+  {% if not invoice_is_new %}
+  const AUTOSAVE_URL_EDIT = "{% url 'sales:invoice_autosave' invoice.id %}";
+  {% endif %}
+
+  function getAutosaveUrl() {
+    const id = formEl.dataset.invoiceId;
+    if (id) return '/sales/invoices/' + id + '/autosave/';
+    return AUTOSAVE_URL_NEW;
+  }
 
   let quickModalContext = null;
+  let formDirty = false;
+  let autosaveTimer = null;
 
   function openQuickModal(title, fieldsHtml, onSave) {
     document.getElementById('quick-modal-title').textContent = title;
@@ -201,7 +226,27 @@
     }).then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); });
   }
 
+  function appendDestinationOption(select, id, label) {
+    if (!select) return;
+    var sid = String(id);
+    var found = false;
+    for (var i = 0; i < select.options.length; i++) {
+      if (select.options[i].value === sid) { found = true; break; }
+    }
+    if (!found) {
+      var opt = document.createElement('option');
+      opt.value = sid;
+      opt.textContent = label;
+      select.appendChild(opt);
+    }
+    select.value = sid;
+  }
+
   function appendSelectOption(select, id, label) {
+    if (select && select.classList.contains('destination-select')) {
+      appendDestinationOption(select, id, label);
+      return;
+    }
     if (window.appendSelectChoice) {
       window.appendSelectChoice(select, id, label);
     } else if (select) {
@@ -211,6 +256,10 @@
       select.appendChild(opt);
       select.value = id;
     }
+  }
+
+  function markFormDirty() {
+    formDirty = true;
   }
 
   document.getElementById('btn-add-client').addEventListener('click', function() {
@@ -304,9 +353,7 @@
             errEl.style.display = 'block';
             return;
           }
-          document.querySelectorAll('select[name$="-supplier"]').forEach(function(s) {
-            appendSelectOption(s, res.data.id, res.data.name);
-          });
+          appendSelectOption(sel, res.data.id, res.data.name);
           closeQuickModal();
         });
       });
@@ -508,17 +555,19 @@
     }
   }
 
+  function getLineDataInitial(box) {
+    const hidden = box.querySelector('.line-data-json');
+    if (!hidden || !hidden.value) return {};
+    try { return JSON.parse(hidden.value); } catch (e) { return {}; }
+  }
+
   function wireLine(box) {
     wireSupplierQuickCreate(box);
     const idx = box.dataset.formIndex;
     const dyn = box.querySelector('[data-dynamic-for="' + idx + '"]');
     const typeSelect = box.querySelector('select[name$="service_type"]');
-    const hidden = box.querySelector('.line-data-json');
-    let initial = {};
-    if (hidden && hidden.value) {
-      try { initial = JSON.parse(hidden.value); } catch (e) {}
-    }
     const empSel = box.querySelector('select[name$="line_employee"]');
+    if (empSel && empSel.value) empSel.dataset.userOverridden = '1';
     if (empSel && DEFAULT_LINE_EMP && !empSel.value) {
       for (let i = 0; i < empSel.options.length; i++) {
         if (empSel.options[i].value === DEFAULT_LINE_EMP) {
@@ -527,10 +576,11 @@
         }
       }
     }
+    const destSel = box.querySelector('select[name$="-destination"]');
+    if (destSel && destSel.value) destSel.dataset.userOverridden = '1';
     function refresh() {
       const tid = typeSelect && typeSelect.value;
-      renderDynamicFields(dyn, tid, initial);
-      initial = {};
+      renderDynamicFields(dyn, tid, getLineDataInitial(box));
       updateTotalLineCost();
       updateSellingTotal();
       updateUsdHint();
@@ -562,7 +612,22 @@
     const headerEmp = document.getElementById('id_sales_employee');
     if (!headerEmp || !headerEmp.value) return;
     document.querySelectorAll('#invoice-lines select[name$="line_employee"]').forEach(function(sel) {
-      if (!sel.dataset.userOverridden) sel.value = headerEmp.value;
+      if (!sel.dataset.userOverridden && !sel.value) sel.value = headerEmp.value;
+    });
+  }
+
+  function syncLineDestinationsFromHeader(onlyEmpty) {
+    const mainSel = document.getElementById('id_main_destination');
+    if (!mainSel || !mainSel.value) return;
+    const mainText = mainSel.options[mainSel.selectedIndex] ? mainSel.options[mainSel.selectedIndex].text : '';
+    document.querySelectorAll('#invoice-lines .invoice-line').forEach(function(box) {
+      const destSel = box.querySelector('select[name$="-destination"]');
+      const search = box.querySelector('.destination-search:not(.main-destination-search)');
+      if (!destSel) return;
+      if (onlyEmpty && (destSel.dataset.userOverridden || destSel.value)) return;
+      if (!onlyEmpty && destSel.dataset.userOverridden) return;
+      appendDestinationOption(destSel, mainSel.value, mainText);
+      if (search) search.value = mainText;
     });
   }
 
@@ -573,7 +638,14 @@
       if (ev.target && ev.target.name && ev.target.name.endsWith('line_employee')) {
         ev.target.dataset.userOverridden = '1';
       }
+      if (ev.target && ev.target.classList && ev.target.classList.contains('destination-select') && !ev.target.classList.contains('main-destination-select')) {
+        ev.target.dataset.userOverridden = '1';
+      }
     });
+  }
+  const mainDestSel = document.getElementById('id_main_destination');
+  if (mainDestSel) {
+    mainDestSel.addEventListener('change', function() { syncLineDestinationsFromHeader(false); });
   }
 
   document.querySelectorAll('#invoice-lines .invoice-line').forEach(wireLine);
@@ -581,7 +653,6 @@
   updateTotalLineCost();
   updateSellingTotal();
   updateUsdHint();
-  syncLineEmployeesFromHeader();
 
   const curEl = document.getElementById('id_currency');
   const rateEl = document.getElementById('id_exchange_rate_to_usd');
@@ -592,6 +663,56 @@
 
   document.getElementById('invoice-form').addEventListener('submit', function() {
     document.querySelectorAll('.invoice-line').forEach(collectLineData);
+    formDirty = false;
+  });
+
+  formEl.addEventListener('input', markFormDirty);
+  formEl.addEventListener('change', markFormDirty);
+
+  function autosaveDraft(sync) {
+    if (!formDirty) return Promise.resolve();
+    document.querySelectorAll('.invoice-line').forEach(collectLineData);
+    const fd = new FormData(formEl);
+    const opts = {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-CSRFToken': CSRF_TOKEN },
+      credentials: 'same-origin',
+    };
+    if (!sync) opts.keepalive = true;
+    return fetch(getAutosaveUrl(), opts).then(function(r) {
+      return r.json().then(function(data) {
+        if (data.ok) {
+          formDirty = false;
+          if (data.invoice_id && !formEl.dataset.invoiceId) {
+            formEl.dataset.invoiceId = data.invoice_id;
+            if (data.edit_url) history.replaceState(null, '', data.edit_url);
+          }
+        }
+        return data;
+      });
+    }).catch(function() {});
+  }
+
+  function scheduleAutosave() {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(function() { autosaveDraft(false); }, 2500);
+  }
+  formEl.addEventListener('input', scheduleAutosave);
+  formEl.addEventListener('change', scheduleAutosave);
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden && formDirty) autosaveDraft(false);
+  });
+  window.addEventListener('pagehide', function() {
+    if (formDirty) autosaveDraft(false);
+  });
+  document.querySelectorAll('.sidebar a[href]').forEach(function(link) {
+    link.addEventListener('click', function(ev) {
+      if (!formDirty || link.target === '_blank') return;
+      ev.preventDefault();
+      autosaveDraft(true).finally(function() { window.location.href = link.href; });
+    });
   });
 
   function renderDestinationResults(results, items, select, search) {
@@ -603,15 +724,7 @@
       btn.textContent = item.name + (item.country ? ' (' + item.country + ')' : '');
       btn.addEventListener('click', function() {
         if (select) {
-          let found = false;
-          for (let i = 0; i < select.options.length; i++) {
-            if (select.options[i].value === item.id) { found = true; break; }
-          }
-          if (!found) appendSelectOption(select, item.id, item.name);
-          if (select._choicesInstance) {
-            select._choicesInstance.setChoiceByValue(String(item.id));
-          }
-          select.value = item.id;
+          appendDestinationOption(select, item.id, item.name);
         }
         search.value = item.name;
         results.innerHTML = '';
@@ -645,10 +758,65 @@
     });
     if (select.value) {
       const opt = select.options[select.selectedIndex];
-      if (opt) search.value = opt.text;
+      if (opt && opt.value) search.value = opt.text;
+      else restoreDestinationLabel(select, search);
     }
     wireDestinationQuickCreate(box);
   }
+
+  function restoreDestinationLabel(select, search) {
+    if (!select || !select.value || !search) return;
+    fetch('/catalog/destinations/search/?q=')
+      .then(function(r) { return r.json(); })
+      .then(function(items) {
+        const hit = items.find(function(it) { return String(it.id) === String(select.value); });
+        if (hit) search.value = hit.name;
+      });
+  }
+
+  function wireMainDestination() {
+    const wrap = document.querySelector('.destination-wrap--header');
+    if (!wrap) return;
+    const box = { querySelector: function(sel) { return wrap.querySelector(sel); } };
+    wireDestinationSearch(box);
+    const btn = document.getElementById('btn-add-main-destination');
+    if (btn && !btn.dataset.wired) {
+      btn.dataset.wired = '1';
+      btn.addEventListener('click', function() {
+        openQuickModal(
+          'Add destination',
+          '<div class="qc-modal__grid">' +
+          '<div class="qc-field"><label for="qc-dest-name">Destination *</label><input type="text" id="qc-dest-name" autocomplete="off"></div>' +
+          '<div class="qc-field"><label for="qc-dest-country">Country</label><input type="text" id="qc-dest-country" autocomplete="off"></div>' +
+          '</div>',
+          function() {
+            const name = document.getElementById('qc-dest-name').value.trim();
+            const country = document.getElementById('qc-dest-country').value.trim();
+            const errEl = document.getElementById('quick-modal-error');
+            const select = document.getElementById('id_main_destination');
+            const search = document.querySelector('.main-destination-search');
+            postJson(URL_DEST_QC, { name: name, country: country }).then(function(res) {
+              if (!res.ok) {
+                errEl.textContent = res.data.error || 'Could not create destination.';
+                errEl.style.display = 'block';
+                return;
+              }
+              appendDestinationOption(select, res.data.id, res.data.name);
+              if (search) search.value = res.data.name;
+              syncLineDestinationsFromHeader(false);
+              closeQuickModal();
+            });
+          }
+        );
+      });
+    }
+    const mainSel = document.getElementById('id_main_destination');
+    const mainSearch = document.querySelector('.main-destination-search');
+    if (mainSel && mainSel.value && mainSearch && !mainSearch.value) {
+      restoreDestinationLabel(mainSel, mainSearch);
+    }
+  }
+  wireMainDestination();
 
   function todayIso() {
     const d = new Date();
@@ -741,6 +909,8 @@
     wireSupplierQuickCreate(clone);
     initInvoiceSelects(clone);
     defaultEmptyLineServiceDates();
+    syncLineEmployeesFromHeader();
+    syncLineDestinationsFromHeader(true);
     renumberLineTitles();
     updateTotalLineCost();
     updateSellingTotal();

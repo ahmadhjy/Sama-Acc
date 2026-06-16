@@ -6,6 +6,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
+from accounts_core.employee_forms import EmployeeForm
 from accounts_core.forms import ClientForm, SupplierForm
 from accounts_core.list_utils import client_list_filters, supplier_list_filters
 from accounts_core.models import BookingFile, Client, Employee, Supplier
@@ -283,3 +284,90 @@ def supplier_quick_create(request):
         is_active=True,
     )
     return JsonResponse({"id": str(supplier.id), "name": supplier.name, "supplier_code": supplier.supplier_code})
+
+
+@login_required
+def employees_list(request):
+    q = (request.GET.get("q") or "").strip()
+    qs = Employee.objects.order_by("name")
+    if q:
+        from django.db.models import Q
+
+        qs = qs.filter(
+            Q(name__icontains=q)
+            | Q(first_name__icontains=q)
+            | Q(father_name__icontains=q)
+            | Q(last_name__icontains=q)
+        )
+    return render_or_pdf(
+        request,
+        "accounts_core/employees_list.html",
+        {"employees": qs[:500], "q": q},
+        "employees.pdf",
+    )
+
+
+@login_required
+def employee_create(request):
+    if request.method == "POST":
+        form = EmployeeForm(request.POST, request.FILES)
+        if form.is_valid():
+            employee = form.save()
+            messages.success(request, f"Employee {employee.name} created.")
+            return redirect("accounts_core:employee_edit", employee_id=employee.id)
+    else:
+        form = EmployeeForm()
+    return render(
+        request,
+        "accounts_core/employee_form.html",
+        {"form": form, "employee": None, "is_edit": False},
+    )
+
+
+@login_required
+def employee_edit(request, employee_id):
+    employee = get_object_or_404(Employee, pk=employee_id)
+    if request.method == "POST":
+        form = EmployeeForm(request.POST, request.FILES, instance=employee)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Employee {employee.name} updated.")
+            return redirect("accounts_core:employee_edit", employee_id=employee.id)
+    else:
+        form = EmployeeForm(instance=employee)
+    return render(
+        request,
+        "accounts_core/employee_form.html",
+        {"form": form, "employee": employee, "is_edit": True},
+    )
+
+
+@login_required
+def employee_salary_pdf(request, employee_id):
+    employee = get_object_or_404(Employee, pk=employee_id)
+    from datetime import date
+
+    month = (request.GET.get("month") or "").strip()
+    if month and len(month) == 7:
+        year, mon = month.split("-")
+        period_label = f"{mon}/{year}"
+    else:
+        today = date.today()
+        period_label = today.strftime("%m/%Y")
+    return render_or_pdf(
+        request,
+        "accounts_core/employee_salary_pdf.html",
+        {
+            "employee": employee,
+            "period_label": period_label,
+            "pdf_report_title": "Salary Receipt",
+            "pdf_report_subtitle": f"{employee.name} — {period_label}",
+            "pdf_currency": "USD",
+            "pdf_summary_cards": [
+                ("Employee", employee.name),
+                ("Period", period_label),
+                ("Monthly salary", f"{employee.monthly_salary:,.2f} USD"),
+            ],
+        },
+        f"salary_{employee.name.replace(' ', '_')}_{period_label.replace('/', '-')}.pdf",
+    )
