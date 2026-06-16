@@ -1,64 +1,115 @@
 {% extends "pdf/layout.html" %}
 {% block pdf_body %}
-{% if pdf_report_subtitle and not pdf_hide_subtitle_in_body %}<p class="muted">{{ pdf_report_subtitle }}</p>{% endif %}
-{% if pdf_account_range and pdf_show_account_in_body %}<p class="muted">{{ pdf_account_range }}</p>{% endif %}
-{% if pdf_empty_message and not pdf_table_rows and not pdf_summary_cards %}
-<p class="muted">{{ pdf_empty_message }}</p>
+
+{% if pdf_account_name %}
+<div class="pdf-acct-card">
+  <div class="pdf-acct-card__cell">
+    <span class="pdf-acct-ico">&#128100;</span>
+    <span class="pdf-acct-text">
+      <span class="pdf-acct-label">Account Name</span><br>
+      <span class="pdf-acct-value">{{ pdf_account_name }}</span>
+    </span>
+  </div>
+  {% if pdf_account_id %}
+  <div class="pdf-acct-card__cell">
+    <span class="pdf-acct-ico">&#128179;</span>
+    <span class="pdf-acct-text">
+      <span class="pdf-acct-label">Account ID</span><br>
+      <span class="pdf-acct-value">{{ pdf_account_id }}</span>
+    </span>
+  </div>
+  {% endif %}
+</div>
 {% endif %}
+
+{% if pdf_stat_cards %}
+<div class="pdf-stat-cards">
+  {% for card in pdf_stat_cards %}
+  <div class="pdf-stat-card pdf-stat-card--{{ card.kind|default:'neutral' }}">
+    <span class="pdf-stat-ico">
+      {% if card.kind == 'debit' %}&#8595;{% elif card.kind == 'credit' %}&#8593;{% elif card.kind == 'balance' %}&#128188;{% else %}&#9679;{% endif %}
+    </span>
+    <span class="pdf-stat-text">
+      <span class="pdf-stat-label">{{ card.label }}</span>
+      <span class="pdf-stat-value">{{ card.value }}</span>
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if pdf_section_title %}
+<div class="pdf-section">
+  <div class="pdf-section__ico"><span>&#9776;</span></div>
+  <div class="pdf-section__text">
+    <div class="pdf-section__title">{{ pdf_section_title }}</div>
+    {% if pdf_section_subtitle %}<div class="pdf-section__subtitle">{{ pdf_section_subtitle }}</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if pdf_note %}<p class="pdf-note">{{ pdf_note }}</p>{% endif %}
+
+{% if pdf_empty_message and not pdf_table_rows %}
+<div class="pdf-empty">{{ pdf_empty_message }}</div>
+{% endif %}
+
 {% if pdf_table_rows %}
 <table class="pdf-data-table">
-    {% if pdf_column_widths %}
-    <colgroup>
-        {% for w in pdf_column_widths %}<col style="width: {{ w }}">{% endfor %}
-    </colgroup>
-    {% endif %}
-    <thead>
-        <tr>
-            {% for h in pdf_table_headers %}
-            <th class="{% if forloop.counter0 in pdf_numeric_column_indexes %}num{% elif forloop.counter0 in pdf_wrap_column_indexes %}wrap{% elif forloop.counter0 == pdf_description_column_index %}desc wrap{% elif forloop.counter0 == pdf_ref_column_index %}ref{% endif %}">{{ h }}</th>
-            {% endfor %}
-        </tr>
-    </thead>
-    <tbody>
-        {% for row in pdf_table_rows %}
-        <tr>
-            {% for cell in row %}
-            <td class="{% if forloop.counter0 in pdf_numeric_column_indexes %}num{% elif forloop.counter0 in pdf_wrap_column_indexes %}wrap{% elif forloop.counter0 == pdf_description_column_index %}desc wrap{% elif forloop.counter0 == pdf_ref_column_index %}ref{% endif %}">{{ cell }}</td>
-            {% endfor %}
-        </tr>
-        {% endfor %}
-    </tbody>
-    {% if pdf_footer_row %}
-    <tfoot>
-        <tr>
-            {% for cell in pdf_footer_row %}
-            <td class="{% if forloop.counter0 in pdf_numeric_column_indexes %}num{% endif %}">{{ cell }}</td>
-            {% endfor %}
-        </tr>
-    </tfoot>
-    {% endif %}
+  {% if pdf_column_widths %}
+  <colgroup>
+    {% for w in pdf_column_widths %}<col style="width: {{ w }}">{% endfor %}
+  </colgroup>
+  {% endif %}
+  <thead>
+    <tr>
+      {% for h in pdf_table_headers %}
+      <th class="{% if forloop.counter0 in pdf_numeric_column_indexes %}num{% elif forloop.counter0 == pdf_badge_column_index %}center{% elif forloop.counter0 in pdf_wrap_column_indexes %}wrap{% elif forloop.counter0 == pdf_description_column_index %}desc{% endif %}">{{ h }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in pdf_table_rows %}
+    <tr>
+      {% for cell in row %}
+      {% if forloop.counter0 == pdf_badge_column_index and cell %}
+      <td class="center"><span class="pdf-pill pdf-pill--{% if cell == 'DEBIT' %}debit{% elif cell == 'CREDIT' %}credit{% else %}neutral{% endif %}">{{ cell }}</span></td>
+      {% else %}
+      <td class="{% if forloop.counter0 in pdf_numeric_column_indexes %}num{% elif forloop.counter0 in pdf_wrap_column_indexes %}wrap{% elif forloop.counter0 == pdf_description_column_index %}desc{% endif %}">{{ cell }}</td>
+      {% endif %}
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+  {% if pdf_footer_row %}
+  <tfoot>
+    <tr>
+      {% for cell in pdf_footer_row %}
+      <td class="{% if forloop.counter0 in pdf_numeric_column_indexes %}num{% endif %}">{{ cell }}</td>
+      {% endfor %}
+    </tr>
+  </tfoot>
+  {% endif %}
 </table>
 {% endif %}
+
 {% if pdf_totals %}
-<div class="pdf-totals-wrap">
-    <table class="pdf-totals-table">
-        {% for label, value in pdf_totals %}
-        <tr class="{% if forloop.last and pdf_totals_closing_last %}pdf-totals-table__closing{% endif %}">
-            <td>{{ label }}</td>
-            <td>{{ value }}</td>
-        </tr>
-        {% endfor %}
-    </table>
-</div>
+<table class="pdf-totals">
+  {% for label, value in pdf_totals %}
+  <tr class="{% if forloop.last and pdf_totals_closing_last %}is-closing{% endif %}">
+    <td>{{ label }}</td>
+    <td>{{ value }}</td>
+  </tr>
+  {% endfor %}
+</table>
 {% endif %}
-{% if pdf_summary_cards %}
-<div class="pdf-summary-cards">
-    {% for label, value in pdf_summary_cards %}
-    <div class="pdf-summary-card">
-        <div class="pdf-summary-card__label">{{ label }}</div>
-        <div class="pdf-summary-card__value">{{ value }}</div>
-    </div>
-    {% endfor %}
-</div>
+
+{% if pdf_summary_cards and not pdf_stat_cards %}
+<table class="pdf-totals">
+  {% for label, value in pdf_summary_cards %}
+  <tr><td>{{ label }}</td><td>{{ value }}</td></tr>
+  {% endfor %}
+</table>
 {% endif %}
+
 {% endblock %}

@@ -80,12 +80,22 @@ def _statement_description(r):
     return desc or typ or ""
 
 
+def _statement_type_label(r):
+    debit = Decimal(str(r.get("debit") or 0))
+    credit = Decimal(str(r.get("credit") or 0))
+    if debit > 0:
+        return "DEBIT"
+    if credit > 0:
+        return "CREDIT"
+    return (r.get("type") or "").upper()
+
+
 def _flatten_statement_row(r):
     return [
         _format_cell(r.get("date")),
         _format_cell(r.get("ref")),
         _statement_description(r),
-        _format_cell(r.get("type")),
+        _statement_type_label(r),
         _format_cell(r.get("debit")),
         _format_cell(r.get("credit")),
         _format_cell(r.get("running_balance")),
@@ -98,7 +108,7 @@ def _flatten_statement_row_with_party(r, party_label):
         _format_cell(r.get("date")),
         _format_cell(r.get("ref")),
         _statement_description(r),
-        _format_cell(r.get("type")),
+        _statement_type_label(r),
         _format_cell(r.get("debit")),
         _format_cell(r.get("credit")),
         _format_cell(r.get("running_balance")),
@@ -117,25 +127,27 @@ def _statement_pdf_meta(context, rows, *, with_party=False):
         context["pdf_numeric_column_indexes"] = [5, 6, 7]
         context["pdf_ref_column_index"] = 2
         context["pdf_description_column_index"] = 3
+        context["pdf_badge_column_index"] = 4
+        context["pdf_column_widths"] = ["13%", "9%", "15%", "20%", "11%", "11%", "10%", "11%"]
     else:
         context["pdf_table_headers"] = STATEMENT_HEADERS
         context["pdf_numeric_column_indexes"] = [4, 5, 6]
         context["pdf_ref_column_index"] = 1
         context["pdf_description_column_index"] = 2
+        context["pdf_badge_column_index"] = 3
+        context["pdf_column_widths"] = ["10%", "16%", "24%", "12%", "12%", "11%", "15%"]
     context["pdf_totals"] = [
         ("Total Debit", _format_cell(total_dr)),
         ("Total Credit", _format_cell(total_cr)),
         ("Closing Balance", _format_cell(closing)),
     ]
-    account_name = context.get("pdf_account_name") or context.get("pdf_report_subtitle") or "—"
-    account_id = context.get("pdf_account_id") or context.get("pdf_account_range") or "—"
-    context["pdf_summary_cards"] = [
-        ("Account Name", account_name),
-        ("Account ID", account_id),
-        ("Total Debit", _format_cell(total_dr)),
-        ("Total Credit", _format_cell(total_cr)),
-        ("Closing Balance", _format_cell(closing)),
+    context["pdf_stat_cards"] = [
+        {"label": "Total Debit", "value": _format_cell(total_dr), "kind": "debit"},
+        {"label": "Total Credit", "value": _format_cell(total_cr), "kind": "credit"},
+        {"label": "Closing Balance", "value": _format_cell(closing), "kind": "balance"},
     ]
+    context.setdefault("pdf_section_title", "Transaction Details")
+    context.setdefault("pdf_section_subtitle", "Account activity for the selected period.")
     context["pdf_totals_closing_last"] = True
     context["pdf_currency"] = context.get("pdf_currency") or "USD"
     context["pdf_hide_subtitle_in_body"] = True
@@ -254,18 +266,27 @@ def _prepare_invoice_document_pdf(context):
     context["pdf_wrap_column_indexes"] = [len(headers) - 1]
     context["pdf_hide_subtitle_in_body"] = True
 
-    summary = [
-        ("Client", invoice.client.name_en if invoice.client_id else "—"),
-        ("Invoice", invoice.invoice_no or "—"),
-        ("Issue date", _format_cell(invoice.issue_date)),
-        ("Due date", _format_cell(invoice.due_date)),
+    context["pdf_account_name"] = invoice.client.name_en if invoice.client_id else "Draft"
+    context["pdf_account_id"] = invoice.invoice_no or "—"
+
+    cards = [
+        {"label": "Total Selling", "value": f"{_format_cell(invoice.grand_total)} {invoice.currency}", "kind": "balance"},
     ]
-    if invoice.main_destination_id:
-        summary.append(("Destination", invoice.main_destination.name))
-    if invoice.sales_employee_id:
-        summary.append(("Sales employee", invoice.sales_employee.name))
-    summary.append(("Currency", invoice.currency or "USD"))
-    context["pdf_summary_cards"] = summary
+    if show_costs:
+        cards.append({"label": "Total Cost (USD)", "value": _format_cell(invoice.total_line_cost_usd()), "kind": "debit"})
+        cards.append({"label": "Profit (USD)", "value": _format_cell(invoice.profit_amount), "kind": "credit"})
+    else:
+        if invoice.grand_total_usd:
+            cards.append({"label": "Total (USD)", "value": f"{_format_cell(invoice.grand_total_usd)} USD", "kind": "credit"})
+        cards.append({
+            "label": "Type of Service",
+            "value": invoice.get_package_type_display() if invoice.package_type else "—",
+            "kind": "neutral",
+        })
+    context["pdf_stat_cards"] = cards
+    context["pdf_section_title"] = "Invoice Details"
+    context["pdf_section_subtitle"] = "Services billed on this invoice."
+    context["pdf_hide_period"] = True
 
     totals = [("Grand total", f"{_format_cell(invoice.grand_total)} {invoice.currency}")]
     if invoice.grand_total_usd:
@@ -284,25 +305,32 @@ def _prepare_payment_document_pdf(context):
     if not payment:
         return
     party = _party_label(payment)
-    context["pdf_table_headers"] = ["Field", "Value"]
+    direction = payment.get_direction_display() or payment.direction
+    context["pdf_table_headers"] = ["Detail", "Information"]
     context["pdf_table_rows"] = [
         ["Receipt number", payment.receipt_no or "—"],
         ["Reference", payment.reference or "—"],
         ["Party", party],
         ["Date", _format_cell(payment.date)],
         ["Money account", payment.money_account.name if payment.money_account_id else "—"],
-        ["Direction", payment.get_direction_display() or payment.direction],
+        ["Direction", direction],
+        ["Payment method", getattr(payment, "payment_method", "") or "—"],
         ["Status", payment.status],
-        ["Amount", f"{_format_cell(payment.amount)} {payment.currency}"],
         ["Note", payment.note or "—"],
     ]
+    context["pdf_numeric_column_indexes"] = []
+    context["pdf_description_column_index"] = 1
     context["pdf_wrap_column_indexes"] = [1]
-    context["pdf_summary_cards"] = [
-        ("Receipt", payment.receipt_no or "—"),
-        ("Party", party),
-        ("Amount", f"{_format_cell(payment.amount)} {payment.currency}"),
-        ("Date", _format_cell(payment.date)),
+    context["pdf_account_name"] = party
+    context["pdf_account_id"] = payment.receipt_no or "—"
+    context["pdf_stat_cards"] = [
+        {"label": "Amount", "value": f"{_format_cell(payment.amount)} {payment.currency}", "kind": "balance"},
+        {"label": "Direction", "value": direction, "kind": "credit" if payment.direction == "IN" else "debit"},
+        {"label": "Status", "value": payment.status, "kind": "neutral"},
     ]
+    context["pdf_section_title"] = "Receipt Details"
+    context["pdf_section_subtitle"] = "Payment information for this receipt."
+    context["pdf_hide_period"] = True
     context["pdf_totals"] = [("Paid amount", f"{_format_cell(payment.amount)} {payment.currency}")]
     context["pdf_totals_closing_last"] = True
     context["pdf_hide_subtitle_in_body"] = True
@@ -578,6 +606,7 @@ def build_pdf_context(request, filename, context=None):
     merged.setdefault("pdf_column_widths", [])
     merged.setdefault("pdf_ref_column_index", -1)
     merged.setdefault("pdf_description_column_index", -1)
+    merged.setdefault("pdf_badge_column_index", -1)
     merged.setdefault("pdf_hide_subtitle_in_body", False)
     if is_pdf or is_xlsx:
         if not merged.get("date_from") and not merged.get("date_to"):
@@ -613,6 +642,57 @@ def _reportlab_cell_paragraph(text, style):
     return Paragraph(safe, style)
 
 
+# ----------------------------------------------------------------------------
+# ReportLab corporate renderer (matches the Statement of Account design)
+# ----------------------------------------------------------------------------
+
+RL_NAVY = "#0e2a55"
+RL_NAVY_SOFT = "#1f4a8a"
+RL_TABLE_HEAD = "#143a6b"
+RL_MUTED = "#5b6b82"
+RL_INK = "#25324a"
+RL_LINE = "#e2e8f0"
+RL_DEBIT = "#d23b3b"
+RL_DEBIT_BG = "#fdecec"
+RL_CREDIT = "#1f9d57"
+RL_CREDIT_BG = "#e8f6ef"
+RL_BALANCE_BG = "#eef2fb"
+RL_NEUTRAL_BG = "#f1f5f9"
+RL_ZEBRA = "#f8fafc"
+
+
+def _rl_period_label(context):
+    df = context.get("date_from")
+    dt = context.get("date_to")
+    if df and dt:
+        return f"{df.strftime('%d/%m/%Y')} \u2013 {dt.strftime('%d/%m/%Y')}"
+    if df:
+        return f"From {df.strftime('%d/%m/%Y')}"
+    if dt:
+        return f"Until {dt.strftime('%d/%m/%Y')}"
+    return ""
+
+
+def _rl_wrap(text, max_chars):
+    """Naive word wrap into a list of lines (for canvas header/footer)."""
+    text = str(text or "").strip()
+    if not text:
+        return []
+    words = text.split()
+    lines = []
+    current = ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if len(candidate) > max_chars and current:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return lines
+
+
 def _reportlab_branded_page(canvas, doc, branding, context, pagesize):
     from pathlib import Path
 
@@ -623,8 +703,11 @@ def _reportlab_branded_page(canvas, doc, branding, context, pagesize):
     width, height = pagesize
     left = doc.leftMargin
     right = width - doc.rightMargin
-    header_top = height - 8 * mm
+    navy = colors.HexColor(RL_NAVY)
+    muted = colors.HexColor(RL_MUTED)
+    header_top = height - 11 * mm
 
+    # ---- Brand block (left) ----
     logo_path = branding.get("logo_path")
     text_x = left
     if logo_path and Path(logo_path).is_file():
@@ -632,166 +715,332 @@ def _reportlab_branded_page(canvas, doc, branding, context, pagesize):
             canvas.drawImage(
                 logo_path,
                 left,
-                header_top - 13 * mm,
-                width=13 * mm,
-                height=13 * mm,
+                header_top - 15 * mm,
+                width=15 * mm,
+                height=15 * mm,
                 preserveAspectRatio=True,
                 mask="auto",
             )
-            text_x = left + 18 * mm
+            text_x = left + 19 * mm
         except Exception:
             pass
 
-    canvas.setFont("Helvetica-Bold", 9.5)
-    canvas.setFillColor(colors.HexColor("#0f2744"))
-    company_name = str(branding.get("name") or "Company")
-    canvas.drawString(text_x, header_top - 4 * mm, company_name[:60])
+    canvas.setFont("Helvetica-Bold", 15)
+    canvas.setFillColor(navy)
+    canvas.drawString(text_x, header_top - 4 * mm, str(branding.get("name") or "Company")[:34])
 
-    canvas.setFont("Helvetica", 7)
-    canvas.setFillColor(colors.HexColor("#475569"))
-    y = header_top - 8 * mm
-    for line in (branding.get("address"), branding.get("phone"), branding.get("email")):
-        if line:
-            canvas.drawString(text_x, y, str(line)[:95])
-            y -= 3.2 * mm
+    canvas.setFillColor(muted)
+    y = header_top - 9 * mm
+    addr_lines = _rl_wrap(branding.get("address"), 52)[:2]
+    contact_lines = addr_lines + [
+        s for s in (branding.get("phone"), branding.get("email")) if s
+    ]
+    canvas.setFont("Helvetica", 7.5)
+    for line in contact_lines[:4]:
+        canvas.drawString(text_x, y, str(line)[:62])
+        y -= 3.6 * mm
 
-    title = str(context.get("pdf_report_title") or "")
-    canvas.setFont("Helvetica-Bold", 11)
-    canvas.setFillColor(colors.HexColor("#0f2744"))
-    canvas.drawRightString(right, header_top - 4 * mm, title[:50])
-    subtitle = context.get("pdf_report_subtitle")
-    if subtitle:
-        canvas.setFont("Helvetica", 8)
-        canvas.setFillColor(colors.HexColor("#475569"))
-        canvas.drawRightString(right, header_top - 8.5 * mm, str(subtitle)[:60])
+    # ---- Title block (right) ----
+    canvas.setFillColor(navy)
+    canvas.setFont("Helvetica-Bold", 17)
+    canvas.drawRightString(right, header_top - 4 * mm, str(context.get("pdf_report_title") or "").upper()[:34])
 
-    canvas.setStrokeColor(colors.HexColor("#0f2744"))
-    canvas.setLineWidth(1.2)
-    rule_y = header_top - 18 * mm
-    canvas.line(left, rule_y, right, rule_y)
+    ry = header_top - 10 * mm
+    period = "" if context.get("pdf_hide_period") else _rl_period_label(context)
+    if period:
+        canvas.setFont("Helvetica", 8.5)
+        canvas.setFillColor(muted)
+        canvas.drawRightString(right, ry, f"Period: {period}")
+        ry -= 5 * mm
 
-    footer_y = 9 * mm
+    account_name = context.get("pdf_account_name")
+    if account_name:
+        acct_id = context.get("pdf_account_id")
+        label = f"{account_name} ({acct_id})" if acct_id else str(account_name)
+        canvas.setFont("Helvetica", 8.5)
+        canvas.setFillColor(muted)
+        canvas.drawRightString(right, ry, "Account:")
+        canvas.setFont("Helvetica-Bold", 9.5)
+        canvas.setFillColor(navy)
+        canvas.drawRightString(right, ry - 4.6 * mm, label[:46])
+
+    # ---- Header divider ----
+    canvas.setStrokeColor(navy)
+    canvas.setLineWidth(1.6)
+    canvas.line(left, height - 32 * mm, right, height - 32 * mm)
+
+    # ---- Footer ----
+    fy = 16 * mm
+    canvas.setStrokeColor(colors.HexColor("#d8dfe8"))
+    canvas.setLineWidth(0.7)
+    canvas.line(left, fy + 7 * mm, right, fy + 7 * mm)
+
+    canvas.setFont("Helvetica-Bold", 8.5)
+    canvas.setFillColor(navy)
+    canvas.drawString(left, fy + 3 * mm, str(branding.get("footer_text") or branding.get("name") or "")[:60])
+
     canvas.setFont("Helvetica", 6.8)
-    canvas.setFillColor(colors.HexColor("#64748b"))
-    footer_brand = branding.get("footer_text") or branding.get("name") or ""
-    if footer_brand:
-        canvas.drawString(left, footer_y + 3 * mm, str(footer_brand)[:90])
-    contact_bits = [b for b in (branding.get("address"), branding.get("email"), branding.get("phone")) if b]
-    if contact_bits:
-        canvas.drawString(left, footer_y, " · ".join(str(b) for b in contact_bits)[:110])
+    canvas.setFillColor(muted)
+    addr_one = _rl_wrap(branding.get("address"), 80)
+    if addr_one:
+        canvas.drawString(left, fy - 0.5 * mm, addr_one[0][:90])
+    contact = "  |  ".join(s for s in (branding.get("email"), branding.get("phone")) if s)
+    if contact:
+        canvas.drawString(left, fy - 4 * mm, contact[:90])
+
+    canvas.setFont("Helvetica", 7.5)
+    canvas.setFillColor(muted)
+    canvas.drawRightString(right, fy + 3 * mm, f"Page {canvas.getPageNumber()}")
     canvas.drawRightString(
-        right,
-        footer_y + 1.5 * mm,
-        f"Page {canvas.getPageNumber()}  ·  Printed {_format_cell(context.get('pdf_generated_on', date.today()))}",
+        right, fy - 1 * mm, f"Printed on: {_format_cell(context.get('pdf_generated_on', date.today()))}"
     )
     canvas.restoreState()
 
 
-def _reportlab_invoice_story(context, styles, cell_style):
+def _rl_account_card(context, avail):
     from reportlab.lib import colors
-    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Paragraph, Table, TableStyle
 
-    invoice = context["invoice"]
-    lines = context.get("lines") or []
-    show_costs = context.get("show_costs")
-    story = []
-    meta_style = styles["Normal"]
-    story.append(
-        Paragraph(
-            f"<b>Invoice:</b> {invoice.invoice_no} &nbsp;|&nbsp; "
-            f"<b>Client:</b> {invoice.client.name_en} &nbsp;|&nbsp; "
-            f"<b>Issue:</b> {_format_cell(invoice.issue_date)} &nbsp;|&nbsp; "
-            f"<b>Due:</b> {_format_cell(invoice.due_date)}",
-            meta_style,
-        )
-    )
-    if invoice.package_type:
-        story.append(Paragraph(f"<b>Type of service:</b> {invoice.get_package_type_display()}", meta_style))
-    story.append(Spacer(1, 6))
+    name = context.get("pdf_account_name")
+    if not name:
+        return None
+    acct_id = context.get("pdf_account_id")
+    label_st = ParagraphStyle("acctLabel", fontName="Helvetica", fontSize=7.5, textColor=colors.HexColor(RL_MUTED), leading=10)
+    value_st = ParagraphStyle("acctValue", fontName="Helvetica-Bold", fontSize=12, textColor=colors.HexColor(RL_NAVY), leading=15)
 
-    headers = ["Date", "Service", "Destination"]
-    if show_costs:
-        headers.append("Supplier")
-    headers.extend(["Qty", "Sell"])
-    if show_costs:
-        headers.extend(["Cost", "Cost USD"])
-    headers.append("Description")
+    def cell(label, value):
+        return [Paragraph(label, label_st), Paragraph(str(value or "\u2014"), value_st)]
 
-    table_data = [headers]
-    for line in lines:
-        row = [
-            _format_cell(line.effective_service_date),
-            line.service_type.name if line.service_type_id else "—",
-            line.destination.name if line.destination_id else "—",
-        ]
-        if show_costs:
-            row.append(line.supplier.name if line.supplier_id else "—")
-        row.extend([_format_cell(line.qty), _format_cell(line.sell_price)])
-        if show_costs:
-            row.extend([_format_cell(line.cost_price), _format_cell(line.cost_price_usd)])
-        row.append(line.statement_description or "")
-        table_data.append(row)
-
-    footer_colspan = len(headers) - 1
-    total_row = [""] * footer_colspan + [f"Grand total: {invoice.grand_total} {invoice.currency}"]
-    table_data.append(total_row)
-    if show_costs:
-        table_data.append([""] * footer_colspan + [f"Total cost (USD): {invoice.total_line_cost_usd}"])
-        table_data.append([""] * footer_colspan + [f"Profit (USD): {invoice.profit_amount}"])
-
-    from reportlab.platypus import Spacer, Table, TableStyle
-
-    t = Table(table_data, repeatRows=1)
-    t.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eef2f7")),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 7.5),
-                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#c5cdd6")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]
-        )
-    )
-    story.append(t)
-    return story
-
-
-def _reportlab_payment_story(context, styles):
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
-    from reportlab.platypus import Table, TableStyle
-
-    payment = context["payment"]
-    party = _party_label(payment)
-    rows = [
-        ["Receipt number", payment.receipt_no],
-        ["Reference", payment.reference or "—"],
-        ["Party", party],
-        ["Date", _format_cell(payment.date)],
-        ["Money account", payment.money_account.name],
-        ["Direction", payment.get_direction_display() or payment.direction],
-        ["Status", payment.status],
-        ["Amount", f"{payment.amount} {payment.currency}"],
-        ["Note", payment.note or "—"],
+    cols = [cell("Account Name", name)]
+    if acct_id:
+        cols.append(cell("Account ID", acct_id))
+    if len(cols) == 1:
+        cols.append([Paragraph("", label_st)])
+    data = [[cols[0], cols[1]]]
+    t = Table(data, colWidths=[avail / 2.0, avail / 2.0])
+    style = [
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fcfdff")),
+        ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#dbe2ec")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 16),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 16),
+        ("TOPPADDING", (0, 0), (-1, -1), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
     ]
-    t = Table(rows, colWidths=[45 * mm, 120 * mm])
-    t.setStyle(
-        TableStyle(
+    if acct_id:
+        style.append(("LINEAFTER", (0, 0), (0, 0), 0.6, colors.HexColor("#cbd5e1")))
+    t.setStyle(TableStyle(style))
+    return t
+
+
+def _rl_stat_cards(context, avail):
+    from reportlab.lib import colors
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Paragraph, Table, TableStyle
+
+    cards = context.get("pdf_stat_cards") or []
+    if not cards:
+        return None
+    palette = {
+        "debit": (RL_DEBIT_BG, RL_DEBIT),
+        "credit": (RL_CREDIT_BG, RL_CREDIT),
+        "balance": (RL_BALANCE_BG, RL_NAVY),
+        "neutral": (RL_NEUTRAL_BG, RL_MUTED),
+    }
+    value_st = ParagraphStyle("statVal", fontName="Helvetica-Bold", fontSize=14, textColor=colors.HexColor(RL_NAVY), leading=17)
+    gap = 8
+    n = len(cards)
+    card_w = (avail - gap * (n - 1)) / n
+    inner = []
+    styles_per = []
+    for idx, card in enumerate(cards):
+        kind = card.get("kind") or "neutral"
+        bg, fg = palette.get(kind, palette["neutral"])
+        label_st = ParagraphStyle(
+            f"statLbl{idx}", fontName="Helvetica-Bold", fontSize=7.5, textColor=colors.HexColor(fg), leading=11
+        )
+        cell = [Paragraph(str(card.get("label", "")).upper(), label_st), Paragraph(str(card.get("value", "")), value_st)]
+        mini = Table([[cell]], colWidths=[card_w])
+        mini.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(bg)),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 14),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+                    ("TOPPADDING", (0, 0), (-1, -1), 13),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 13),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ]
+            )
+        )
+        inner.append(mini)
+        if idx:
+            styles_per.append(("LEFTPADDING", (idx, 0), (idx, 0), gap))
+    outer = Table([inner], colWidths=[card_w + (gap if i else 0) for i in range(n)])
+    base = [
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]
+    outer.setStyle(TableStyle(base + styles_per))
+    return outer
+
+
+def _rl_section_title(context):
+    from reportlab.lib import colors
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Paragraph
+
+    title = context.get("pdf_section_title")
+    if not title:
+        return []
+    out = [
+        Paragraph(
+            str(title).upper(),
+            ParagraphStyle(
+                "secTitle", fontName="Helvetica-Bold", fontSize=11, textColor=colors.HexColor(RL_NAVY), leading=14
+            ),
+        )
+    ]
+    subtitle = context.get("pdf_section_subtitle")
+    if subtitle:
+        out.append(
+            Paragraph(
+                str(subtitle),
+                ParagraphStyle(
+                    "secSub", fontName="Helvetica", fontSize=8, textColor=colors.HexColor(RL_MUTED), leading=11
+                ),
+            )
+        )
+    return out
+
+
+def _rl_main_table(context, avail, cell_style):
+    from reportlab.lib import colors
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Paragraph, Table, TableStyle
+
+    headers = context.get("pdf_table_headers") or []
+    table_rows = context.get("pdf_table_rows") or []
+    numeric = set(context.get("pdf_numeric_column_indexes") or [])
+    wrap = set(context.get("pdf_wrap_column_indexes") or [])
+    badge_idx = context.get("pdf_badge_column_index", -1)
+    col_count = len(headers)
+
+    head_st = ParagraphStyle(
+        "thCell", fontName="Helvetica-Bold", fontSize=7.2, textColor=colors.white, leading=9
+    )
+    head_st_r = ParagraphStyle("thCellR", parent=head_st, alignment=2)
+    head_st_c = ParagraphStyle("thCellC", parent=head_st, alignment=1)
+
+    def header_cell(i, text):
+        if i in numeric:
+            st = head_st_r
+        elif i == badge_idx:
+            st = head_st_c
+        else:
+            st = head_st
+        return Paragraph(str(text).upper(), st)
+
+    pill_styles = {
+        "DEBIT": ParagraphStyle("pillD", fontName="Helvetica-Bold", fontSize=7.6, alignment=1, textColor=colors.HexColor(RL_DEBIT)),
+        "CREDIT": ParagraphStyle("pillC", fontName="Helvetica-Bold", fontSize=7.6, alignment=1, textColor=colors.HexColor(RL_CREDIT)),
+    }
+    neutral_pill = ParagraphStyle("pillN", fontName="Helvetica-Bold", fontSize=7.6, alignment=1, textColor=colors.HexColor(RL_NAVY))
+    num_style = ParagraphStyle("numCell", parent=cell_style, alignment=2)
+
+    def body_cell(i, cell):
+        if i == badge_idx and cell:
+            return Paragraph(str(cell).upper(), pill_styles.get(str(cell).upper(), neutral_pill))
+        if i in numeric:
+            return Paragraph(str(cell), num_style)
+        return _reportlab_cell_paragraph(cell, cell_style)
+
+    data = [[header_cell(i, h) for i, h in enumerate(headers)]]
+    for row in table_rows:
+        data.append([body_cell(i, c) for i, c in enumerate(row)])
+    if context.get("pdf_footer_row"):
+        fr = context["pdf_footer_row"]
+        data.append([Paragraph(str(c), num_style if i in numeric else cell_style) for i, c in enumerate(fr)])
+
+    width_pcts = context.get("pdf_column_widths")
+    if width_pcts and len(width_pcts) == col_count:
+        col_widths = [avail * (float(w.strip("%")) / 100.0) for w in width_pcts]
+    else:
+        col_widths = [avail / max(col_count, 1)] * col_count
+
+    t = Table(data, colWidths=col_widths, repeatRows=1)
+    style = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(RL_TABLE_HEAD)),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.4),
+        ("LINEBELOW", (0, 1), (-1, -2), 0.4, colors.HexColor("#eef1f6")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor(RL_ZEBRA)]),
+        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, 0), 9),
+        ("BOTTOMPADDING", (0, 0), (-1, 0), 9),
+    ]
+    # tint the Type/badge cells
+    if isinstance(badge_idx, int) and 0 <= badge_idx < col_count:
+        for r, row in enumerate(table_rows, start=1):
+            val = str(row[badge_idx]).upper() if badge_idx < len(row) else ""
+            if val == "DEBIT":
+                style.append(("BACKGROUND", (badge_idx, r), (badge_idx, r), colors.HexColor(RL_DEBIT_BG)))
+            elif val == "CREDIT":
+                style.append(("BACKGROUND", (badge_idx, r), (badge_idx, r), colors.HexColor(RL_CREDIT_BG)))
+    t.setStyle(TableStyle(style))
+    return t
+
+
+def _rl_totals(context, avail):
+    from reportlab.lib import colors
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Paragraph, Table, TableStyle
+
+    totals = context.get("pdf_totals")
+    if not totals:
+        return None
+    closing_last = context.get("pdf_totals_closing_last")
+    label_st = ParagraphStyle("totLbl", fontName="Helvetica-Bold", fontSize=9.5, textColor=colors.HexColor(RL_MUTED), leading=12)
+    val_st = ParagraphStyle("totVal", fontName="Helvetica-Bold", fontSize=9.5, alignment=2, textColor=colors.HexColor(RL_NAVY), leading=12)
+    closing_lbl = ParagraphStyle("clLbl", parent=label_st, fontSize=10.5, textColor=colors.HexColor(RL_NAVY))
+    closing_val = ParagraphStyle("clVal", parent=val_st, fontSize=10.5)
+
+    data = []
+    n = len(totals)
+    for i, (label, value) in enumerate(totals):
+        is_closing = closing_last and i == n - 1
+        data.append(
             [
-                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-                ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                Paragraph(str(label), closing_lbl if is_closing else label_st),
+                Paragraph(str(value), closing_val if is_closing else val_st),
             ]
         )
-    )
-    return [t]
+    t = Table(data, colWidths=[avail * 0.72, avail * 0.28])
+    style = [
+        ("LEFTPADDING", (0, 0), (-1, -1), 10),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("LINEBELOW", (0, 0), (-1, -2), 0.5, colors.HexColor(RL_LINE)),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]
+    if closing_last and n:
+        style.append(("BACKGROUND", (0, n - 1), (-1, n - 1), colors.HexColor(RL_BALANCE_BG)))
+        style.append(("LINEBELOW", (0, n - 1), (-1, n - 1), 0, colors.white))
+    t.setStyle(TableStyle(style))
+    return t
 
 
 def _reportlab_branded_pdf(filename, context):
     from io import BytesIO
-    from pathlib import Path
 
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
@@ -804,81 +1053,78 @@ def _reportlab_branded_pdf(filename, context):
     table_rows = context.get("pdf_table_rows") or []
     headers = context.get("pdf_table_headers") or []
     col_count = len(headers) if headers else (len(table_rows[0]) if table_rows else 1)
-    use_landscape = col_count > 6
+    use_landscape = col_count > 8
     pagesize = landscape(A4) if use_landscape else A4
-    numeric = set(context.get("pdf_numeric_column_indexes") or [])
-    wrap = set(context.get("pdf_wrap_column_indexes") or [])
     cell_style = ParagraphStyle(
         "PdfTableCell",
         parent=getSampleStyleSheet()["Normal"],
-        fontSize=8,
-        leading=10,
+        fontName="Helvetica",
+        fontSize=8.4,
+        leading=11,
+        textColor=colors.HexColor(RL_INK),
         wordWrap="CJK",
     )
     doc = SimpleDocTemplate(
         buffer,
         pagesize=pagesize,
-        leftMargin=11 * mm,
-        rightMargin=11 * mm,
-        topMargin=30 * mm,
-        bottomMargin=20 * mm,
+        leftMargin=14 * mm,
+        rightMargin=14 * mm,
+        topMargin=37 * mm,
+        bottomMargin=26 * mm,
+        title=str(context.get("pdf_report_title") or filename),
     )
+    avail = pagesize[0] - doc.leftMargin - doc.rightMargin
     styles = getSampleStyleSheet()
     story = []
 
-    if context.get("invoice"):
-        story = _reportlab_invoice_story(context, styles, cell_style)
-    elif context.get("payment"):
-        story = _reportlab_payment_story(context, styles)
-    elif headers and table_rows:
-        def _rl_row(cells, header_row=False):
-            out = []
-            for i, cell in enumerate(cells):
-                if header_row or (i in numeric and i not in wrap):
-                    out.append(str(cell))
-                else:
-                    out.append(_reportlab_cell_paragraph(cell, cell_style))
-            return out
+    acct = _rl_account_card(context, avail)
+    if acct is not None:
+        story.append(acct)
+        story.append(Spacer(1, 14))
 
-        table_data = [_rl_row(headers, header_row=True)] + [_rl_row(row) for row in table_rows]
-        if context.get("pdf_footer_row"):
-            table_data.append(_rl_row(context["pdf_footer_row"]))
-        avail = pagesize[0] - doc.leftMargin - doc.rightMargin
-        width_pcts = context.get("pdf_column_widths")
-        if width_pcts and len(width_pcts) == col_count:
-            col_widths = [avail * (float(w.strip("%")) / 100.0) for w in width_pcts]
-        else:
-            col_widths = [avail / max(col_count, 1)] * col_count
-        t = Table(table_data, colWidths=col_widths, repeatRows=1)
+    stat = _rl_stat_cards(context, avail)
+    if stat is not None:
+        story.append(stat)
+        story.append(Spacer(1, 16))
+
+    section = _rl_section_title(context)
+    if section:
+        story.extend(section)
+        story.append(Spacer(1, 8))
+
+    if headers and table_rows:
+        story.append(_rl_main_table(context, avail, cell_style))
+        story.append(Spacer(1, 14))
+    elif context.get("pdf_empty_message"):
+        empty_st = ParagraphStyle(
+            "emptyMsg", parent=styles["Normal"], alignment=1, fontSize=9.5, textColor=colors.HexColor(RL_MUTED)
+        )
+        story.append(Spacer(1, 10))
+        story.append(Paragraph(str(context["pdf_empty_message"]), empty_st))
+
+    totals = _rl_totals(context, avail)
+    if totals is not None:
+        story.append(totals)
+    elif context.get("pdf_summary_cards") and not (headers and table_rows):
+        data = [[str(a), str(b)] for a, b in context["pdf_summary_cards"]]
+        t = Table(data, colWidths=[avail * 0.6, avail * 0.4])
         t.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#eef2f7")),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#0e1f3d")),
-                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#c5cdd6")),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafbfc")]),
-                    ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ("LINEBELOW", (0, 0), (-1, -1), 0.4, colors.HexColor(RL_LINE)),
+                    ("FONTSIZE", (0, 0), (-1, -1), 9.5),
+                    ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor(RL_MUTED)),
+                    ("TEXTCOLOR", (1, 0), (1, -1), colors.HexColor(RL_NAVY)),
+                    ("FONTNAME", (1, 0), (1, -1), "Helvetica-Bold"),
+                    ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 7),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
                 ]
             )
         )
         story.append(t)
-        if context.get("pdf_totals"):
-            totals_data = [[label, value] for label, value in context["pdf_totals"]]
-            story.append(Spacer(1, 6))
-            story.append(Table(totals_data, colWidths=[50 * mm, 40 * mm]))
-    elif context.get("pdf_summary_cards"):
-        table_data = [["Metric", "Value"]] + [[str(a), str(b)] for a, b in context["pdf_summary_cards"]]
-        t = Table(table_data, colWidths=[90 * mm, 80 * mm])
-        t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.25, colors.grey)]))
-        story.append(t)
-    elif context.get("pdf_empty_message"):
-        story.append(Paragraph(context["pdf_empty_message"], styles["Normal"]))
-    else:
+
+    if not story:
         story.append(Paragraph("Document content unavailable.", styles["Normal"]))
 
     def on_page(canvas, doc_obj):
