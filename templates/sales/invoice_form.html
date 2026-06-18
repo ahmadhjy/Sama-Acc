@@ -185,6 +185,73 @@
   let quickModalContext = null;
   let formDirty = false;
   let autosaveTimer = null;
+  let autosaveInFlight = false;
+  let userHasEdited = false;
+
+  function setLineEmployeeSelect(sel, empId) {
+    if (!sel || !empId) return;
+    var found = false;
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === empId) {
+        sel.selectedIndex = i;
+        found = true;
+        break;
+      }
+    }
+    if (!found) return;
+    if (sel._choicesInstance) {
+      try { sel._choicesInstance.setChoiceByValue(empId); } catch (e) { /* ignore */ }
+    }
+  }
+
+  function replaceFormIndex(el, attr, oldIndex, newIndex) {
+    var v = el.getAttribute(attr);
+    if (!v) return;
+    var re = new RegExp(prefix + '-' + oldIndex + '-', 'g');
+    el.setAttribute(attr, v.replace(re, prefix + '-' + newIndex + '-'));
+  }
+
+  function reindexInvoiceLineForms() {
+    var container = document.getElementById('invoice-lines');
+    var totalInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
+    if (!container || !totalInput) return;
+    container.querySelectorAll('.invoice-line').forEach(function(box, newIndex) {
+      var oldIndex = box.dataset.formIndex;
+      if (String(oldIndex) === String(newIndex)) {
+        box.dataset.formIndex = String(newIndex);
+        return;
+      }
+      box.querySelectorAll('[name],[id],[for]').forEach(function(el) {
+        replaceFormIndex(el, 'name', oldIndex, newIndex);
+        replaceFormIndex(el, 'id', oldIndex, newIndex);
+        if (el.tagName === 'LABEL' && el.htmlFor) replaceFormIndex(el, 'for', oldIndex, newIndex);
+      });
+      box.querySelectorAll('[id]').forEach(function(el) {
+        replaceFormIndex(el, 'id', oldIndex, newIndex);
+      });
+      box.dataset.formIndex = String(newIndex);
+      var dyn = box.querySelector('.dynamic-fields');
+      if (dyn) dyn.setAttribute('data-dynamic-for', String(newIndex));
+    });
+    totalInput.value = String(container.querySelectorAll('.invoice-line').length);
+    renumberLineTitles();
+  }
+
+  function compactInvoiceLineForms() {
+    var container = document.getElementById('invoice-lines');
+    if (!container) return;
+    container.querySelectorAll('.invoice-line').forEach(function(box) {
+      var idInput = box.querySelector('input[name$="-id"]');
+      var typeSel = box.querySelector('select[name$="service_type"]');
+      var delCheck = box.querySelector('input[name$="-DELETE"]');
+      var hasId = idInput && idInput.value;
+      var hasType = typeSel && typeSel.value;
+      var isDeleted = delCheck && delCheck.checked;
+      if (isDeleted || hasId || hasType) return;
+      box.remove();
+    });
+    reindexInvoiceLineForms();
+  }
 
   function openQuickModal(title, fieldsHtml, onSave) {
     document.getElementById('quick-modal-title').textContent = title;
@@ -259,6 +326,7 @@
   }
 
   function markFormDirty() {
+    userHasEdited = true;
     formDirty = true;
   }
 
@@ -567,13 +635,10 @@
     const dyn = box.querySelector('[data-dynamic-for="' + idx + '"]');
     const typeSelect = box.querySelector('select[name$="service_type"]');
     const empSel = box.querySelector('select[name$="line_employee"]');
-    if (empSel && empSel.value) empSel.dataset.userOverridden = '1';
-    if (empSel && DEFAULT_LINE_EMP && !empSel.value) {
-      for (let i = 0; i < empSel.options.length; i++) {
-        if (empSel.options[i].value === DEFAULT_LINE_EMP) {
-          empSel.selectedIndex = i;
-          break;
-        }
+    if (empSel && empSel.value) {
+      const headerEmp = document.getElementById('id_sales_employee');
+      if (!headerEmp || !headerEmp.value || empSel.value !== headerEmp.value) {
+        empSel.dataset.userOverridden = '1';
       }
     }
     const destSel = box.querySelector('select[name$="-destination"]');
@@ -608,11 +673,14 @@
     });
   }
 
-  function syncLineEmployeesFromHeader() {
+  function syncLineEmployeesFromHeader(onlyEmpty) {
     const headerEmp = document.getElementById('id_sales_employee');
     if (!headerEmp || !headerEmp.value) return;
     document.querySelectorAll('#invoice-lines select[name$="line_employee"]').forEach(function(sel) {
-      if (!sel.dataset.userOverridden && !sel.value) sel.value = headerEmp.value;
+      if (sel.dataset.userOverridden === '1') return;
+      if (onlyEmpty && sel.value) return;
+      setLineEmployeeSelect(sel, headerEmp.value);
+      sel.dataset.syncedFromHeader = '1';
     });
   }
 
@@ -633,10 +701,13 @@
 
   const salesEmpEl = document.getElementById('id_sales_employee');
   if (salesEmpEl) {
-    salesEmpEl.addEventListener('change', syncLineEmployeesFromHeader);
+    salesEmpEl.addEventListener('change', function() {
+      syncLineEmployeesFromHeader(false);
+    });
     document.getElementById('invoice-lines').addEventListener('change', function(ev) {
       if (ev.target && ev.target.name && ev.target.name.endsWith('line_employee')) {
         ev.target.dataset.userOverridden = '1';
+        delete ev.target.dataset.syncedFromHeader;
       }
       if (ev.target && ev.target.classList && ev.target.classList.contains('destination-select') && !ev.target.classList.contains('main-destination-select')) {
         ev.target.dataset.userOverridden = '1';
@@ -649,6 +720,9 @@
   }
 
   document.querySelectorAll('#invoice-lines .invoice-line').forEach(wireLine);
+  initInvoiceSelects();
+  syncLineEmployeesFromHeader(true);
+  syncLineDestinationsFromHeader(true);
   renumberLineTitles();
   updateTotalLineCost();
   updateSellingTotal();
@@ -663,6 +737,7 @@
 
   document.getElementById('invoice-form').addEventListener('submit', function() {
     document.querySelectorAll('.invoice-line').forEach(collectLineData);
+    compactInvoiceLineForms();
     formDirty = false;
   });
 
@@ -670,8 +745,9 @@
   formEl.addEventListener('change', markFormDirty);
 
   function autosaveDraft(sync) {
-    if (!formDirty) return Promise.resolve();
+    if (!userHasEdited || !formDirty || autosaveInFlight) return Promise.resolve();
     document.querySelectorAll('.invoice-line').forEach(collectLineData);
+    compactInvoiceLineForms();
     const fd = new FormData(formEl);
     const opts = {
       method: 'POST',
@@ -680,6 +756,7 @@
       credentials: 'same-origin',
     };
     if (!sync) opts.keepalive = true;
+    autosaveInFlight = true;
     return fetch(getAutosaveUrl(), opts).then(function(r) {
       return r.json().then(function(data) {
         if (data.ok) {
@@ -691,7 +768,9 @@
         }
         return data;
       });
-    }).catch(function() {});
+    }).catch(function() {}).finally(function() {
+      autosaveInFlight = false;
+    });
   }
 
   function scheduleAutosave() {
@@ -879,6 +958,9 @@
       if (el.type === 'checkbox') el.checked = false;
       else el.value = '';
     });
+    clone.querySelectorAll('input[type="hidden"][name$="-id"]').forEach(function(el) {
+      el.value = '';
+    });
     clone.querySelectorAll('.line-service-date').forEach(function(inp) {
       inp.value = todayIso();
     });
@@ -897,6 +979,10 @@
       }
       delete el.dataset.choicesInitialized;
       el._choicesInstance = null;
+      if (el.name && el.name.endsWith('line_employee')) {
+        delete el.dataset.userOverridden;
+        delete el.dataset.syncedFromHeader;
+      }
     });
     const hid = clone.querySelector('.line-data-json');
     if (hid) hid.value = '{}';
@@ -909,7 +995,7 @@
     wireSupplierQuickCreate(clone);
     initInvoiceSelects(clone);
     defaultEmptyLineServiceDates();
-    syncLineEmployeesFromHeader();
+    syncLineEmployeesFromHeader(true);
     syncLineDestinationsFromHeader(true);
     renumberLineTitles();
     updateTotalLineCost();
@@ -922,12 +1008,6 @@
     scope.querySelectorAll('#invoice-form select:not(.destination-select)').forEach(function(el) {
       if (window.initSearchableSelect) window.initSearchableSelect(el);
     });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() { initInvoiceSelects(); });
-  } else {
-    initInvoiceSelects();
   }
 })();
 </script>

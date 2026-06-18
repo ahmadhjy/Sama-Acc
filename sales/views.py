@@ -25,6 +25,8 @@ def _save_draft_invoice_with_recalc(form, formset, request=None):
     inv = form.save()
     formset.instance = inv
     formset.save()
+    if inv.sales_employee_id:
+        inv.lines.filter(line_employee__isnull=True).update(line_employee_id=inv.sales_employee_id)
     inv.refresh_from_db()
     inv.recalc_usd_amounts()
     if request:

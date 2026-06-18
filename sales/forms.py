@@ -6,7 +6,7 @@ from django.db.models import Q
 from django.forms import BaseInlineFormSet, inlineformset_factory
 from django.utils import timezone
 
-from accounts_core.models import Currency
+from accounts_core.models import Currency, Employee
 from catalog.models import Destination
 from sales.models import SalesInvoice, SalesInvoiceLine
 
@@ -20,6 +20,13 @@ def _destination_queryset(extra_pk=None):
             .order_by("sort_order", "name")
             .distinct()
         )
+    return qs
+
+
+def _employee_queryset(extra_pk=None):
+    qs = Employee.objects.filter(is_active=True).order_by("name")
+    if extra_pk:
+        qs = Employee.objects.filter(Q(is_active=True) | Q(pk=extra_pk)).order_by("name").distinct()
     return qs
 
 
@@ -160,6 +167,10 @@ class SalesInvoiceLineBaseForm(forms.ModelForm):
         if dest:
             dest.queryset = _destination_queryset(_bound_pk(self, "destination"))
             dest.empty_label = "— Destination —"
+        emp = self.fields.get("line_employee")
+        if emp:
+            emp.queryset = _employee_queryset(_bound_pk(self, "line_employee"))
+            emp.empty_label = "— Employee —"
         if not self.instance.pk:
             sd = self.fields.get("service_date")
             if sd and not self.initial.get("service_date"):
@@ -223,7 +234,20 @@ class SalesInvoiceLineInlineFormSet(BaseInlineFormSet):
     def save_new(self, form, commit=True):
         if form.cleaned_data and not form.cleaned_data.get("service_type"):
             return None
-        return super().save_new(form, commit)
+        obj = super().save_new(form, commit=False)
+        if obj and not obj.line_employee_id and self.instance.sales_employee_id:
+            obj.line_employee_id = self.instance.sales_employee_id
+        if commit and obj is not None:
+            obj.save()
+        return obj
+
+    def save_existing(self, form, instance, commit=True):
+        obj = super().save_existing(form, instance, commit=False)
+        if obj and not obj.line_employee_id and self.instance.sales_employee_id:
+            obj.line_employee_id = self.instance.sales_employee_id
+        if commit:
+            obj.save()
+        return obj
 
 
 SalesInvoiceLineFormSet = inlineformset_factory(
@@ -234,6 +258,7 @@ SalesInvoiceLineFormSet = inlineformset_factory(
     extra=1,
     can_delete=True,
     max_num=60,
+    validate_max=True,
 )
 
 SalesInvoiceLineSalesFormSet = inlineformset_factory(
@@ -244,4 +269,5 @@ SalesInvoiceLineSalesFormSet = inlineformset_factory(
     extra=1,
     can_delete=True,
     max_num=60,
+    validate_max=True,
 )
