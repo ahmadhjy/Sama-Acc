@@ -63,7 +63,7 @@ class SalesInvoiceForm(forms.ModelForm):
             "due_date": forms.DateInput(attrs={"type": "date"}),
             "package_type": forms.Select(),
             "exchange_rate_to_usd": forms.NumberInput(attrs={"step": "0.000001", "min": "0"}),
-            "main_destination": forms.Select(attrs={"class": "destination-select main-destination-select"}),
+            "main_destination": forms.Select(attrs={"class": "main-destination-select"}),
         }
 
     def __init__(self, *args, **kwargs):

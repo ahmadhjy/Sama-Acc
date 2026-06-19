@@ -3,6 +3,7 @@
 {% block page_content %}
 <style>
   .destination-select { display: none; }
+  .main-destination-select { min-width: 280px; max-width: 100%; }
   .destination-wrap { position: relative; display: block; }
   .destination-results { display: none; max-height: 200px; overflow-y: auto; border: 1px solid var(--color-border, #cbd5e1); background: #fff; position: absolute; left: 0; right: 0; z-index: 20; border-radius: 8px; box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12)); }
   .destination-results.open { display: block; }
@@ -31,10 +32,8 @@
     <p class="invoice-field-main_destination">
       <label for="id_main_destination">Destination</label>
       <span class="destination-wrap destination-wrap--header">
-        <input type="text" class="destination-search main-destination-search" placeholder="Type to search…" autocomplete="off">
-        <button type="button" class="btn quick-inline-btn" id="btn-add-main-destination">+ Add destination</button>
-        <div class="destination-results"></div>
         {{ form.main_destination }}
+        <button type="button" class="btn quick-inline-btn" id="btn-add-main-destination">+ Add destination</button>
       </span>
       {% if form.main_destination.errors %}<span class="errorlist">{{ form.main_destination.errors }}</span>{% endif %}
     </p>
@@ -187,6 +186,12 @@
   let autosaveTimer = null;
   let autosaveInFlight = false;
   let userHasEdited = false;
+  let invoiceLineTemplate = null;
+
+  (function captureInvoiceLineTemplate() {
+    var first = document.querySelector('#invoice-lines .invoice-line');
+    if (first) invoiceLineTemplate = first.cloneNode(true);
+  })();
 
   function setLineEmployeeSelect(sel, empId) {
     if (!sel || !empId) return;
@@ -240,7 +245,10 @@
   function compactInvoiceLineForms() {
     var container = document.getElementById('invoice-lines');
     if (!container) return;
-    container.querySelectorAll('.invoice-line').forEach(function(box) {
+    var lines = container.querySelectorAll('.invoice-line');
+    if (!lines.length) return;
+    var toRemove = [];
+    lines.forEach(function(box) {
       var idInput = box.querySelector('input[name$="-id"]');
       var typeSel = box.querySelector('select[name$="service_type"]');
       var delCheck = box.querySelector('input[name$="-DELETE"]');
@@ -248,8 +256,13 @@
       var hasType = typeSel && typeSel.value;
       var isDeleted = delCheck && delCheck.checked;
       if (isDeleted || hasId || hasType) return;
-      box.remove();
+      toRemove.push(box);
     });
+    if (!toRemove.length) return;
+    if (toRemove.length >= lines.length) {
+      toRemove = toRemove.slice(0, toRemove.length - 1);
+    }
+    toRemove.forEach(function(box) { box.remove(); });
     reindexInvoiceLineForms();
   }
 
@@ -443,7 +456,7 @@
           const name = document.getElementById('qc-dest-name').value.trim();
           const country = document.getElementById('qc-dest-country').value.trim();
           const errEl = document.getElementById('quick-modal-error');
-          const select = box.querySelector('select[name$="-destination"]');
+          const select = box.querySelector('select.destination-select[name$="-destination"]');
           const search = box.querySelector('.destination-search');
           postJson(URL_DEST_QC, { name: name, country: country }).then(function(res) {
             if (!res.ok) {
@@ -641,7 +654,7 @@
         empSel.dataset.userOverridden = '1';
       }
     }
-    const destSel = box.querySelector('select[name$="-destination"]');
+    const destSel = box.querySelector('select.destination-select[name$="-destination"]');
     if (destSel && destSel.value) destSel.dataset.userOverridden = '1';
     function refresh() {
       const tid = typeSelect && typeSelect.value;
@@ -689,7 +702,7 @@
     if (!mainSel || !mainSel.value) return;
     const mainText = mainSel.options[mainSel.selectedIndex] ? mainSel.options[mainSel.selectedIndex].text : '';
     document.querySelectorAll('#invoice-lines .invoice-line').forEach(function(box) {
-      const destSel = box.querySelector('select[name$="-destination"]');
+      const destSel = box.querySelector('select.destination-select[name$="-destination"]');
       const search = box.querySelector('.destination-search:not(.main-destination-search)');
       if (!destSel) return;
       if (onlyEmpty && (destSel.dataset.userOverridden || destSel.value)) return;
@@ -747,7 +760,6 @@
   function autosaveDraft(sync) {
     if (!userHasEdited || !formDirty || autosaveInFlight) return Promise.resolve();
     document.querySelectorAll('.invoice-line').forEach(collectLineData);
-    compactInvoiceLineForms();
     const fd = new FormData(formEl);
     const opts = {
       method: 'POST',
@@ -816,7 +828,7 @@
 
   function wireDestinationSearch(box) {
     const search = box.querySelector('.destination-search');
-    const select = box.querySelector('select[name$="-destination"]');
+    const select = box.querySelector('select.destination-select[name$="-destination"]');
     const results = box.querySelector('.destination-results');
     if (!search || !select || !results) return;
     let timer;
@@ -854,10 +866,6 @@
   }
 
   function wireMainDestination() {
-    const wrap = document.querySelector('.destination-wrap--header');
-    if (!wrap) return;
-    const box = { querySelector: function(sel) { return wrap.querySelector(sel); } };
-    wireDestinationSearch(box);
     const btn = document.getElementById('btn-add-main-destination');
     if (btn && !btn.dataset.wired) {
       btn.dataset.wired = '1';
@@ -873,26 +881,23 @@
             const country = document.getElementById('qc-dest-country').value.trim();
             const errEl = document.getElementById('quick-modal-error');
             const select = document.getElementById('id_main_destination');
-            const search = document.querySelector('.main-destination-search');
             postJson(URL_DEST_QC, { name: name, country: country }).then(function(res) {
               if (!res.ok) {
                 errEl.textContent = res.data.error || 'Could not create destination.';
                 errEl.style.display = 'block';
                 return;
               }
-              appendDestinationOption(select, res.data.id, res.data.name);
-              if (search) search.value = res.data.name;
+              if (window.appendSelectChoice) {
+                window.appendSelectChoice(select, res.data.id, res.data.name);
+              } else if (select) {
+                appendDestinationOption(select, res.data.id, res.data.name);
+              }
               syncLineDestinationsFromHeader(false);
               closeQuickModal();
             });
           }
         );
       });
-    }
-    const mainSel = document.getElementById('id_main_destination');
-    const mainSearch = document.querySelector('.main-destination-search');
-    if (mainSel && mainSel.value && mainSearch && !mainSearch.value) {
-      restoreDestinationLabel(mainSel, mainSearch);
     }
   }
   wireMainDestination();
@@ -916,6 +921,44 @@
     wireSupplierQuickCreate(box);
   });
 
+  function resetClonedLineBox(box, index) {
+    box.dataset.formIndex = String(index);
+    var dyn = box.querySelector('.dynamic-fields');
+    if (dyn) dyn.setAttribute('data-dynamic-for', String(index));
+    box.querySelectorAll('.errorlist').forEach(function(el) { el.remove(); });
+    box.querySelectorAll('input:not([type="hidden"]), textarea').forEach(function(el) {
+      if (el.type === 'checkbox') el.checked = false;
+      else el.value = '';
+    });
+    box.querySelectorAll('input[type="hidden"][name$="-id"]').forEach(function(el) { el.value = ''; });
+    box.querySelectorAll('.line-service-date').forEach(function(inp) { inp.value = todayIso(); });
+    box.querySelectorAll('.choices').forEach(function(wrap) {
+      var sel = wrap.querySelector('select');
+      if (sel && wrap.parentNode) {
+        wrap.parentNode.insertBefore(sel, wrap);
+        wrap.remove();
+      }
+    });
+    box.querySelectorAll('select').forEach(function(el) {
+      if (el.name && el.name.endsWith('-DELETE')) el.checked = false;
+      else el.selectedIndex = 0;
+      delete el.dataset.choicesInitialized;
+      el._choicesInstance = null;
+      if (el.name && el.name.endsWith('line_employee')) {
+        delete el.dataset.userOverridden;
+        delete el.dataset.syncedFromHeader;
+      }
+      if (el.classList.contains('destination-select')) {
+        delete el.dataset.userOverridden;
+      }
+    });
+    var hid = box.querySelector('.line-data-json');
+    if (hid) hid.value = '{}';
+    box.querySelectorAll('.dynamic-fields').forEach(function(d) { d.innerHTML = ''; });
+    var destSearch = box.querySelector('.destination-search');
+    if (destSearch) destSearch.value = '';
+  }
+
   document.getElementById('add-invoice-line').addEventListener('click', function() {
     const totalInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
     const maxInput = document.getElementById('id_' + prefix + '-MAX_NUM_FORMS');
@@ -927,8 +970,29 @@
       return;
     }
     const container = document.getElementById('invoice-lines');
-    const lastBox = container.querySelector('.invoice-line:last-of-type');
-    if (!lastBox) return;
+    let lastBox = container.querySelector('.invoice-line:last-of-type');
+    if (!lastBox) {
+      if (!invoiceLineTemplate) {
+        alert('Cannot add a service line — refresh the page and try again.');
+        return;
+      }
+      const fresh = invoiceLineTemplate.cloneNode(true);
+      container.appendChild(fresh);
+      totalInput.value = '1';
+      reindexInvoiceLineForms();
+      resetClonedLineBox(fresh, 0);
+      wireLine(fresh);
+      wireDestinationSearch(fresh);
+      wireSupplierQuickCreate(fresh);
+      initInvoiceSelects(fresh);
+      defaultEmptyLineServiceDates();
+      syncLineEmployeesFromHeader(true);
+      syncLineDestinationsFromHeader(true);
+      renumberLineTitles();
+      updateTotalLineCost();
+      updateSellingTotal();
+      return;
+    }
     const oldIndex = total - 1;
     const newIndex = total;
     const clone = lastBox.cloneNode(true);
