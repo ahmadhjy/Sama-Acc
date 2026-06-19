@@ -6,6 +6,7 @@ from accounts_core.legacy_import.client_pdf import (
     legacy_client_code,
     parse_trial_balance_text,
 )
+from accounts_core.legacy_import.client_soa import parse_soa_transactions
 
 
 SAMPLE_TRIAL = """
@@ -42,3 +43,28 @@ class LegacyClientPdfTests(SimpleTestCase):
         rows = parse_trial_balance_text(SAMPLE_TRIAL)
         ali = rows[1]
         self.assertEqual(ali.closing_balance, Decimal("0"))
+
+    def test_parse_soa_transactions(self):
+        sample = """
+Tel :
+1023
+10/06/2026
+YW8BCZ ticket line
+520.000
+0.000
+520.000
+130
+17/01/2026
+MM-Receipt Voucher-
+0.000
+840.000
+0.000
+520.000
+0.000
+520.000
+USD
+"""
+        txs = parse_soa_transactions(sample)
+        self.assertEqual(len(txs), 2)
+        self.assertEqual(txs[0].invoice_amount, Decimal("520"))
+        self.assertEqual(txs[1].payment_amount, Decimal("840"))
