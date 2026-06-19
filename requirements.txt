@@ -6,6 +6,7 @@ djangorestframework==3.14.0
 Pillow==10.2.0
 reportlab==4.2.0
 weasyprint==62.1
+pymupdf==1.24.10
 
 # PostgreSQL (PythonAnywhere paid plan — use on production):
 psycopg2-binary==2.9.9
