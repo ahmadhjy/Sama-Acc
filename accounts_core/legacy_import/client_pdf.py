@@ -125,13 +125,12 @@ def parse_soa_account_block(text: str) -> tuple[str, str, str, str]:
     phone = ""
 
     for idx, line in enumerate(lines):
+        if line == "USD" and idx > 0:
+            candidate = lines[idx - 1]
+            if candidate not in {"Balance", "Description", "Credit", "Debit", "To :", "Account :"}:
+                name_raw = candidate
         if LEGACY_ACCOUNT_RE.match(line):
             legacy_account = line
-            if idx >= 2 and lines[idx - 1] == "USD":
-                candidate = lines[idx - 2]
-                if candidate not in {"Balance", "Description", "Credit", "Debit", "To :", "Account :"}:
-                    name_raw = candidate
-            break
 
     if "Address" in lines:
         addr_idx = lines.index("Address")
