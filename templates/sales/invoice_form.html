@@ -338,6 +338,42 @@
     }
   }
 
+  function safeAppendSelectOption(select, id, label) {
+    if (!select) return;
+    try {
+      appendSelectOption(select, id, label);
+    } catch (e) {
+      var sid = String(id);
+      var found = false;
+      for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === sid) { found = true; break; }
+      }
+      if (!found) {
+        var opt = document.createElement('option');
+        opt.value = sid;
+        opt.textContent = label;
+        select.appendChild(opt);
+      }
+      select.value = sid;
+      if (window.destroySearchableSelect) {
+        try { window.destroySearchableSelect(select); } catch (e2) { /* ignore */ }
+      }
+      if (window.initSearchableSelect) {
+        try {
+          window.initSearchableSelect(select);
+          if (select._choicesInstance) select._choicesInstance.setChoiceByValue(sid);
+        } catch (e3) { /* ignore */ }
+      }
+    }
+  }
+
+  function finishQuickCreate(select, id, label, searchInput) {
+    safeAppendSelectOption(select, id, label);
+    if (searchInput) searchInput.value = label || '';
+    markFormDirty();
+    closeQuickModal();
+  }
+
   function markFormDirty() {
     userHasEdited = true;
     formDirty = true;
@@ -415,6 +451,9 @@
         }
         appendSelectOption(document.getElementById('id_client'), res.data.id, res.data.name);
         closeQuickModal();
+      }).catch(function() {
+        errEl.textContent = 'Could not create client.';
+        errEl.style.display = 'block';
       });
     });
     setTimeout(function() {
@@ -437,6 +476,7 @@
     if (!btn || btn.dataset.wired) return;
     btn.dataset.wired = '1';
     btn.addEventListener('click', function() {
+      var lineBox = btn.closest('.invoice-line') || box;
       openQuickModal(
         'Add supplier',
         '<div class="qc-modal__grid qc-modal__grid--2">' +
@@ -459,7 +499,7 @@
         const managing = document.getElementById('qc-supplier-managing').value.trim();
         const accounting = document.getElementById('qc-supplier-accounting').value.trim();
         const errEl = document.getElementById('quick-modal-error');
-        const sel = box.querySelector('select[name$="-supplier"]');
+        const sel = lineBox.querySelector('.supplier-wrap select[name$="-supplier"]');
         postJson(URL_SUPPLIER_QC, {
           type: document.getElementById('qc-supplier-type').value,
           name: name,
@@ -474,8 +514,10 @@
             errEl.style.display = 'block';
             return;
           }
-          appendSelectOption(sel, res.data.id, res.data.name);
-          closeQuickModal();
+          finishQuickCreate(sel, res.data.id, res.data.name);
+        }).catch(function() {
+          errEl.textContent = 'Could not create supplier.';
+          errEl.style.display = 'block';
         });
       });
     });
@@ -486,6 +528,7 @@
     if (!btn || btn.dataset.wired) return;
     btn.dataset.wired = '1';
     btn.addEventListener('click', function() {
+      var lineBox = btn.closest('.invoice-line') || box;
       openQuickModal(
         'Add destination',
         '<div class="qc-modal__grid">' +
@@ -496,19 +539,18 @@
           const name = document.getElementById('qc-dest-name').value.trim();
           const country = document.getElementById('qc-dest-country').value.trim();
           const errEl = document.getElementById('quick-modal-error');
-          const select = box.querySelector('select.destination-select[name$="-destination"]');
-          const search = box.querySelector('.destination-search');
+          const select = lineBox.querySelector('select.destination-select[name$="-destination"]');
+          const search = lineBox.querySelector('.destination-search');
           postJson(URL_DEST_QC, { name: name, country: country }).then(function(res) {
             if (!res.ok) {
               errEl.textContent = res.data.error || 'Could not create destination.';
               errEl.style.display = 'block';
               return;
             }
-            if (select) {
-              appendSelectOption(select, res.data.id, res.data.name);
-            }
-            if (search) search.value = res.data.name;
-            closeQuickModal();
+            finishQuickCreate(select, res.data.id, res.data.name, search);
+          }).catch(function() {
+            errEl.textContent = 'Could not create destination.';
+            errEl.style.display = 'block';
           });
         }
       );
