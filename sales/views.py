@@ -34,6 +34,19 @@ def _save_draft_invoice_with_recalc(form, formset, request=None):
     return inv
 
 
+def _formset_line_ids_by_index(formset):
+    """Map each submitted line form index to its saved pk (for autosave DOM sync)."""
+    ids = {}
+    for i, form in enumerate(formset.forms):
+        if not form.cleaned_data or form.cleaned_data.get("DELETE"):
+            continue
+        if not form.cleaned_data.get("service_type"):
+            continue
+        if form.instance.pk:
+            ids[str(i)] = str(form.instance.pk)
+    return ids
+
+
 def _save_invoice_attachments(request, invoice):
     files = request.FILES.getlist("attachments")
     for f in files:
@@ -206,12 +219,15 @@ def invoice_autosave(request, invoice_id=None):
     formset = line_formset_cls(request.POST, instance=invoice)
     if form.is_valid() and formset.is_valid():
         saved = _save_draft_invoice_with_recalc(form, formset)
+        line_ids = _formset_line_ids_by_index(formset)
         return JsonResponse(
             {
                 "ok": True,
                 "invoice_id": str(saved.id),
                 "invoice_no": saved.invoice_no,
                 "edit_url": f"/sales/invoices/{saved.id}/edit/",
+                "line_ids_by_index": line_ids,
+                "initial_forms": len(line_ids),
             }
         )
     errors = {}

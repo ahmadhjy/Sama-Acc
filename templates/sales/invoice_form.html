@@ -343,6 +343,46 @@
     formDirty = true;
   }
 
+  function clearQuickCreateWiring(box) {
+    if (!box) return;
+    box.querySelectorAll('.btn-add-supplier, .btn-add-destination').forEach(function(btn) {
+      delete btn.dataset.wired;
+    });
+  }
+
+  function syncFormSelectValues() {
+    formEl.querySelectorAll('select').forEach(function(sel) {
+      if (sel._choicesInstance) {
+        try {
+          var val = sel._choicesInstance.getValue(true);
+          if (Array.isArray(val) && val.length) sel.value = val[0];
+          else if (val && !Array.isArray(val)) sel.value = val;
+        } catch (e) { /* ignore */ }
+      }
+    });
+  }
+
+  function applyAutosaveLineIds(data) {
+    if (!data || !data.line_ids_by_index) return;
+    Object.keys(data.line_ids_by_index).forEach(function(idx) {
+      var id = data.line_ids_by_index[idx];
+      var box = document.querySelector('#invoice-lines .invoice-line[data-form-index="' + idx + '"]');
+      if (!box || !id) return;
+      var idInput = box.querySelector('input[name$="-id"]');
+      if (idInput) idInput.value = id;
+    });
+    if (data.initial_forms !== undefined) {
+      var initialInput = document.getElementById('id_' + prefix + '-INITIAL_FORMS');
+      if (initialInput) initialInput.value = String(data.initial_forms);
+    }
+  }
+
+  function prepareFormForSave(compactEmpty) {
+    syncFormSelectValues();
+    document.querySelectorAll('.invoice-line').forEach(collectLineData);
+    if (compactEmpty) compactInvoiceLineForms();
+  }
+
   document.getElementById('btn-add-client').addEventListener('click', function() {
     openQuickModal(
       'Add client',
@@ -541,6 +581,15 @@
     if (hidden) hidden.value = JSON.stringify(data);
   }
 
+  function wireDynamicFieldListeners(box) {
+    box.querySelectorAll('[data-line-key]').forEach(function(el) {
+      if (el.dataset.lineDataWired) return;
+      el.dataset.lineDataWired = '1';
+      el.addEventListener('input', function() { collectLineData(box); markFormDirty(); });
+      el.addEventListener('change', function() { collectLineData(box); markFormDirty(); });
+    });
+  }
+
   function getFxRate() {
     const cur = document.getElementById('id_currency');
     const rEl = document.getElementById('id_exchange_rate_to_usd');
@@ -644,6 +693,7 @@
 
   function wireLine(box) {
     wireSupplierQuickCreate(box);
+    wireDestinationQuickCreate(box);
     const idx = box.dataset.formIndex;
     const dyn = box.querySelector('[data-dynamic-for="' + idx + '"]');
     const typeSelect = box.querySelector('select[name$="service_type"]');
@@ -659,6 +709,7 @@
     function refresh() {
       const tid = typeSelect && typeSelect.value;
       renderDynamicFields(dyn, tid, getLineDataInitial(box));
+      wireDynamicFieldListeners(box);
       updateTotalLineCost();
       updateSellingTotal();
       updateUsdHint();
@@ -749,8 +800,7 @@
   });
 
   document.getElementById('invoice-form').addEventListener('submit', function() {
-    document.querySelectorAll('.invoice-line').forEach(collectLineData);
-    compactInvoiceLineForms();
+    prepareFormForSave(true);
     formDirty = false;
   });
 
@@ -759,7 +809,7 @@
 
   function autosaveDraft(sync) {
     if (!userHasEdited || !formDirty || autosaveInFlight) return Promise.resolve();
-    document.querySelectorAll('.invoice-line').forEach(collectLineData);
+    prepareFormForSave(true);
     const fd = new FormData(formEl);
     const opts = {
       method: 'POST',
@@ -773,6 +823,7 @@
       return r.json().then(function(data) {
         if (data.ok) {
           formDirty = false;
+          applyAutosaveLineIds(data);
           if (data.invoice_id && !formEl.dataset.invoiceId) {
             formEl.dataset.invoiceId = data.invoice_id;
             if (data.edit_url) history.replaceState(null, '', data.edit_url);
@@ -918,10 +969,11 @@
 
   document.querySelectorAll('#invoice-lines .invoice-line').forEach(function(box) {
     wireDestinationSearch(box);
-    wireSupplierQuickCreate(box);
+    wireLine(box);
   });
 
   function resetClonedLineBox(box, index) {
+    clearQuickCreateWiring(box);
     box.dataset.formIndex = String(index);
     var dyn = box.querySelector('.dynamic-fields');
     if (dyn) dyn.setAttribute('data-dynamic-for', String(index));
@@ -955,6 +1007,7 @@
     var hid = box.querySelector('.line-data-json');
     if (hid) hid.value = '{}';
     box.querySelectorAll('.dynamic-fields').forEach(function(d) { d.innerHTML = ''; });
+    box.querySelectorAll('[data-line-key]').forEach(function(el) { delete el.dataset.lineDataWired; });
     var destSearch = box.querySelector('.destination-search');
     if (destSearch) destSearch.value = '';
   }
@@ -983,7 +1036,6 @@
       resetClonedLineBox(fresh, 0);
       wireLine(fresh);
       wireDestinationSearch(fresh);
-      wireSupplierQuickCreate(fresh);
       initInvoiceSelects(fresh);
       defaultEmptyLineServiceDates();
       syncLineEmployeesFromHeader(true);
@@ -996,6 +1048,7 @@
     const oldIndex = total - 1;
     const newIndex = total;
     const clone = lastBox.cloneNode(true);
+    clearQuickCreateWiring(clone);
     clone.querySelectorAll('.errorlist').forEach(function(el) { el.remove(); });
 
     function replaceIdx(attr, el) {
@@ -1056,7 +1109,6 @@
     totalInput.value = String(total + 1);
     wireLine(clone);
     wireDestinationSearch(clone);
-    wireSupplierQuickCreate(clone);
     initInvoiceSelects(clone);
     defaultEmptyLineServiceDates();
     syncLineEmployeesFromHeader(true);
