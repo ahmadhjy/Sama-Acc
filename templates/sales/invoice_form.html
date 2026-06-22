@@ -368,9 +368,38 @@
     appendSelectOption(select, id, label);
   }
 
+  function getMainDestination() {
+    var mainSel = document.getElementById('id_main_destination');
+    if (!mainSel || !mainSel.value) return null;
+    var label = '';
+    if (mainSel.options[mainSel.selectedIndex]) {
+      label = mainSel.options[mainSel.selectedIndex].text;
+    }
+    return { id: mainSel.value, label: label };
+  }
+
+  function syncMainDestination(id, label) {
+    var mainSel = document.getElementById('id_main_destination');
+    if (!mainSel) return;
+    safeAppendSelectOption(mainSel, id, label);
+  }
+
+  function applyMainDestinationToLine(box) {
+    var main = getMainDestination();
+    if (!main) return;
+    var destSel = box.querySelector('select.destination-select[name$="-destination"]');
+    var search = box.querySelector('.destination-search');
+    if (!destSel || destSel.dataset.userOverridden === '1') return;
+    appendDestinationOption(destSel, main.id, main.label);
+    if (search) search.value = main.label;
+  }
+
   function finishQuickCreate(select, id, label, searchInput) {
     safeAppendSelectOption(select, id, label);
     if (searchInput) searchInput.value = label || '';
+    if (select && select.classList.contains('destination-select')) {
+      syncMainDestination(id, label);
+    }
     markFormDirty();
     closeQuickModal();
   }
@@ -792,7 +821,6 @@
       }
     }
     const destSel = box.querySelector('select.destination-select[name$="-destination"]');
-    if (destSel && destSel.value) destSel.dataset.userOverridden = '1';
     function refresh() {
       const tid = typeSelect && typeSelect.value;
       renderDynamicFields(dyn, tid, getLineDataInitial(box));
@@ -836,17 +864,16 @@
   }
 
   function syncLineDestinationsFromHeader(onlyEmpty) {
-    const mainSel = document.getElementById('id_main_destination');
-    if (!mainSel || !mainSel.value) return;
-    const mainText = mainSel.options[mainSel.selectedIndex] ? mainSel.options[mainSel.selectedIndex].text : '';
+    var main = getMainDestination();
+    if (!main) return;
     document.querySelectorAll('#invoice-lines .invoice-line').forEach(function(box) {
-      const destSel = box.querySelector('select.destination-select[name$="-destination"]');
-      const search = box.querySelector('.destination-search:not(.main-destination-search)');
+      var destSel = box.querySelector('select.destination-select[name$="-destination"]');
+      var search = box.querySelector('.destination-search');
       if (!destSel) return;
       if (onlyEmpty && (destSel.dataset.userOverridden || destSel.value)) return;
       if (!onlyEmpty && destSel.dataset.userOverridden) return;
-      appendDestinationOption(destSel, mainSel.value, mainText);
-      if (search) search.value = mainText;
+      appendDestinationOption(destSel, main.id, main.label);
+      if (search) search.value = main.label;
     });
   }
 
@@ -938,6 +965,7 @@
       btn.addEventListener('click', function() {
         if (select) {
           appendDestinationOption(select, item.id, item.name);
+          select.dataset.userOverridden = '1';
         }
         search.value = item.name;
         results.innerHTML = '';
@@ -1109,7 +1137,7 @@
       initInvoiceSelects(fresh);
       defaultEmptyLineServiceDates();
       syncLineEmployeesFromHeader(true);
-      syncLineDestinationsFromHeader(true);
+      applyMainDestinationToLine(fresh);
       renumberLineTitles();
       updateTotalLineCost();
       updateSellingTotal();
@@ -1161,7 +1189,11 @@
     clone.querySelectorAll('select').forEach(function(el) {
       if (el.name && el.name.endsWith('-DELETE')) {
         el.checked = false;
-      } else if (!el.classList.contains('destination-select')) {
+      } else if (el.classList.contains('destination-select')) {
+        el.selectedIndex = 0;
+        el.value = '';
+        delete el.dataset.userOverridden;
+      } else {
         el.selectedIndex = 0;
       }
       delete el.dataset.choicesInitialized;
@@ -1171,6 +1203,8 @@
         delete el.dataset.syncedFromHeader;
       }
     });
+    var cloneDestSearch = clone.querySelector('.destination-search');
+    if (cloneDestSearch) cloneDestSearch.value = '';
     const hid = clone.querySelector('.line-data-json');
     if (hid) hid.value = '{}';
     clone.querySelectorAll('.dynamic-fields').forEach(function(d) { d.innerHTML = ''; });
@@ -1182,7 +1216,7 @@
     initInvoiceSelects(clone);
     defaultEmptyLineServiceDates();
     syncLineEmployeesFromHeader(true);
-    syncLineDestinationsFromHeader(true);
+    applyMainDestinationToLine(clone);
     renumberLineTitles();
     updateTotalLineCost();
     updateSellingTotal();
