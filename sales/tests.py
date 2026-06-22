@@ -2,7 +2,8 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import Client as HttpClient, TestCase
+from django.urls import reverse
 
 from accounts_core.models import Client, Currency, Employee, Supplier
 from catalog.models import Destination, ServiceInstance, ServiceType
@@ -190,3 +191,65 @@ class SalesInvoiceWorkflowTests(TestCase):
         invoice.grand_total = Decimal("99")
         with self.assertRaises(ValueError):
             invoice.save()
+
+
+class InvoiceLineOrderTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="order", password="test12345")
+        self.http = HttpClient()
+        self.http.login(username="order", password="test12345")
+        Currency.objects.get_or_create(code="USD", defaults={"name": "US Dollar", "is_active": True, "sort_order": 0})
+        self.client_obj = Client.objects.create(client_code="C-ORD", name_en="Order Client")
+        self.employee = Employee.objects.create(name="Order Emp", role=Employee.EmployeeRole.SALES)
+        self.service_type = ServiceType.objects.create(name="Tour", code="TOR")
+        self.destination = Destination.objects.create(name="Rome")
+        self.supplier = Supplier.objects.create(
+            supplier_code="S-ORD", name="Order Supplier", managing_number="+971500000099"
+        )
+
+    def _line_payload(self, index, sell):
+        return {
+            f"lines-{index}-service_type": str(self.service_type.pk),
+            f"lines-{index}-supplier": str(self.supplier.pk),
+            f"lines-{index}-line_employee": str(self.employee.pk),
+            f"lines-{index}-destination": str(self.destination.pk),
+            f"lines-{index}-service_date": date.today().isoformat(),
+            f"lines-{index}-qty": "1.00",
+            f"lines-{index}-sell_price": sell,
+            f"lines-{index}-cost_price": "10.00",
+            f"lines-{index}-line_discount": "0.00",
+            f"lines-{index}-notes": f"line-{index}",
+            f"lines-{index}-line_data": "{}",
+        }
+
+    def test_service_lines_keep_form_order_after_save(self):
+        payload = {
+            "invoice_no": "TMP-ORDER",
+            "client": str(self.client_obj.pk),
+            "sales_employee": str(self.employee.pk),
+            "main_destination": str(self.destination.pk),
+            "issue_date": date.today().isoformat(),
+            "due_date": date.today().isoformat(),
+            "currency": "USD",
+            "lines-TOTAL_FORMS": "4",
+            "lines-INITIAL_FORMS": "0",
+            "lines-MIN_NUM_FORMS": "0",
+            "lines-MAX_NUM_FORMS": "60",
+        }
+        for i, sell in enumerate(["100.00", "200.00", "300.00", "400.00"]):
+            payload.update(self._line_payload(i, sell))
+
+        create_resp = self.http.post(reverse("sales:invoice_create"), payload)
+        self.assertEqual(create_resp.status_code, 302)
+        invoice = SalesInvoice.objects.get(invoice_no="TMP-ORDER")
+        notes = list(invoice.lines.values_list("notes", flat=True))
+        self.assertEqual(notes, ["line-0", "line-1", "line-2", "line-3"])
+
+        edit_resp = self.http.get(reverse("sales:invoice_edit", kwargs={"invoice_id": invoice.id}))
+        self.assertEqual(edit_resp.status_code, 200)
+        content = edit_resp.content.decode()
+        pos0 = content.index("line-0")
+        pos1 = content.index("line-1")
+        pos2 = content.index("line-2")
+        pos3 = content.index("line-3")
+        self.assertTrue(pos0 < pos1 < pos2 < pos3)

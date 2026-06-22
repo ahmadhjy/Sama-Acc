@@ -327,6 +327,10 @@ class SalesInvoiceLine(models.Model):
     cost_price_usd = models.DecimalField(max_digits=14, decimal_places=4, default=Decimal("0.00"))
     line_discount_usd = models.DecimalField(max_digits=14, decimal_places=4, default=Decimal("0.00"))
     notes = models.CharField(max_length=255, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
 
     def __str__(self):
         return f"{self.invoice_id} line"

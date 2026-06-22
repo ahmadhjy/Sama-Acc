@@ -231,6 +231,21 @@ class SalesInvoiceLineSalesForm(SalesInvoiceLineBaseForm):
 
 
 class SalesInvoiceLineInlineFormSet(BaseInlineFormSet):
+    def _apply_line_order(self):
+        order = 0
+        for form in self.forms:
+            cleaned = getattr(form, "cleaned_data", None)
+            if not cleaned or cleaned.get("DELETE"):
+                continue
+            if not cleaned.get("service_type") and not form.instance.pk:
+                continue
+            form.instance.sort_order = order
+            order += 1
+
+    def save(self, commit=True):
+        self._apply_line_order()
+        return super().save(commit=commit)
+
     def save_new(self, form, commit=True):
         if form.cleaned_data and not form.cleaned_data.get("service_type"):
             return None

@@ -352,6 +352,7 @@ def adjust_invoice(request, invoice_id):
                         service_date=line.service_date,
                         destination=line.destination,
                         notes=line.notes,
+                        sort_order=line.sort_order,
                     )
                     for line in invoice.lines.all()
                 ]
