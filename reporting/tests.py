@@ -109,6 +109,54 @@ class SupplierSummaryBalanceTests(TestCase):
         self.assertEqual(total_balance, Decimal("250"))
 
 
+class IncomeStatementPdfTests(TestCase):
+    def test_profit_summary_row_shows_loss_in_debit(self):
+        from reporting.statement_summary import profit_summary_row
+
+        row = profit_summary_row("Net profit", Decimal("-150.00"))
+        self.assertEqual(row["tot_dr"], Decimal("150.00"))
+        self.assertEqual(row["bal_cr"], Decimal("0.00"))
+
+    def test_prepare_income_statement_pdf_context(self):
+        from accounts_core.pdf_utils import _prepare_income_statement_pdf
+        from reporting.statement_summary import profit_summary_row
+
+        context = {
+            "rows": [
+                {
+                    "account": "4010000001",
+                    "name": "Sales Revenue",
+                    "curr": "USD",
+                    "tot_dr": Decimal("0"),
+                    "tot_cr": Decimal("1000"),
+                    "bal_dr": Decimal("0"),
+                    "bal_cr": Decimal("1000"),
+                },
+                profit_summary_row("Net profit", Decimal("200")),
+            ],
+            "date_from": date(2026, 1, 1),
+            "date_to": date(2026, 12, 31),
+            "period_label": "2026-01-01 – 2026-12-31",
+            "sales_total": Decimal("1000"),
+            "cogs_total": Decimal("600"),
+            "gross_profit": Decimal("400"),
+            "opex_total": Decimal("200"),
+            "net_profit": Decimal("200"),
+            "tot_dr": Decimal("600"),
+            "tot_cr": Decimal("1000"),
+            "bal_dr": Decimal("0"),
+            "bal_cr": Decimal("400"),
+            "pdf_account_range": "Accounts: 401, 501, 632",
+        }
+        _prepare_income_statement_pdf(context)
+        self.assertEqual(len(context["pdf_stat_cards"]), 5)
+        self.assertEqual(context["pdf_section_title"], "Income Statement Detail")
+        self.assertIn("01/01/2026", context["pdf_section_subtitle"])
+        self.assertEqual(len(context["pdf_table_rows"]), 2)
+        self.assertEqual(context["pdf_table_rows"][-1]["kind"], "summary")
+        self.assertEqual(context["pdf_totals"][-1][0], "Net profit")
+
+
 class SupplierStatementServiceDateTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="sup1", password="test12345")

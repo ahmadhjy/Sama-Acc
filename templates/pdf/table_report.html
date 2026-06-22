@@ -70,7 +70,12 @@
   </thead>
   <tbody>
     {% for row in pdf_table_rows %}
-    <tr>
+    <tr class="{% if row.cells %}{% if row.kind == 'summary' %}pdf-row--summary{% endif %}{% endif %}">
+      {% if row.cells %}
+        {% for cell in row.cells %}
+        <td class="{% if forloop.counter0 in pdf_numeric_column_indexes %}num{% elif forloop.counter0 in pdf_wrap_column_indexes %}wrap{% elif forloop.counter0 == pdf_description_column_index %}desc{% endif %}">{{ cell }}</td>
+        {% endfor %}
+      {% else %}
       {% for cell in row %}
       {% if forloop.counter0 == pdf_badge_column_index and cell %}
       <td class="center"><span class="pdf-pill pdf-pill--{% if cell == 'DEBIT' %}debit{% elif cell == 'CREDIT' %}credit{% else %}neutral{% endif %}">{{ cell }}</span></td>
@@ -78,6 +83,7 @@
       <td class="{% if forloop.counter0 in pdf_numeric_column_indexes %}num{% elif forloop.counter0 in pdf_wrap_column_indexes %}wrap{% elif forloop.counter0 == pdf_description_column_index %}desc{% endif %}">{{ cell }}</td>
       {% endif %}
       {% endfor %}
+      {% endif %}
     </tr>
     {% endfor %}
   </tbody>

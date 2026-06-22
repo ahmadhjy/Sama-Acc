@@ -431,6 +431,11 @@ body.is-pdf .content,
     word-break: break-word;
 }
 
+.pdf-data-table tbody tr.pdf-row--summary td {
+    font-weight: 600;
+    background: #f8fafc !important;
+}
+
 .pdf-data-table tfoot td {
     font-weight: 700;
     background: #eef2f8;

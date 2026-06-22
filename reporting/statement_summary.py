@@ -30,6 +30,33 @@ def _split_movement_balance_dr_cr(debit, credit):
     return Decimal("0.00"), Decimal("0.00")
 
 
+def profit_summary_row(label, amount, curr="USD"):
+    """Trial-balance summary line for P&L figures (profit in credit, loss in debit)."""
+    amt = amount or Decimal("0.00")
+    if amt >= 0:
+        return {
+            "account": "",
+            "name": label,
+            "curr": curr,
+            "tot_dr": Decimal("0.00"),
+            "tot_cr": amt,
+            "bal_dr": Decimal("0.00"),
+            "bal_cr": amt,
+            "is_summary": True,
+        }
+    loss = -amt
+    return {
+        "account": "",
+        "name": label,
+        "curr": curr,
+        "tot_dr": loss,
+        "tot_cr": Decimal("0.00"),
+        "bal_dr": loss,
+        "bal_cr": Decimal("0.00"),
+        "is_summary": True,
+    }
+
+
 def _client_period_movement(client, date_from=None, date_to=None):
     sub = build_client_statement_rows(client, date_from, date_to)
     debit = sum((r["debit"] for r in sub), Decimal("0.00"))

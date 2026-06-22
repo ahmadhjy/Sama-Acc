@@ -18,6 +18,7 @@ from reporting.statement_summary import (
     _supplier_period_movement,
     build_client_summary_rows,
     build_supplier_summary_rows,
+    profit_summary_row,
     summarize_totals,
     summarize_supplier_totals,
 )
@@ -365,7 +366,7 @@ def opex_by_category(request):
 
 def activity_trial_balance(request):
     """P&L-style trial listing from posted sales, COGS service lines, and OPEX lines."""
-    df, dt, _ = resolve_report_dates(request)
+    df, dt, period_label = resolve_report_dates(request)
 
     inv = SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
     if df:
@@ -437,30 +438,8 @@ def activity_trial_balance(request):
     gross_profit = sales_total - cogs_total
     opex_sum = sum((r["tot_dr"] for r in rows if r["account"].startswith("632")), Decimal("0.00"))
     net_profit = gross_profit - opex_sum
-    rows.append(
-        {
-            "account": "",
-            "name": "Gross profit (Revenue − COGS)",
-            "curr": "USD",
-            "tot_dr": Decimal("0.00"),
-            "tot_cr": gross_profit if gross_profit > 0 else Decimal("0.00"),
-            "bal_dr": Decimal("0.00"),
-            "bal_cr": gross_profit if gross_profit > 0 else Decimal("0.00"),
-            "is_summary": True,
-        }
-    )
-    rows.append(
-        {
-            "account": "",
-            "name": "Net profit (Gross profit − OPEX)",
-            "curr": "USD",
-            "tot_dr": Decimal("0.00"),
-            "tot_cr": net_profit if net_profit > 0 else Decimal("0.00"),
-            "bal_dr": Decimal("0.00"),
-            "bal_cr": net_profit if net_profit > 0 else Decimal("0.00"),
-            "is_summary": True,
-        }
-    )
+    rows.append(profit_summary_row("Gross profit (Revenue − COGS)", gross_profit))
+    rows.append(profit_summary_row("Net profit (Gross profit − OPEX)", net_profit))
 
     return render_or_pdf(
         request,
@@ -469,6 +448,7 @@ def activity_trial_balance(request):
             "rows": rows,
             "date_from": df,
             "date_to": dt,
+            "period_label": period_label,
             "tot_dr": tot_dr,
             "tot_cr": tot_cr,
             "bal_dr": bal_dr,
@@ -478,11 +458,12 @@ def activity_trial_balance(request):
             "sales_total": sales_total,
             "cogs_total": cogs_total,
             "opex_total": opex_sum,
+            "pdf_income_statement": True,
             "pdf_report_title": "Income Statement",
-            "pdf_report_subtitle": "Posted sales revenue, cost of sales, and operating expenses (USD) for the selected period",
-            "pdf_account_range": "Activity trial balance — accounts 401 (revenue), 501 (COGS), 632 (OPEX)",
+            "pdf_report_subtitle": "Posted sales revenue, cost of sales, and operating expenses (USD)",
+            "pdf_account_range": "Accounts: 401 (Sales revenue), 501 (Cost of sales), 632 (Operating expenses)",
         },
-        "activity_trial_balance.pdf",
+        "income_statement.pdf",
     )
 
 

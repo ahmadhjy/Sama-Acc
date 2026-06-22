@@ -72,6 +72,105 @@ def _flatten_trial_balance_row(r):
     ]
 
 
+def _pdf_table_row_entry(cells, kind=None):
+    if kind:
+        return {"cells": cells, "kind": kind}
+    return cells
+
+
+def _pdf_row_cells(row):
+    if isinstance(row, dict) and "cells" in row:
+        return row["cells"]
+    return row
+
+
+def _pdf_row_kind(row, index=0, kinds=None):
+    if isinstance(row, dict) and row.get("kind"):
+        return row["kind"]
+    if kinds and index < len(kinds):
+        return kinds[index]
+    return None
+
+
+def _income_statement_period_subtitle(context):
+    df = context.get("date_from")
+    dt = context.get("date_to")
+    parts = []
+    if df and dt:
+        parts.append(f"{df.strftime('%d/%m/%Y')} – {dt.strftime('%d/%m/%Y')}")
+    elif df:
+        parts.append(f"From {df.strftime('%d/%m/%Y')}")
+    elif dt:
+        parts.append(f"Until {dt.strftime('%d/%m/%Y')}")
+    else:
+        parts.append("All dates")
+    preset = (context.get("period_label") or "").strip()
+    if preset and preset not in parts[0]:
+        parts.append(preset)
+    return " · ".join(parts)
+
+
+def _prepare_income_statement_pdf(context):
+    """Rich PDF layout for activity trial balance / income statement."""
+    rows = context.get("rows") or []
+    subtitle = _income_statement_period_subtitle(context)
+
+    context["pdf_stat_cards"] = [
+        {"label": "Sales Revenue", "value": _format_cell(context.get("sales_total")), "kind": "credit"},
+        {"label": "Cost of Sales", "value": _format_cell(context.get("cogs_total")), "kind": "debit"},
+        {"label": "Gross Profit", "value": _format_cell(context.get("gross_profit")), "kind": "balance"},
+        {"label": "Operating Expenses", "value": _format_cell(context.get("opex_total")), "kind": "debit"},
+        {"label": "Net Profit", "value": _format_cell(context.get("net_profit")), "kind": "balance"},
+    ]
+    context["pdf_section_title"] = "Income Statement Detail"
+    context["pdf_section_subtitle"] = subtitle
+    note_parts = []
+    if context.get("pdf_account_range"):
+        note_parts.append(str(context["pdf_account_range"]))
+    note_parts.append("Amounts in USD. Includes posted sales invoices, service COGS, and operating expenses.")
+    context["pdf_note"] = " ".join(note_parts)
+
+    context["pdf_table_headers"] = [
+        "Account",
+        "Name",
+        "Curr",
+        "Total Debit",
+        "Total Credit",
+        "Balance Debit",
+        "Balance Credit",
+    ]
+    context["pdf_table_rows"] = [
+        _pdf_table_row_entry(
+            _flatten_trial_balance_row(r),
+            kind="summary" if r.get("is_summary") else "detail",
+        )
+        for r in rows
+    ]
+    context["pdf_footer_row"] = [
+        "Period totals",
+        "",
+        "",
+        _format_cell(context.get("tot_dr")),
+        _format_cell(context.get("tot_cr")),
+        _format_cell(context.get("bal_dr")),
+        _format_cell(context.get("bal_cr")),
+    ]
+    context["pdf_totals"] = [
+        ("Sales revenue", _format_cell(context.get("sales_total"))),
+        ("Cost of sales (COGS)", _format_cell(context.get("cogs_total"))),
+        ("Gross profit", _format_cell(context.get("gross_profit"))),
+        ("Operating expenses", _format_cell(context.get("opex_total"))),
+        ("Net profit", _format_cell(context.get("net_profit"))),
+    ]
+    context["pdf_totals_closing_last"] = True
+    context["pdf_numeric_column_indexes"] = [3, 4, 5, 6]
+    context["pdf_description_column_index"] = 1
+    context["pdf_hide_subtitle_in_body"] = True
+    context["pdf_currency"] = context.get("pdf_currency") or "USD"
+    _apply_pdf_table_layout(context)
+    return context
+
+
 def _statement_description(r):
     desc = (r.get("description") or "").strip()
     typ = (r.get("type") or "").strip()
@@ -448,6 +547,10 @@ def prepare_pdf_export(context):
 
     if context.get("payment"):
         _prepare_payment_document_pdf(context)
+        return context
+
+    if context.get("pdf_income_statement"):
+        _prepare_income_statement_pdf(context)
         return context
 
     rows = context.get("rows")
@@ -970,11 +1073,23 @@ def _rl_main_table(context, avail, cell_style):
         return _reportlab_cell_paragraph(cell, cell_style)
 
     data = [[header_cell(i, h) for i, h in enumerate(headers)]]
-    for row in table_rows:
-        data.append([body_cell(i, c) for i, c in enumerate(row)])
+    row_kinds = context.get("pdf_table_row_kinds") or []
+    extra_style = []
+    for r_idx, row in enumerate(table_rows):
+        cells = _pdf_row_cells(row)
+        kind = _pdf_row_kind(row, r_idx, row_kinds)
+        data.append([body_cell(i, c) for i, c in enumerate(cells)])
+        if kind == "summary":
+            style_row = r_idx + 1
+            extra_style.append(("BACKGROUND", (0, style_row), (-1, style_row), colors.HexColor("#f8fafc")))
+            extra_style.append(("FONTNAME", (0, style_row), (-1, style_row), "Helvetica-Bold"))
     if context.get("pdf_footer_row"):
         fr = context["pdf_footer_row"]
+        footer_idx = len(data)
         data.append([Paragraph(str(c), num_style if i in numeric else cell_style) for i, c in enumerate(fr)])
+        extra_style.append(("BACKGROUND", (0, footer_idx), (-1, footer_idx), colors.HexColor(RL_BALANCE_BG)))
+        extra_style.append(("FONTNAME", (0, footer_idx), (-1, footer_idx), "Helvetica-Bold"))
+        extra_style.append(("LINEABOVE", (0, footer_idx), (-1, footer_idx), 0.8, colors.HexColor(RL_NAVY)))
 
     width_pcts = context.get("pdf_column_widths")
     if width_pcts and len(width_pcts) == col_count:
@@ -1000,11 +1115,13 @@ def _rl_main_table(context, avail, cell_style):
     # tint the Type/badge cells
     if isinstance(badge_idx, int) and 0 <= badge_idx < col_count:
         for r, row in enumerate(table_rows, start=1):
-            val = str(row[badge_idx]).upper() if badge_idx < len(row) else ""
+            cells = _pdf_row_cells(row)
+            val = str(cells[badge_idx]).upper() if badge_idx < len(cells) else ""
             if val == "DEBIT":
                 style.append(("BACKGROUND", (badge_idx, r), (badge_idx, r), colors.HexColor(RL_DEBIT_BG)))
             elif val == "CREDIT":
                 style.append(("BACKGROUND", (badge_idx, r), (badge_idx, r), colors.HexColor(RL_CREDIT_BG)))
+    style.extend(extra_style)
     t.setStyle(TableStyle(style))
     return t
 
@@ -1158,7 +1275,7 @@ def render_or_pdf(request, template_name, context, filename):
         from accounts_core.export_utils import build_xlsx_response
 
         headers = merged.get("pdf_table_headers") or []
-        rows = merged.get("pdf_table_rows") or []
+        rows = [_pdf_row_cells(r) for r in (merged.get("pdf_table_rows") or [])]
         xlsx_name = filename.replace(".pdf", "") if filename.endswith(".pdf") else filename
         return build_xlsx_response(xlsx_name, headers, rows)
     if export_fmt != "pdf":
