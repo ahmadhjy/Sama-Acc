@@ -19,6 +19,7 @@ from reporting.statement_summary import (
     build_client_summary_rows,
     build_supplier_summary_rows,
     summarize_totals,
+    summarize_supplier_totals,
 )
 from reporting.statement_running import annotate_client_statement_rows, annotate_supplier_statement_rows
 from reporting.supplier_statement_rows import build_supplier_statement_rows
@@ -239,7 +240,7 @@ def all_suppliers_statement(request):
     if q:
         suppliers = suppliers.filter(Q(name__icontains=q) | Q(supplier_code__icontains=q))
     rows = build_supplier_summary_rows(suppliers, df, dt)
-    tot_dr, tot_cr, bal_dr, bal_cr, total_balance = summarize_totals(rows)
+    tot_dr, tot_cr, bal_dr, bal_cr, total_balance = summarize_supplier_totals(rows)
     return render_or_pdf(
         request,
         "reporting/all_suppliers_statement.html",

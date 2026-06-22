@@ -72,6 +72,43 @@ class ClientBalanceOverpaymentTests(TestCase):
         self.assertEqual(running, Decimal("-300.00"))
 
 
+class SupplierSummaryBalanceTests(TestCase):
+    def test_movement_balance_when_debit_greater(self):
+        from reporting.statement_summary import _split_movement_balance_dr_cr, summarize_supplier_totals
+
+        bal_dr, bal_cr = _split_movement_balance_dr_cr(Decimal("500"), Decimal("200"))
+        self.assertEqual(bal_dr, Decimal("300"))
+        self.assertEqual(bal_cr, Decimal("0"))
+
+        rows = [
+            {"tot_dr": Decimal("500"), "tot_cr": Decimal("200"), "bal_dr": Decimal("300"), "bal_cr": Decimal("0")},
+        ]
+        tot_dr, tot_cr, foot_bal_dr, foot_bal_cr, total_balance = summarize_supplier_totals(rows)
+        self.assertEqual(tot_dr, Decimal("500"))
+        self.assertEqual(tot_cr, Decimal("200"))
+        self.assertEqual(foot_bal_dr, Decimal("300"))
+        self.assertEqual(foot_bal_cr, Decimal("0"))
+        self.assertEqual(total_balance, Decimal("300"))
+
+    def test_movement_balance_when_credit_greater(self):
+        from reporting.statement_summary import _split_movement_balance_dr_cr, summarize_supplier_totals
+
+        bal_dr, bal_cr = _split_movement_balance_dr_cr(Decimal("150"), Decimal("400"))
+        self.assertEqual(bal_dr, Decimal("0"))
+        self.assertEqual(bal_cr, Decimal("250"))
+
+        rows = [
+            {"tot_dr": Decimal("100"), "tot_cr": Decimal("300"), "bal_dr": Decimal("0"), "bal_cr": Decimal("200")},
+            {"tot_dr": Decimal("50"), "tot_cr": Decimal("100"), "bal_dr": Decimal("0"), "bal_cr": Decimal("50")},
+        ]
+        tot_dr, tot_cr, foot_bal_dr, foot_bal_cr, total_balance = summarize_supplier_totals(rows)
+        self.assertEqual(tot_dr, Decimal("150"))
+        self.assertEqual(tot_cr, Decimal("400"))
+        self.assertEqual(foot_bal_dr, Decimal("0"))
+        self.assertEqual(foot_bal_cr, Decimal("250"))
+        self.assertEqual(total_balance, Decimal("250"))
+
+
 class SupplierStatementServiceDateTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="sup1", password="test12345")

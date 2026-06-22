@@ -19,6 +19,17 @@ def _split_balance_dr_cr(net):
     return Decimal("0.00"), Decimal("0.00")
 
 
+def _split_movement_balance_dr_cr(debit, credit):
+    """Put period movement difference in debit or credit balance column, not both."""
+    debit = debit or Decimal("0.00")
+    credit = credit or Decimal("0.00")
+    if debit > credit:
+        return debit - credit, Decimal("0.00")
+    if credit > debit:
+        return Decimal("0.00"), credit - debit
+    return Decimal("0.00"), Decimal("0.00")
+
+
 def _client_period_movement(client, date_from=None, date_to=None):
     sub = build_client_statement_rows(client, date_from, date_to)
     debit = sum((r["debit"] for r in sub), Decimal("0.00"))
@@ -82,7 +93,7 @@ def build_supplier_summary_rows(suppliers, date_from=None, date_to=None):
         row_curr = bill_q.order_by("-bill_date").values_list("currency", flat=True).first()
         if not row_curr:
             row_curr = supplier.default_currency or "USD"
-        bal_dr, bal_cr = _split_balance_dr_cr(closing)
+        bal_dr, bal_cr = _split_movement_balance_dr_cr(debit, credit)
         rows.append(
             {
                 "account": supplier.supplier_code,
@@ -93,7 +104,7 @@ def build_supplier_summary_rows(suppliers, date_from=None, date_to=None):
                 "tot_cr": credit,
                 "bal_dr": bal_dr,
                 "bal_cr": bal_cr,
-                "net_balance": closing,
+                "net_balance": bal_dr + bal_cr,
             }
         )
     return rows
@@ -105,4 +116,12 @@ def summarize_totals(rows):
     bal_dr = sum((r["bal_dr"] for r in rows), Decimal("0.00"))
     bal_cr = sum((r["bal_cr"] for r in rows), Decimal("0.00"))
     total_balance = bal_dr - bal_cr
+    return tot_dr, tot_cr, bal_dr, bal_cr, total_balance
+
+
+def summarize_supplier_totals(rows):
+    tot_dr = sum((r["tot_dr"] for r in rows), Decimal("0.00"))
+    tot_cr = sum((r["tot_cr"] for r in rows), Decimal("0.00"))
+    bal_dr, bal_cr = _split_movement_balance_dr_cr(tot_dr, tot_cr)
+    total_balance = bal_dr + bal_cr
     return tot_dr, tot_cr, bal_dr, bal_cr, total_balance
