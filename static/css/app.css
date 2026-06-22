@@ -531,6 +531,63 @@ td .btn {
 .badge-today { background: #fef3c7; color: #92400e; }
 .badge-upcoming { background: #dbeafe; color: #1e40af; }
 
+/* Compact data tables */
+.table-compact th,
+.table-compact td {
+    padding: 10px 12px;
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+.table-compact th.num,
+.table-compact td.num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.table-compact .block-sub {
+    display: block;
+    font-size: 11px;
+    margin-top: 2px;
+}
+
+.table-compact .table-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+    white-space: nowrap;
+}
+
+.table-compact .btn-sm {
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+.invoice-list-table .invoice-list-service {
+    color: var(--color-muted, #64748b);
+    font-size: 13px;
+}
+
+.invoice-list-table .row-voided td {
+    color: #94a3b8;
+}
+
+.invoice-list-table .row-voided .invoice-list-service {
+    color: #94a3b8;
+}
+
+.detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.detail-actions .inline-form {
+    display: inline;
+    margin: 0;
+}
+
 /* Alerts */
 .alert {
     padding: 12px 16px;

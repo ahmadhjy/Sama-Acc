@@ -40,7 +40,7 @@ def reports_home(request):
 
     df, dt, _ = resolve_report_dates(request)
 
-    inv_q = SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED)
+    inv_q = SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
     bill_q = SupplierBill.objects.filter(status=SupplierBill.Status.POSTED)
     pay_q = Payment.objects.filter(status=Payment.Status.POSTED)
     cogs_q = SupplierBill.objects.filter(status=SupplierBill.Status.POSTED, lines__line_kind="SERVICE")
@@ -154,7 +154,7 @@ def ar_aging(request):
     today = date.today()
     df, dt, _ = resolve_report_dates(request)
     data = []
-    qs = SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED).select_related("client")
+    qs = SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses()).select_related("client")
     if df:
         qs = qs.filter(issue_date__gte=df)
     if dt:
@@ -366,7 +366,7 @@ def activity_trial_balance(request):
     """P&L-style trial listing from posted sales, COGS service lines, and OPEX lines."""
     df, dt, _ = resolve_report_dates(request)
 
-    inv = SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED)
+    inv = SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
     if df:
         inv = inv.filter(issue_date__gte=df)
     if dt:
@@ -499,7 +499,7 @@ def clients_trial_balance(request):
         closing = opening + debit - credit
         if debit == 0 and credit == 0 and opening == 0 and closing == 0:
             continue
-        inv_q = SalesInvoice.objects.filter(client=client, status=SalesInvoice.Status.POSTED)
+        inv_q = SalesInvoice.objects.filter(client=client, status__in=SalesInvoice.reporting_statuses())
         if df:
             inv_q = inv_q.filter(issue_date__gte=df)
         if dt:

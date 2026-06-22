@@ -22,13 +22,14 @@ class SalesInvoiceWorkflowTests(TestCase):
         self.supplier = Supplier.objects.create(supplier_code="S-TKT", name="Airline Supplier", managing_number="+971500000000")
         self.service_instance = ServiceInstance.objects.create(service_type=self.service_type, data={"pnr": "ABC123"})
 
-    def test_post_invoice_calculates_totals(self):
+    def _create_ready_invoice(self, invoice_no="TMP-1", currency="USD", exchange_rate=None):
         invoice = SalesInvoice.objects.create(
-            invoice_no="TMP-1",
+            invoice_no=invoice_no,
             client=self.client_obj,
             sales_employee=self.employee,
             issue_date=date.today(),
-            currency="USD",
+            currency=currency,
+            exchange_rate_to_usd=exchange_rate,
         )
         SalesInvoiceLine.objects.create(
             invoice=invoice,
@@ -44,9 +45,14 @@ class SalesInvoiceWorkflowTests(TestCase):
         )
         invoice.refresh_from_db()
         invoice.recalc_usd_amounts()
-        invoice.post(self.user)
+        return invoice
+
+    def test_publish_invoice_calculates_totals(self):
+        invoice = self._create_ready_invoice()
+        invoice.publish_changes(self.user)
         invoice.refresh_from_db()
         self.assertEqual(invoice.status, SalesInvoice.Status.POSTED)
+        self.assertTrue(invoice.invoice_no.startswith("INV-"))
         self.assertEqual(invoice.subtotal, Decimal("200"))
         self.assertEqual(invoice.discount_total, Decimal("10"))
         self.assertEqual(invoice.grand_total, Decimal("190"))
@@ -55,23 +61,14 @@ class SalesInvoiceWorkflowTests(TestCase):
         self.assertEqual(posted_bills.count(), 1)
         self.assertEqual(posted_bills.first().currency, "USD")
 
-    def test_post_non_usd_invoice_uses_fx_for_usd_amounts(self):
+    def test_publish_non_usd_invoice_uses_fx_for_usd_amounts(self):
         Currency.objects.get_or_create(code="EUR", defaults={"name": "Euro", "is_active": True, "sort_order": 2})
-        invoice = SalesInvoice.objects.create(
+        invoice = self._create_ready_invoice(
             invoice_no="TMP-EUR",
-            client=self.client_obj,
-            sales_employee=self.employee,
-            issue_date=date.today(),
             currency="EUR",
-            exchange_rate_to_usd=Decimal("1.20"),
+            exchange_rate=Decimal("1.20"),
         )
-        SalesInvoiceLine.objects.create(
-            invoice=invoice,
-            supplier=self.supplier,
-            service_type=self.service_type,
-            service_instance=self.service_instance,
-            destination=self.destination,
-            line_employee=self.employee,
+        SalesInvoiceLine.objects.filter(invoice=invoice).update(
             qty=Decimal("1"),
             sell_price=Decimal("1000"),
             cost_price=Decimal("880"),
@@ -79,7 +76,7 @@ class SalesInvoiceWorkflowTests(TestCase):
         )
         invoice.refresh_from_db()
         invoice.recalc_usd_amounts()
-        invoice.post(self.user)
+        invoice.publish_changes(self.user)
         invoice.refresh_from_db()
         self.assertEqual(invoice.grand_total_usd, Decimal("1200.00"))
         bill = SupplierBill.objects.filter(supplier=self.supplier, status=SupplierBill.Status.POSTED).order_by("-created_at").first()
@@ -87,7 +84,7 @@ class SalesInvoiceWorkflowTests(TestCase):
         self.assertEqual(bill.currency, "USD")
         self.assertEqual(bill.grand_total, Decimal("1056.00"))
 
-    def test_cannot_post_without_lines(self):
+    def test_cannot_publish_without_lines(self):
         invoice = SalesInvoice.objects.create(
             invoice_no="TMP-2",
             client=self.client_obj,
@@ -96,9 +93,9 @@ class SalesInvoiceWorkflowTests(TestCase):
             currency="USD",
         )
         with self.assertRaises(ValueError):
-            invoice.post(self.user)
+            invoice.publish_changes(self.user)
 
-    def test_cannot_post_without_client(self):
+    def test_cannot_publish_without_client(self):
         invoice = SalesInvoice.objects.create(
             invoice_no="TMP-NC",
             sales_employee=self.employee,
@@ -117,7 +114,7 @@ class SalesInvoiceWorkflowTests(TestCase):
         )
         invoice.recalc_usd_amounts()
         with self.assertRaises(ValueError) as ctx:
-            invoice.post(self.user)
+            invoice.publish_changes(self.user)
         self.assertIn("client", str(ctx.exception).lower())
 
     def test_draft_save_without_lines_or_client(self):
@@ -145,52 +142,45 @@ class SalesInvoiceWorkflowTests(TestCase):
             status=SalesInvoice.Status.VOIDED,
         )
         self.assertTrue(voided.can_delete())
-        posted = SalesInvoice.objects.create(
-            invoice_no="TMP-PST",
-            client=self.client_obj,
-            sales_employee=self.employee,
-            issue_date=date.today(),
-            currency="USD",
-        )
-        SalesInvoiceLine.objects.create(
-            invoice=posted,
-            supplier=self.supplier,
-            service_type=self.service_type,
-            service_instance=self.service_instance,
-            destination=self.destination,
-            line_employee=self.employee,
-            qty=Decimal("1"),
-            sell_price=Decimal("50"),
-        )
-        posted.recalc_usd_amounts()
-        posted.post(self.user)
+        posted = self._create_ready_invoice(invoice_no="TMP-PST")
+        posted.publish_changes(self.user)
         self.assertFalse(posted.can_delete())
 
-    def test_cannot_change_grand_total_after_post(self):
-        invoice = SalesInvoice.objects.create(
-            invoice_no="TMP-LOCK",
-            client=self.client_obj,
-            sales_employee=self.employee,
-            issue_date=date.today(),
-            currency="USD",
-        )
-        SalesInvoiceLine.objects.create(
-            invoice=invoice,
-            supplier=self.supplier,
-            service_type=self.service_type,
-            service_instance=self.service_instance,
-            destination=self.destination,
-            line_employee=self.employee,
+    def test_can_edit_posted_invoice_totals(self):
+        invoice = self._create_ready_invoice(invoice_no="TMP-LOCK")
+        SalesInvoiceLine.objects.filter(invoice=invoice).update(
             qty=Decimal("1"),
             sell_price=Decimal("50"),
             line_discount=Decimal("0"),
         )
         invoice.refresh_from_db()
         invoice.recalc_usd_amounts()
-        invoice.post(self.user)
+        invoice.publish_changes(self.user)
         invoice.grand_total = Decimal("99")
-        with self.assertRaises(ValueError):
-            invoice.save()
+        invoice.save()
+        invoice.refresh_from_db()
+        self.assertEqual(invoice.grand_total, Decimal("99"))
+
+    def test_republish_syncs_supplier_bills(self):
+        invoice = self._create_ready_invoice(invoice_no="TMP-SYNC")
+        SalesInvoiceLine.objects.filter(invoice=invoice).update(
+            qty=Decimal("1"),
+            sell_price=Decimal("100"),
+            cost_price=Decimal("50"),
+            line_discount=Decimal("0"),
+        )
+        invoice.refresh_from_db()
+        invoice.recalc_usd_amounts()
+        invoice.publish_changes(self.user)
+        self.assertEqual(SupplierBill.objects.filter(supplier=self.supplier).count(), 1)
+        line = invoice.lines.first()
+        line.cost_price = Decimal("60")
+        line.save()
+        invoice.recalc_usd_amounts()
+        invoice.publish_changes(self.user)
+        self.assertEqual(SupplierBill.objects.filter(supplier=self.supplier).count(), 1)
+        bill = SupplierBill.objects.filter(supplier=self.supplier).first()
+        self.assertEqual(bill.grand_total, Decimal("60.00"))
 
 
 class InvoiceLineOrderTests(TestCase):
@@ -241,7 +231,7 @@ class InvoiceLineOrderTests(TestCase):
 
         create_resp = self.http.post(reverse("sales:invoice_create"), payload)
         self.assertEqual(create_resp.status_code, 302)
-        invoice = SalesInvoice.objects.get(invoice_no="TMP-ORDER")
+        invoice = SalesInvoice.objects.get(client=self.client_obj, sales_employee=self.employee)
         notes = list(invoice.lines.values_list("notes", flat=True))
         self.assertEqual(notes, ["line-0", "line-1", "line-2", "line-3"])
 
@@ -253,3 +243,24 @@ class InvoiceLineOrderTests(TestCase):
         pos2 = content.index("line-2")
         pos3 = content.index("line-3")
         self.assertTrue(pos0 < pos1 < pos2 < pos3)
+
+    def test_posted_invoice_can_be_edited(self):
+        invoice = SalesInvoice.objects.create(
+            invoice_no="TMP-EDIT",
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=date.today(),
+            currency="USD",
+            status=SalesInvoice.Status.POSTED,
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=invoice,
+            supplier=self.supplier,
+            service_type=self.service_type,
+            destination=self.destination,
+            line_employee=self.employee,
+            qty=Decimal("1"),
+            sell_price=Decimal("50"),
+        )
+        resp = self.http.get(reverse("sales:invoice_edit", kwargs={"invoice_id": invoice.id}))
+        self.assertEqual(resp.status_code, 200)

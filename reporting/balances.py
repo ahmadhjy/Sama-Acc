@@ -31,7 +31,7 @@ def client_ar_balance(client, on_or_before):
     inv = (
         SalesInvoice.objects.filter(
             client=client,
-            status=SalesInvoice.Status.POSTED,
+            status__in=SalesInvoice.reporting_statuses(),
             issue_date__lte=on_or_before,
         ).aggregate(t=Sum("grand_total_usd"))["t"]
         or Decimal("0.00")
@@ -48,7 +48,7 @@ def supplier_ap_balance(supplier, on_or_before):
         return Decimal("0.00")
     lines = SalesInvoiceLine.objects.filter(
         supplier=supplier,
-        invoice__status=SalesInvoice.Status.POSTED,
+        invoice__status__in=SalesInvoice.reporting_statuses(),
         service_date__lte=on_or_before,
     )
     costs = sum((line.line_cost_amount_usd() for line in lines), Decimal("0.00"))
@@ -59,7 +59,7 @@ def supplier_ap_balance(supplier, on_or_before):
 def supplier_line_purchases(supplier, date_from=None, date_to=None):
     lines = SalesInvoiceLine.objects.filter(
         supplier=supplier,
-        invoice__status=SalesInvoice.Status.POSTED,
+        invoice__status__in=SalesInvoice.reporting_statuses(),
     )
     if date_from:
         lines = lines.filter(service_date__gte=date_from)

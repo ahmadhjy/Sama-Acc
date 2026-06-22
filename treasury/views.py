@@ -341,7 +341,7 @@ def ar_allocation_create(request):
         invoice_remaining = invoice.grand_total - allocated_total
         payment_remaining = payment.remaining_amount
 
-        if payment.status != Payment.Status.POSTED or invoice.status != SalesInvoice.Status.POSTED:
+        if payment.status != Payment.Status.POSTED or invoice.status not in SalesInvoice.reporting_statuses():
             messages.error(request, "Allocation requires posted payment and posted invoice.")
         elif amount <= 0:
             messages.error(request, "Allocation amount must be greater than zero.")
@@ -358,7 +358,7 @@ def ar_allocation_create(request):
         "treasury/ar_allocation_form.html",
         {
             "payments": Payment.objects.filter(status=Payment.Status.POSTED, direction=Payment.Direction.IN).order_by("-date"),
-            "invoices": SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED).order_by("-issue_date"),
+            "invoices": SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses()).order_by("-issue_date"),
         },
     )
 

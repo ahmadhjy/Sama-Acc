@@ -13,44 +13,44 @@
     <button class="btn" type="submit">Filter</button>
     <a class="btn btn-clear hub-btn-clear" href="{% url 'sales:invoice_list' %}?{{ default_filter_query }}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
 </form>
-<table>
-    <thead><tr><th>No</th><th>Client</th><th>Date</th><th>Status</th><th>Type of service</th><th>Total (doc)</th><th>Total (USD)</th><th>Cost (doc)</th><th>Profit (USD)</th><th>Action</th></tr></thead>
+<table class="table-compact invoice-list-table">
+    <thead>
+        <tr>
+            <th>No</th>
+            <th>Client</th>
+            <th>Date</th>
+            <th>Service</th>
+            <th class="num">Total</th>
+            <th class="num">Cost</th>
+            <th class="num">Profit</th>
+            <th></th>
+        </tr>
+    </thead>
     <tbody>
     {% for invoice in invoices %}
-        <tr>
-            <td>{{ invoice.invoice_no }}</td>
-            <td>{{ invoice.client.name_en|default:"—" }}</td>
-            <td>{{ invoice.issue_date }}</td>
-            <td><span class="badge">{{ invoice.status }}</span></td>
-            <td>{% if invoice.package_type %}<span class="badge">{{ invoice.get_package_type_display }}</span>{% else %}—{% endif %}</td>
-            <td>{{ invoice.grand_total }} {{ invoice.currency }}</td>
-            <td>{{ invoice.grand_total_usd }} USD</td>
-            <td>{{ invoice.total_line_cost }} {{ invoice.currency }}</td>
-            <td>{{ invoice.profit_amount }} USD</td>
+        <tr{% if invoice.status == "VOIDED" %} class="row-voided"{% endif %}>
             <td>
-                {% if invoice.status == "DRAFT" %}
-                <a class="btn" href="{% url 'sales:invoice_open' invoice.id %}">View</a>
-                <a class="btn" href="{% url 'sales:invoice_edit' invoice.id %}">Edit</a>
-                <a class="btn" href="{% url 'sales:post_invoice' invoice.id %}" onclick="return confirm('Post this invoice?');">Post</a>
-                <form method="post" action="{% url 'sales:invoice_delete' invoice.id %}" style="display:inline;" onsubmit="return confirm('Delete this draft invoice permanently?');">
-                    {% csrf_token %}
-                    <button type="submit" class="btn">Delete</button>
-                </form>
-                {% elif invoice.status == "POSTED" %}
-                <a class="btn" href="{% url 'sales:invoice_open' invoice.id %}">View</a>
-                {% elif invoice.status == "VOIDED" %}
-                <a class="btn" href="{% url 'sales:invoice_open' invoice.id %}">View</a>
-                <form method="post" action="{% url 'sales:invoice_delete' invoice.id %}" style="display:inline;" onsubmit="return confirm('Delete this voided invoice permanently?');">
-                    {% csrf_token %}
-                    <button type="submit" class="btn">Delete</button>
-                </form>
-                {% else %}
-                <a class="btn" href="{% url 'sales:invoice_open' invoice.id %}">View</a>
+                {{ invoice.invoice_no }}
+                {% if invoice.status == "VOIDED" %}<span class="badge badge-VOIDED">Voided</span>{% endif %}
+            </td>
+            <td>{{ invoice.client.name_en|default:"—" }}</td>
+            <td>{{ invoice.issue_date|date:"M j, Y" }}</td>
+            <td class="invoice-list-service">{% if invoice.package_type %}{{ invoice.get_package_type_display }}{% else %}—{% endif %}</td>
+            <td class="num">
+                {{ invoice.grand_total }} {{ invoice.currency }}
+                {% if invoice.currency != "USD" %}<span class="muted block-sub">{{ invoice.grand_total_usd }} USD</span>{% endif %}
+            </td>
+            <td class="num">{{ invoice.total_line_cost|floatformat:2 }} {{ invoice.currency }}</td>
+            <td class="num">{{ invoice.profit_amount|floatformat:2 }} USD</td>
+            <td class="table-actions">
+                <a class="btn btn-sm" href="{% url 'sales:invoice_open' invoice.id %}">View</a>
+                {% if invoice.status != "VOIDED" %}
+                <a class="btn btn-sm" href="{% url 'sales:invoice_edit' invoice.id %}">Edit</a>
                 {% endif %}
             </td>
         </tr>
     {% empty %}
-        <tr><td colspan="10">No invoices found.</td></tr>
+        <tr><td colspan="8">No invoices found.</td></tr>
     {% endfor %}
     </tbody>
 </table>

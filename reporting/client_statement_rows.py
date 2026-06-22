@@ -31,7 +31,7 @@ def _payment_statement_description(payment: Payment) -> str:
 def build_client_statement_rows(client, date_from=None, date_to=None):
     """One debit row per posted invoice service line; one credit row per posted client payment."""
     invoices = (
-        SalesInvoice.objects.filter(client=client, status=SalesInvoice.Status.POSTED)
+        SalesInvoice.objects.filter(client=client, status__in=SalesInvoice.reporting_statuses())
         .prefetch_related(
             "lines__service_type__field_definitions",
             "lines__service_instance__service_type__field_definitions",

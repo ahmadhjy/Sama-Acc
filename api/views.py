@@ -36,8 +36,8 @@ class SalesInvoiceViewSet(viewsets.ModelViewSet):
     def post_doc(self, request, pk=None):
         invoice = self.get_object()
         try:
-            invoice.post(request.user)
-            return Response({"status": "posted", "invoice_no": invoice.invoice_no})
+            invoice.publish_changes(request.user)
+            return Response({"status": "active", "invoice_no": invoice.invoice_no})
         except Exception as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

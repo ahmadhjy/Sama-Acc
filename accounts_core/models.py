@@ -69,7 +69,7 @@ class Client(TimeStampedModel):
 
         from sales.models import SalesInvoice
 
-        posted_invoices = self.sales_invoices.filter(status=SalesInvoice.Status.POSTED)
+        posted_invoices = self.sales_invoices.filter(status__in=SalesInvoice.reporting_statuses())
         debit = posted_invoices.aggregate(total=Sum("grand_total")).get("total") or D("0.00")
         credit = posted_invoices.aggregate(total=Sum("allocations__allocated_amount")).get("total") or D("0.00")
         return debit - credit

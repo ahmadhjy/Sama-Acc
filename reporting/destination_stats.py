@@ -9,7 +9,7 @@ from sales.models import SalesInvoice, SalesInvoiceLine
 
 def build_destination_stats(date_from=None, date_to=None):
     lines = SalesInvoiceLine.objects.filter(
-        invoice__status=SalesInvoice.Status.POSTED,
+        invoice__status__in=SalesInvoice.reporting_statuses(),
         destination_id__isnull=False,
     ).select_related("destination", "service_type", "supplier", "invoice", "invoice__client")
 

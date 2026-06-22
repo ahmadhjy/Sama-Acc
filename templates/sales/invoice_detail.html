@@ -4,8 +4,13 @@
 <h1 class="title">Invoice {{ invoice.invoice_no }}</h1>
 <div class="panel">
     <p><strong>Client:</strong> {{ invoice.client.name_en|default:"—" }}</p>
-    <p><strong>Status:</strong> <span class="badge">{{ invoice.status }}</span>
-        {% if invoice.package_type %}<span class="badge">{{ invoice.get_package_type_display }}</span>{% endif %}
+    <p><strong>Status:</strong>
+        {% if invoice.status == "VOIDED" %}
+        <span class="badge badge-VOIDED">Voided</span>
+        {% else %}
+        <span class="badge badge-POSTED">Active</span>
+        {% endif %}
+        {% if invoice.package_type %}<span class="invoice-list-service">{{ invoice.get_package_type_display }}</span>{% endif %}
     </p>
     <p><strong>Issue / Due:</strong> {{ invoice.issue_date }} / {{ invoice.due_date }}</p>
     <p><strong>Currency:</strong> {{ invoice.currency }}
@@ -45,30 +50,27 @@
     </tbody>
 </table>
 
-<p style="margin-top:14px;">
+<div class="detail-actions" style="margin-top:14px;">
     <a class="btn" href="{% url 'sales:invoice_pdf' invoice.id %}?version=client">PDF (Client)</a>
     <a class="btn" href="{% url 'sales:invoice_pdf' invoice.id %}?version=accountant">PDF (Accountant)</a>
-    {% if invoice.status == "DRAFT" %}
-    <a class="btn" href="{% url 'sales:invoice_edit' invoice.id %}">Edit Draft</a>
-    <a class="btn" href="{% url 'sales:post_invoice' invoice.id %}" onclick="return confirm('Post this invoice?');">Post</a>
-    {% elif invoice.status == "POSTED" %}
-        {% if can_adjust %}
-        <a class="btn" href="{% url 'sales:adjust_invoice' invoice.id %}">Adjust</a>
-        {% endif %}
-        <form method="post" action="{% url 'sales:void_invoice' invoice.id %}" style="display:inline;" onsubmit="return confirm('Void this invoice? This cannot be undone.');">
-            {% csrf_token %}
-            <input type="hidden" name="reason" value="Void from invoice view">
-            <button type="submit" class="btn">Void</button>
-        </form>
+    {% if can_edit %}
+    <a class="btn" href="{% url 'sales:invoice_edit' invoice.id %}">Edit</a>
+    {% endif %}
+    {% if can_void %}
+    <form method="post" action="{% url 'sales:void_invoice' invoice.id %}" class="inline-form" onsubmit="return confirm('Void this invoice? This cannot be undone.');">
+        {% csrf_token %}
+        <input type="hidden" name="reason" value="Void from invoice view">
+        <button type="submit" class="btn">Void</button>
+    </form>
     {% endif %}
     {% if can_delete %}
-    <form method="post" action="{% url 'sales:invoice_delete' invoice.id %}" style="display:inline;" onsubmit="return confirm('Delete this invoice permanently?');">
+    <form method="post" action="{% url 'sales:invoice_delete' invoice.id %}" class="inline-form" onsubmit="return confirm('Delete this invoice permanently?');">
         {% csrf_token %}
         <button type="submit" class="btn">Delete</button>
     </form>
     {% endif %}
     <a class="btn" href="{% url 'sales:invoice_list' %}">Back to list</a>
-</p>
+</div>
 
 {% if attachments %}
 <h3>Attachments</h3>

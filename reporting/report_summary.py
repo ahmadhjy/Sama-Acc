@@ -14,7 +14,7 @@ from treasury.models import Payment
 def build_report_summary(request):
     df, dt, _ = resolve_report_dates(request)
 
-    inv_q = SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED)
+    inv_q = SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
     bill_q = SupplierBill.objects.filter(status=SupplierBill.Status.POSTED)
     pay_q = Payment.objects.filter(status=Payment.Status.POSTED)
     cogs_q = SupplierBill.objects.filter(status=SupplierBill.Status.POSTED, lines__line_kind="SERVICE")

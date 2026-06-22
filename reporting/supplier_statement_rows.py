@@ -41,7 +41,7 @@ def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
     lines = (
         SalesInvoiceLine.objects.filter(
             supplier=supplier,
-            invoice__status=SalesInvoice.Status.POSTED,
+            invoice__status__in=SalesInvoice.reporting_statuses(),
         )
         .select_related(
             "invoice",

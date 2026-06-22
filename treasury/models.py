@@ -125,8 +125,8 @@ class ARAllocation(models.Model):
             raise ValueError("AR allocations require IN payment direction.")
         if self.payment.status != Payment.Status.POSTED:
             raise ValueError("Allocation requires posted payment.")
-        if self.sales_invoice.status != self.sales_invoice.Status.POSTED:
-            raise ValueError("Allocation requires posted invoice.")
+        if self.sales_invoice.status not in self.sales_invoice.reporting_statuses():
+            raise ValueError("Allocation requires an active invoice.")
         if self.allocated_amount <= 0:
             raise ValueError("Allocated amount must be greater than zero.")
         if self.allocated_amount > self.payment.remaining_amount:

@@ -18,7 +18,7 @@ def auto_allocate_payment(payment: Payment) -> None:
         if remaining <= 0:
             return
         invoices = (
-            SalesInvoice.objects.filter(client=payment.client, status=SalesInvoice.Status.POSTED)
+            SalesInvoice.objects.filter(client=payment.client, status__in=SalesInvoice.reporting_statuses())
             .order_by("due_date", "issue_date", "created_at")
             .prefetch_related("allocations")
         )

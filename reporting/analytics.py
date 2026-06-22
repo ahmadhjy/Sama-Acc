@@ -13,7 +13,7 @@ from treasury.models import Payment
 
 
 def _lines_cost_usd(date_from=None, date_to=None):
-    qs = SalesInvoiceLine.objects.filter(invoice__status=SalesInvoice.Status.POSTED)
+    qs = SalesInvoiceLine.objects.filter(invoice__status__in=SalesInvoice.reporting_statuses())
     if date_from:
         qs = qs.filter(service_date__gte=date_from)
     if date_to:
@@ -28,7 +28,7 @@ def build_dashboard_analytics(request):
     date_from, date_to, period_label = resolve_report_dates(request)
     today = date.today()
 
-    inv_q = SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED)
+    inv_q = SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
     if date_from:
         inv_q = inv_q.filter(issue_date__gte=date_from)
     if date_to:
@@ -66,7 +66,7 @@ def build_dashboard_analytics(request):
 
     receivables_due = []
     for inv in (
-        SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED)
+        SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
         .select_related("client")
         .order_by("due_date", "issue_date")
     ):
@@ -100,7 +100,7 @@ def build_dashboard_analytics(request):
     for emp in Employee.objects.filter(role=Employee.EmployeeRole.SALES).order_by("name"):
         lines = SalesInvoiceLine.objects.filter(
             line_employee=emp,
-            invoice__status=SalesInvoice.Status.POSTED,
+            invoice__status__in=SalesInvoice.reporting_statuses(),
         )
         if date_from:
             lines = lines.filter(service_date__gte=date_from)
@@ -149,7 +149,7 @@ def build_dashboard_analytics(request):
             m_end = date(yy, mm + 1, 1) - timedelta(days=1)
         m_rev = (
             SalesInvoice.objects.filter(
-                status=SalesInvoice.Status.POSTED,
+                status__in=SalesInvoice.reporting_statuses(),
                 issue_date__gte=m_start,
                 issue_date__lte=m_end,
             ).aggregate(t=Sum("grand_total_usd"))["t"]
@@ -181,7 +181,7 @@ def build_dashboard_analytics(request):
 
     ar_buckets = {"current": Decimal("0"), "b0_30": Decimal("0"), "b31_60": Decimal("0"), "b61_90": Decimal("0"), "b90": Decimal("0")}
     today_d = today
-    for inv in SalesInvoice.objects.filter(status=SalesInvoice.Status.POSTED).select_related("client"):
+    for inv in SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses()).select_related("client"):
         allocated = sum((a.allocated_amount for a in inv.allocations.all()), Decimal("0.00"))
         remaining = (inv.grand_total or Decimal("0")) - allocated
         if remaining <= 0:

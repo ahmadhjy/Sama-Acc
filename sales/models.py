@@ -89,6 +89,14 @@ class SalesInvoice(models.Model):
     def __str__(self):
         return self.invoice_no or str(self.pk)
 
+    @classmethod
+    def reporting_statuses(cls):
+        """Invoices that affect statements, balances, and allocations."""
+        return (cls.Status.DRAFT, cls.Status.POSTED)
+
+    def is_editable(self):
+        return self.status != self.Status.VOIDED
+
     def document_currency_is_usd(self):
         return (self.currency or "USD").upper() == "USD"
 
@@ -160,6 +168,23 @@ class SalesInvoice(models.Model):
             )
         self.save(update_fields=["subtotal", "discount_total", "grand_total", "grand_total_usd"])
 
+    def _clear_auto_supplier_bills(self):
+        """Remove supplier bills auto-created from this invoice's service lines."""
+        from purchases.models import SupplierBill, SupplierBillLine
+
+        bill_ids = (
+            SupplierBillLine.objects.filter(sales_invoice_line__invoice=self)
+            .values_list("bill_id", flat=True)
+            .distinct()
+        )
+        for bill in SupplierBill.objects.filter(pk__in=bill_ids):
+            if bill.allocations.exists():
+                raise ValueError(
+                    "Cannot update invoice costs: a linked supplier bill has payment allocations. "
+                    "De-allocate payments first."
+                )
+            bill.delete()
+
     def _create_posted_supplier_bills_from_lines(self, lines, user=None):
         """
         Create and post supplier bills from invoice service-line costs.
@@ -211,45 +236,36 @@ class SalesInvoice(models.Model):
             self.issue_date = timezone.localdate()
         if self.issue_date and self.due_date is None:
             self.due_date = self.issue_date
-        if self.pk:
-            existing = SalesInvoice.objects.filter(pk=self.pk).only(
-                "status", "grand_total", "currency", "exchange_rate_to_usd"
-            ).first()
-            if existing and existing.status != self.Status.DRAFT:
-                if self.grand_total != existing.grand_total:
-                    raise ValueError(
-                        "Cannot change the total selling price after the invoice is posted or voided."
-                    )
-                if (self.currency or "") != (existing.currency or ""):
-                    raise ValueError("Cannot change invoice currency after the invoice is posted or voided.")
-                ex = self.exchange_rate_to_usd
-                ex0 = existing.exchange_rate_to_usd
-                if ex != ex0 and not (ex is None and ex0 is None):
-                    raise ValueError("Cannot change the exchange rate after the invoice is posted or voided.")
         super().save(*args, **kwargs)
 
-    @transaction.atomic
-    def post(self, user=None):
-        if self.status != self.Status.DRAFT:
-            raise ValueError("Only draft invoices can be posted.")
+    def _publish_validation_lines(self):
         if not self.client_id:
-            raise ValueError("Select a client before posting.")
+            raise ValueError("Select a client before saving.")
         if not self.sales_employee_id:
-            raise ValueError("Select the sales employee before posting.")
+            raise ValueError("Select the sales employee before saving.")
         if not self.issue_date:
-            raise ValueError("Set the issue date before posting.")
+            raise ValueError("Set the issue date before saving.")
         lines = list(
             self.lines.select_related("service_type", "service_instance__service_type", "supplier").prefetch_related(
                 "service_type__field_definitions"
             )
         )
         if not lines:
-            raise ValueError("Cannot post invoice without lines.")
+            raise ValueError("Add at least one service line before saving.")
         for line in lines:
             line.validate_line_data()
         r = self.get_effective_rate_to_usd()
         if r is None:
-            raise ValueError("Set the exchange rate (USD per 1 unit of invoice currency) before posting.")
+            raise ValueError("Set the exchange rate (USD per 1 unit of invoice currency) before saving.")
+        return lines
+
+    @transaction.atomic
+    def publish_changes(self, user=None):
+        """Validate, assign invoice number, sync supplier bills, and mark invoice active."""
+        if self.status == self.Status.VOIDED:
+            raise ValueError("Voided invoices cannot be updated.")
+        was_active = self.status == self.Status.POSTED
+        lines = self._publish_validation_lines()
         self.recalc_usd_amounts()
         lines = list(
             self.lines.select_related("service_type", "service_instance__service_type", "supplier").prefetch_related(
@@ -265,16 +281,24 @@ class SalesInvoice(models.Model):
             from accounts_core.models import DocumentSequence
 
             self.invoice_no = DocumentSequence.next_value("INV", "INV-", self.issue_date.year)
+        if was_active:
+            self._clear_auto_supplier_bills()
         self._create_posted_supplier_bills_from_lines(lines, user)
+        if not was_active:
+            self.posted_by = user
+            self.posted_at = timezone.now()
         self.status = self.Status.POSTED
-        self.posted_by = user
-        self.posted_at = timezone.now()
         self.save()
+
+    @transaction.atomic
+    def post(self, user=None):
+        """Backward-compatible alias for publish_changes."""
+        return self.publish_changes(user)
 
     def void(self, user, reason):
         if self.status == self.Status.VOIDED:
             return
-        if self.status == self.Status.POSTED and self.allocations.exists():
+        if self.status in self.reporting_statuses() and self.allocations.exists():
             raise ValueError("Cannot void invoice with existing allocations.")
         self.status = self.Status.VOIDED
         self.void_reason = reason

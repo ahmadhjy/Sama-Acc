@@ -42,7 +42,7 @@ def build_client_summary_rows(clients, date_from=None, date_to=None):
         closing = opening + debit - credit
         if debit == 0 and credit == 0 and opening == 0 and closing == 0:
             continue
-        inv_q = SalesInvoice.objects.filter(client=client, status=SalesInvoice.Status.POSTED)
+        inv_q = SalesInvoice.objects.filter(client=client, status__in=SalesInvoice.reporting_statuses())
         if date_from:
             inv_q = inv_q.filter(issue_date__gte=date_from)
         if date_to:

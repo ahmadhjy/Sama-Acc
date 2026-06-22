@@ -31,6 +31,14 @@ def _save_draft_invoice_with_recalc(form, formset, request=None):
     inv.recalc_usd_amounts()
     if request:
         _save_invoice_attachments(request, inv)
+    user = request.user if request and request.user.is_authenticated else None
+    try:
+        inv.publish_changes(user)
+        if request:
+            log_document_event(DocumentEventLog.EventType.POSTED, inv, user)
+    except ValueError as exc:
+        if request:
+            messages.warning(request, f"Invoice saved as draft: {exc}")
     return inv
 
 
@@ -154,9 +162,9 @@ def invoice_edit(request, invoice_id):
     invoice = get_object_or_404(SalesInvoice, pk=invoice_id)
     can_view_cost = not request.user.groups.filter(name="Sales").exists()
     line_formset_cls = SalesInvoiceLineFormSet if can_view_cost else SalesInvoiceLineSalesFormSet
-    if invoice.status != SalesInvoice.Status.DRAFT:
-        messages.warning(request, "Only draft invoices can be edited.")
-        return redirect("sales:invoice_list")
+    if not invoice.is_editable():
+        messages.warning(request, "Voided invoices cannot be edited.")
+        return redirect("sales:invoice_open", invoice_id=invoice.id)
     if request.method == "POST":
         form = SalesInvoiceForm(request.POST, instance=invoice)
         formset = line_formset_cls(request.POST, instance=invoice)
@@ -177,13 +185,10 @@ def invoice_edit(request, invoice_id):
 
 @login_required
 def invoice_open(request, invoice_id):
-    """Read-only invoice view before actions like adjust/void."""
+    """Read-only invoice view with void/delete actions."""
     invoice = get_object_or_404(SalesInvoice, pk=invoice_id)
-    can_adjust = (
-        invoice.status == SalesInvoice.Status.POSTED
-        and not invoice.allocations.exists()
-        and (request.user.is_superuser or request.user.groups.filter(name__in=["Accounting", "Admin"]).exists())
-    )
+    can_edit = invoice.is_editable()
+    can_void = invoice.is_editable() and not invoice.allocations.exists()
     return render(
         request,
         "sales/invoice_detail.html",
@@ -193,7 +198,8 @@ def invoice_open(request, invoice_id):
                 "service_type", "supplier", "line_employee", "destination"
             ).all(),
             "attachments": invoice.attachments.all(),
-            "can_adjust": can_adjust,
+            "can_edit": can_edit,
+            "can_void": can_void,
             "can_delete": invoice.can_delete()
             and not invoice.allocations.exists()
             and not invoice.credit_notes.exists(),
@@ -236,7 +242,10 @@ def invoice_pdf(request, invoice_id):
 @login_required
 @require_http_methods(["POST"])
 def invoice_delete_attachment(request, invoice_id, attachment_id):
-    invoice = get_object_or_404(SalesInvoice, pk=invoice_id, status=SalesInvoice.Status.DRAFT)
+    invoice = get_object_or_404(SalesInvoice, pk=invoice_id)
+    if not invoice.is_editable():
+        messages.error(request, "Attachments cannot be removed from voided invoices.")
+        return redirect("sales:invoice_open", invoice_id=invoice.id)
     att = get_object_or_404(SalesInvoiceAttachment, pk=attachment_id, invoice=invoice)
     att.file.delete(save=False)
     att.delete()
@@ -270,15 +279,9 @@ def invoice_delete(request, invoice_id):
 
 @login_required
 def post_invoice(request, invoice_id):
-    invoice = get_object_or_404(SalesInvoice, pk=invoice_id)
-    try:
-        invoice.post(request.user if request.user.is_authenticated else None)
-        log_document_event(DocumentEventLog.EventType.POSTED, invoice, request.user)
-        log_audit("POST_INVOICE", invoice, actor=request.user)
-        messages.success(request, f"Invoice {invoice.invoice_no} posted successfully.")
-    except Exception as exc:
-        messages.error(request, str(exc))
-    return redirect("sales:invoice_list")
+    """Posting is automatic on save; keep URL for old bookmarks."""
+    messages.info(request, "Invoices are saved and updated automatically. Use Edit to change this invoice.")
+    return redirect("sales:invoice_edit", invoice_id=invoice_id)
 
 
 @login_required

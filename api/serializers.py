@@ -37,24 +37,8 @@ class SalesInvoiceSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         inst = self.instance
-        if inst and inst.status != SalesInvoice.Status.DRAFT:
-            if "grand_total" in attrs and attrs["grand_total"] != inst.grand_total:
-                raise serializers.ValidationError(
-                    {
-                        "grand_total": "Cannot change total selling price after the invoice is posted or voided."
-                    }
-                )
-            if "currency" in attrs and attrs.get("currency") != inst.currency:
-                raise serializers.ValidationError(
-                    {"currency": "Cannot change invoice currency after the invoice is posted or voided."}
-                )
-            if "exchange_rate_to_usd" in attrs:
-                new_r = attrs.get("exchange_rate_to_usd")
-                old_r = inst.exchange_rate_to_usd
-                if new_r != old_r and not (new_r is None and old_r is None):
-                    raise serializers.ValidationError(
-                        {"exchange_rate_to_usd": "Cannot change the exchange rate after the invoice is posted or voided."}
-                    )
+        if inst and inst.status == SalesInvoice.Status.VOIDED:
+            raise serializers.ValidationError("Voided invoices cannot be changed.")
         return attrs
 
 

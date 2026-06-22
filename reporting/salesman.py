@@ -18,7 +18,7 @@ def _date_filter_qs(qs, date_field, date_from, date_to):
 def _employee_line_qs(employee, date_from=None, date_to=None):
     qs = SalesInvoiceLine.objects.filter(
         line_employee=employee,
-        invoice__status=SalesInvoice.Status.POSTED,
+        invoice__status__in=SalesInvoice.reporting_statuses(),
     ).select_related("invoice", "invoice__client")
     return _date_filter_qs(qs, "invoice__issue_date", date_from, date_to)
 
@@ -38,7 +38,7 @@ def build_brief_report(employee, date_from=None, date_to=None):
     line_invoice_ids = SalesInvoiceLine.objects.filter(line_employee=employee).values_list("invoice_id", flat=True)
     invoices = SalesInvoice.objects.filter(
         Q(sales_employee=employee) | Q(pk__in=line_invoice_ids),
-        status=SalesInvoice.Status.POSTED,
+        status__in=SalesInvoice.reporting_statuses(),
     ).distinct()
     invoices = _date_filter_qs(invoices, "issue_date", date_from, date_to)
     lines = _employee_line_qs(employee, date_from, date_to)
@@ -77,7 +77,7 @@ def build_detailed_report(employee, date_from=None, date_to=None):
     main_invoices = _date_filter_qs(
         SalesInvoice.objects.filter(
             sales_employee=employee,
-            status=SalesInvoice.Status.POSTED,
+            status__in=SalesInvoice.reporting_statuses(),
         ).select_related("client"),
         "issue_date",
         date_from,
