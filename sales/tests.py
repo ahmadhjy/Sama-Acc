@@ -2,8 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.test import Client as HttpClient, TestCase
-from django.urls import reverse
+from django.test import TestCase
 
 from accounts_core.models import Client, Currency, Employee, Supplier
 from catalog.models import Destination, ServiceInstance, ServiceType
@@ -191,81 +190,3 @@ class SalesInvoiceWorkflowTests(TestCase):
         invoice.grand_total = Decimal("99")
         with self.assertRaises(ValueError):
             invoice.save()
-
-
-class InvoiceAutosaveTests(TestCase):
-    def setUp(self):
-        self.user = get_user_model().objects.create_user(username="autosave", password="test12345")
-        self.http = HttpClient()
-        self.http.login(username="autosave", password="test12345")
-        Currency.objects.get_or_create(code="USD", defaults={"name": "US Dollar", "is_active": True, "sort_order": 0})
-        self.client_obj = Client.objects.create(client_code="C-AUTO", name_en="Auto Client")
-        self.employee = Employee.objects.create(name="Auto Emp", role=Employee.EmployeeRole.SALES)
-        self.service_type = ServiceType.objects.create(name="Hotel", code="HTL")
-        self.destination = Destination.objects.create(name="London")
-        self.supplier = Supplier.objects.create(
-            supplier_code="S-AUTO", name="Auto Supplier", managing_number="+971500000001"
-        )
-
-    def _line_post_data(self, index, line_id="", sell="100.00", cost="80.00"):
-        return {
-            f"lines-{index}-id": line_id,
-            f"lines-{index}-service_type": str(self.service_type.pk),
-            f"lines-{index}-supplier": str(self.supplier.pk),
-            f"lines-{index}-line_employee": str(self.employee.pk),
-            f"lines-{index}-destination": str(self.destination.pk),
-            f"lines-{index}-service_date": date.today().isoformat(),
-            f"lines-{index}-qty": "1.00",
-            f"lines-{index}-sell_price": sell,
-            f"lines-{index}-cost_price": cost,
-            f"lines-{index}-line_discount": "0.00",
-            f"lines-{index}-notes": "",
-            f"lines-{index}-line_data": "{}",
-        }
-
-    def test_autosave_twice_updates_lines_without_duplicating(self):
-        payload = {
-            "invoice_no": "TMP-AUTOSAVE",
-            "client": str(self.client_obj.pk),
-            "sales_employee": str(self.employee.pk),
-            "main_destination": str(self.destination.pk),
-            "package_type": "",
-            "issue_date": date.today().isoformat(),
-            "due_date": date.today().isoformat(),
-            "currency": "USD",
-            "lines-TOTAL_FORMS": "2",
-            "lines-INITIAL_FORMS": "0",
-            "lines-MIN_NUM_FORMS": "0",
-            "lines-MAX_NUM_FORMS": "60",
-        }
-        payload.update(self._line_post_data(0, sell="100.00", cost="70.00"))
-        payload.update(self._line_post_data(1, sell="200.00", cost="150.00"))
-
-        url = reverse("sales:invoice_autosave_new")
-        first = self.http.post(url, payload)
-        self.assertEqual(first.status_code, 200)
-        data = first.json()
-        self.assertTrue(data["ok"])
-        self.assertEqual(len(data["line_ids_by_index"]), 2)
-
-        invoice = SalesInvoice.objects.get(pk=data["invoice_id"])
-        self.assertEqual(invoice.lines.count(), 2)
-
-        payload["lines-INITIAL_FORMS"] = str(data["initial_forms"])
-        for idx, line_id in data["line_ids_by_index"].items():
-            payload[f"lines-{idx}-id"] = line_id
-        payload["lines-0-sell_price"] = "110.00"
-        payload["lines-1-cost_price"] = "160.00"
-
-        second = self.http.post(
-            reverse("sales:invoice_autosave", kwargs={"invoice_id": invoice.id}),
-            payload,
-        )
-        self.assertEqual(second.status_code, 200)
-        self.assertTrue(second.json()["ok"])
-
-        invoice.refresh_from_db()
-        self.assertEqual(invoice.lines.count(), 2)
-        lines = list(invoice.lines.order_by("sell_price"))
-        self.assertEqual(lines[0].sell_price, Decimal("110.00"))
-        self.assertEqual(lines[1].cost_price, Decimal("160.00"))

@@ -140,9 +140,25 @@
     {% if formset.non_form_errors %}
     <ul class="errorlist">{% for err in formset.non_form_errors %}<li>{{ err }}</li>{% endfor %}</ul>
     {% endif %}
-    <button class="btn" type="submit">Save</button>
-    <a class="btn" href="{% url 'sales:invoice_list' %}">Back</a>
+    <button class="btn" type="submit" id="invoice-save-btn">Save</button>
+    <a class="btn" href="{% url 'sales:invoice_list' %}" id="invoice-back-link">Back</a>
 </form>
+
+<div class="qc-modal-backdrop" id="leave-modal-backdrop" aria-hidden="true">
+  <div class="qc-modal" role="dialog" aria-labelledby="leave-modal-title">
+    <div class="qc-modal__header">
+      <h3 id="leave-modal-title">Unsaved changes</h3>
+    </div>
+    <div class="qc-modal__body">
+      <p>You have unsaved changes on this invoice. What would you like to do?</p>
+    </div>
+    <div class="qc-modal__footer">
+      <button type="button" class="btn btn-secondary" id="leave-modal-cancel">Stay on page</button>
+      <button type="button" class="btn btn-secondary" id="leave-modal-discard">Leave without saving</button>
+      <button type="button" class="btn" id="leave-modal-save"><i class="fa-solid fa-check"></i> Save and leave</button>
+    </div>
+  </div>
+</div>
 
 <div class="qc-modal-backdrop" id="quick-modal-backdrop" aria-hidden="true">
   <div class="qc-modal" role="dialog" aria-labelledby="quick-modal-title">
@@ -170,22 +186,11 @@
   const URL_CLIENT_QC = "{% url 'accounts_core:client_quick_create' %}";
   const URL_SUPPLIER_QC = "{% url 'accounts_core:supplier_quick_create' %}";
   const URL_DEST_QC = "{% url 'catalog:destination_quick_create' %}";
-  const AUTOSAVE_URL_NEW = "{% url 'sales:invoice_autosave_new' %}";
-  {% if not invoice_is_new %}
-  const AUTOSAVE_URL_EDIT = "{% url 'sales:invoice_autosave' invoice.id %}";
-  {% endif %}
-
-  function getAutosaveUrl() {
-    const id = formEl.dataset.invoiceId;
-    if (id) return '/sales/invoices/' + id + '/autosave/';
-    return AUTOSAVE_URL_NEW;
-  }
 
   let quickModalContext = null;
   let formDirty = false;
-  let autosaveTimer = null;
-  let autosaveInFlight = false;
-  let userHasEdited = false;
+  let allowNavigation = false;
+  let pendingNavigationUrl = null;
   let invoiceLineTemplate = null;
 
   (function captureInvoiceLineTemplate() {
@@ -242,6 +247,24 @@
     renumberLineTitles();
   }
 
+  function invoiceLineHasContent(box) {
+    if (box.querySelector('input[name$="-DELETE"]') && box.querySelector('input[name$="-DELETE"]').checked) return true;
+    if (box.querySelector('input[name$="-id"]') && box.querySelector('input[name$="-id"]').value) return true;
+    if (box.querySelector('select[name$="service_type"]') && box.querySelector('select[name$="service_type"]').value) return true;
+    if (box.querySelector('select[name$="-supplier"]') && box.querySelector('select[name$="-supplier"]').value) return true;
+    if (box.querySelector('select[name$="line_employee"]') && box.querySelector('select[name$="line_employee"]').value) return true;
+    if (box.querySelector('select.destination-select[name$="-destination"]') && box.querySelector('select.destination-select[name$="-destination"]').value) return true;
+    var sell = box.querySelector('input[name$="-sell_price"]');
+    if (sell && sell.value.trim() && parseFloat(sell.value) !== 0) return true;
+    var cost = box.querySelector('input[name$="-cost_price"]');
+    if (cost && cost.value.trim() && parseFloat(cost.value) !== 0) return true;
+    var notes = box.querySelector('[name$="-notes"]');
+    if (notes && notes.value.trim()) return true;
+    var lineData = box.querySelector('.line-data-json');
+    if (lineData && lineData.value && lineData.value !== '{}') return true;
+    return false;
+  }
+
   function compactInvoiceLineForms() {
     var container = document.getElementById('invoice-lines');
     if (!container) return;
@@ -249,13 +272,7 @@
     if (!lines.length) return;
     var toRemove = [];
     lines.forEach(function(box) {
-      var idInput = box.querySelector('input[name$="-id"]');
-      var typeSel = box.querySelector('select[name$="service_type"]');
-      var delCheck = box.querySelector('input[name$="-DELETE"]');
-      var hasId = idInput && idInput.value;
-      var hasType = typeSel && typeSel.value;
-      var isDeleted = delCheck && delCheck.checked;
-      if (isDeleted || hasId || hasType) return;
+      if (invoiceLineHasContent(box)) return;
       toRemove.push(box);
     });
     if (!toRemove.length) return;
@@ -290,8 +307,12 @@
     if (ev.target === ev.currentTarget) closeQuickModal();
   });
   document.addEventListener('keydown', function(ev) {
-    if (ev.key === 'Escape' && document.getElementById('quick-modal-backdrop').classList.contains('open')) {
-      closeQuickModal();
+    if (ev.key === 'Escape') {
+      if (document.getElementById('leave-modal-backdrop').classList.contains('open')) {
+        closeLeaveModal();
+      } else if (document.getElementById('quick-modal-backdrop').classList.contains('open')) {
+        closeQuickModal();
+      }
     }
   });
   document.getElementById('quick-modal-save').addEventListener('click', function() {
@@ -355,8 +376,50 @@
   }
 
   function markFormDirty() {
-    userHasEdited = true;
     formDirty = true;
+  }
+
+  function openLeaveModal(url) {
+    pendingNavigationUrl = url || null;
+    document.getElementById('leave-modal-backdrop').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLeaveModal() {
+    document.getElementById('leave-modal-backdrop').classList.remove('open');
+    document.body.style.overflow = '';
+    pendingNavigationUrl = null;
+  }
+
+  function tryNavigateAway(url) {
+    if (!url || allowNavigation || !formDirty) {
+      if (url) window.location.href = url;
+      return;
+    }
+    openLeaveModal(url);
+  }
+
+  function setLeaveAfterSave(url) {
+    var inp = document.getElementById('id_leave_after_save');
+    if (!inp) {
+      inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = 'leave_after_save';
+      inp.id = 'id_leave_after_save';
+      formEl.appendChild(inp);
+    }
+    inp.value = url || '';
+  }
+
+  function submitInvoiceForm() {
+    prepareFormForSave(true);
+    allowNavigation = true;
+    formDirty = false;
+    if (formEl.requestSubmit) {
+      formEl.requestSubmit();
+    } else {
+      formEl.submit();
+    }
   }
 
   function clearQuickCreateWiring(box) {
@@ -378,26 +441,29 @@
     });
   }
 
-  function applyAutosaveLineIds(data) {
-    if (!data || !data.line_ids_by_index) return;
-    Object.keys(data.line_ids_by_index).forEach(function(idx) {
-      var id = data.line_ids_by_index[idx];
-      var box = document.querySelector('#invoice-lines .invoice-line[data-form-index="' + idx + '"]');
-      if (!box || !id) return;
-      var idInput = box.querySelector('input[name$="-id"]');
-      if (idInput) idInput.value = id;
-    });
-    if (data.initial_forms !== undefined) {
-      var initialInput = document.getElementById('id_' + prefix + '-INITIAL_FORMS');
-      if (initialInput) initialInput.value = String(data.initial_forms);
-    }
-  }
-
   function prepareFormForSave(compactEmpty) {
     syncFormSelectValues();
     document.querySelectorAll('.invoice-line').forEach(collectLineData);
     if (compactEmpty) compactInvoiceLineForms();
   }
+
+  document.getElementById('leave-modal-cancel').addEventListener('click', closeLeaveModal);
+  document.getElementById('leave-modal-discard').addEventListener('click', function() {
+    var url = pendingNavigationUrl;
+    allowNavigation = true;
+    formDirty = false;
+    closeLeaveModal();
+    if (url) window.location.href = url;
+  });
+  document.getElementById('leave-modal-save').addEventListener('click', function() {
+    var url = pendingNavigationUrl;
+    closeLeaveModal();
+    setLeaveAfterSave(url);
+    submitInvoiceForm();
+  });
+  document.getElementById('leave-modal-backdrop').addEventListener('click', function(ev) {
+    if (ev.target === ev.currentTarget) closeLeaveModal();
+  });
 
   document.getElementById('btn-add-client').addEventListener('click', function() {
     openQuickModal(
@@ -822,60 +888,44 @@
 
   document.getElementById('invoice-form').addEventListener('submit', function() {
     prepareFormForSave(true);
+    allowNavigation = true;
     formDirty = false;
+  });
+
+  document.getElementById('invoice-save-btn').addEventListener('click', function() {
+    setLeaveAfterSave('');
   });
 
   formEl.addEventListener('input', markFormDirty);
   formEl.addEventListener('change', markFormDirty);
 
-  function autosaveDraft(sync) {
-    if (!userHasEdited || !formDirty || autosaveInFlight) return Promise.resolve();
-    prepareFormForSave(true);
-    const fd = new FormData(formEl);
-    const opts = {
-      method: 'POST',
-      body: fd,
-      headers: { 'X-CSRFToken': CSRF_TOKEN },
-      credentials: 'same-origin',
-    };
-    if (!sync) opts.keepalive = true;
-    autosaveInFlight = true;
-    return fetch(getAutosaveUrl(), opts).then(function(r) {
-      return r.json().then(function(data) {
-        if (data.ok) {
-          formDirty = false;
-          applyAutosaveLineIds(data);
-          if (data.invoice_id && !formEl.dataset.invoiceId) {
-            formEl.dataset.invoiceId = data.invoice_id;
-            if (data.edit_url) history.replaceState(null, '', data.edit_url);
-          }
-        }
-        return data;
-      });
-    }).catch(function() {}).finally(function() {
-      autosaveInFlight = false;
-    });
-  }
-
-  function scheduleAutosave() {
-    clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(function() { autosaveDraft(false); }, 2500);
-  }
-  formEl.addEventListener('input', scheduleAutosave);
-  formEl.addEventListener('change', scheduleAutosave);
-
-  document.addEventListener('visibilitychange', function() {
-    if (document.hidden && formDirty) autosaveDraft(false);
+  document.getElementById('invoice-back-link').addEventListener('click', function(ev) {
+    if (allowNavigation || !formDirty) return;
+    ev.preventDefault();
+    tryNavigateAway(ev.currentTarget.href);
   });
-  window.addEventListener('pagehide', function() {
-    if (formDirty) autosaveDraft(false);
-  });
-  document.querySelectorAll('.sidebar a[href]').forEach(function(link) {
-    link.addEventListener('click', function(ev) {
-      if (!formDirty || link.target === '_blank') return;
+
+  document.addEventListener('click', function(ev) {
+    if (allowNavigation || !formDirty) return;
+    var link = ev.target.closest('a[href]');
+    if (!link || link.target === '_blank' || link.id === 'invoice-back-link') return;
+    if (link.closest('.qc-modal') || link.closest('#quick-modal-backdrop') || link.closest('#leave-modal-backdrop')) return;
+    var href = link.getAttribute('href');
+    if (!href || href === '#' || href.indexOf('javascript:') === 0) return;
+    try {
+      var dest = new URL(link.href, window.location.href);
+      if (dest.origin !== window.location.origin) return;
+      if (dest.pathname === window.location.pathname && dest.search === window.location.search) return;
+    } catch (e) { return; }
+    ev.preventDefault();
+    tryNavigateAway(link.href);
+  }, true);
+
+  window.addEventListener('beforeunload', function(ev) {
+    if (formDirty && !allowNavigation) {
       ev.preventDefault();
-      autosaveDraft(true).finally(function() { window.location.href = link.href; });
-    });
+      ev.returnValue = '';
+    }
   });
 
   function renderDestinationResults(results, items, select, search) {
@@ -924,7 +974,6 @@
       if (opt && opt.value) search.value = opt.text;
       else restoreDestinationLabel(select, search);
     }
-    wireDestinationQuickCreate(box);
   }
 
   function restoreDestinationLabel(select, search) {
@@ -1137,6 +1186,7 @@
     renumberLineTitles();
     updateTotalLineCost();
     updateSellingTotal();
+    markFormDirty();
   });
   defaultEmptyLineServiceDates();
 

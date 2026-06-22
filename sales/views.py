@@ -7,8 +7,8 @@ from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import ProtectedError
-from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods
 
 from accounts_core.list_utils import invoice_search_filters
@@ -34,17 +34,15 @@ def _save_draft_invoice_with_recalc(form, formset, request=None):
     return inv
 
 
-def _formset_line_ids_by_index(formset):
-    """Map each submitted line form index to its saved pk (for autosave DOM sync)."""
-    ids = {}
-    for i, form in enumerate(formset.forms):
-        if not form.cleaned_data or form.cleaned_data.get("DELETE"):
-            continue
-        if not form.cleaned_data.get("service_type"):
-            continue
-        if form.instance.pk:
-            ids[str(i)] = str(form.instance.pk)
-    return ids
+def _redirect_after_invoice_save(request, invoice):
+    dest = (request.POST.get("leave_after_save") or "").strip()
+    if dest and url_has_allowed_host_and_scheme(
+        dest,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(dest)
+    return redirect("sales:invoice_edit", invoice_id=invoice.id)
 
 
 def _save_invoice_attachments(request, invoice):
@@ -135,7 +133,7 @@ def invoice_create(request):
             saved_invoice = _save_draft_invoice_with_recalc(form, formset, request)
             log_document_event(DocumentEventLog.EventType.CREATED, saved_invoice, request.user)
             messages.success(request, f"Invoice {saved_invoice.invoice_no} created.")
-            return redirect("sales:invoice_edit", invoice_id=saved_invoice.id)
+            return _redirect_after_invoice_save(request, saved_invoice)
     else:
         initial = {"issue_date": timezone.localdate()}
         emp = get_default_employee_for_accounting()
@@ -166,7 +164,7 @@ def invoice_edit(request, invoice_id):
             _save_draft_invoice_with_recalc(form, formset, request)
             log_document_event(DocumentEventLog.EventType.UPDATED_DRAFT, invoice, request.user)
             messages.success(request, f"Invoice {invoice.invoice_no} updated.")
-            return redirect("sales:invoice_edit", invoice_id=invoice.id)
+            return _redirect_after_invoice_save(request, invoice)
     else:
         form = SalesInvoiceForm(instance=invoice)
         formset = line_formset_cls(instance=invoice)
@@ -201,43 +199,6 @@ def invoice_open(request, invoice_id):
             and not invoice.credit_notes.exists(),
         },
     )
-
-
-@login_required
-@require_http_methods(["POST"])
-def invoice_autosave(request, invoice_id=None):
-    """Save draft invoice without redirect (navigation away / periodic autosave)."""
-    if invoice_id:
-        invoice = get_object_or_404(SalesInvoice, pk=invoice_id, status=SalesInvoice.Status.DRAFT)
-    else:
-        invoice = SalesInvoice()
-        if not invoice.invoice_no:
-            invoice.invoice_no = _next_temp_invoice_no()
-    can_view_cost = not request.user.groups.filter(name="Sales").exists()
-    line_formset_cls = SalesInvoiceLineFormSet if can_view_cost else SalesInvoiceLineSalesFormSet
-    form = SalesInvoiceForm(request.POST, instance=invoice)
-    formset = line_formset_cls(request.POST, instance=invoice)
-    if form.is_valid() and formset.is_valid():
-        saved = _save_draft_invoice_with_recalc(form, formset)
-        line_ids = _formset_line_ids_by_index(formset)
-        return JsonResponse(
-            {
-                "ok": True,
-                "invoice_id": str(saved.id),
-                "invoice_no": saved.invoice_no,
-                "edit_url": f"/sales/invoices/{saved.id}/edit/",
-                "line_ids_by_index": line_ids,
-                "initial_forms": len(line_ids),
-            }
-        )
-    errors = {}
-    if form.errors:
-        errors["form"] = form.errors.get_json_data()
-    if formset.errors:
-        errors["lines"] = formset.errors
-    if formset.non_form_errors():
-        errors["non_form"] = [str(e) for e in formset.non_form_errors()]
-    return JsonResponse({"ok": False, "errors": errors}, status=400)
 
 
 @login_required
