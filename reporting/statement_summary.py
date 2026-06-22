@@ -93,7 +93,7 @@ def build_supplier_summary_rows(suppliers, date_from=None, date_to=None):
                 "tot_cr": credit,
                 "bal_dr": bal_dr,
                 "bal_cr": bal_cr,
-                "net_balance": -closing,
+                "net_balance": closing,
             }
         )
     return rows
