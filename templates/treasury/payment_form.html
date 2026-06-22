@@ -8,8 +8,8 @@
     <p><label>Receipt No</label><input name="receipt_no" value="{{ payment.receipt_no|default:default_receipt_no }}" required></p>
     <p>
         <label>Direction</label>
-        <select name="direction">
-            <option value="IN" {% if payment and payment.direction == "IN" %}selected{% endif %}>Money In</option>
+        <select name="direction" id="id_direction">
+            <option value="IN" {% if not payment or payment.direction == "IN" %}selected{% endif %}>Money In</option>
             <option value="OUT" {% if payment and payment.direction == "OUT" %}selected{% endif %}>Money Out</option>
         </select>
     </p>
@@ -64,14 +64,27 @@
 <script>
 (function() {
   const partyType = document.getElementById("id_party_type");
-  const directionEl = document.querySelector('[name="direction"]');
+  const directionEl = document.getElementById("id_direction");
   const clientWrap = document.getElementById("client-field-wrap");
   const supplierWrap = document.getElementById("supplier-field-wrap");
   const partyNameWrap = document.getElementById("party-name-wrap");
   const clientSel = document.getElementById("id_client");
   const supplierSel = document.getElementById("id_supplier");
   const partyNameInput = document.getElementById("id_party_name");
-  if (!partyType) return;
+  const isEdit = {{ is_edit|yesno:"true,false" }};
+  if (!partyType || !directionEl) return;
+
+  function setSelectValue(sel, value) {
+    if (!sel) return;
+    sel.value = value || "";
+    if (window.refreshSearchableSelect) {
+      window.refreshSearchableSelect(sel, value || "");
+    }
+  }
+
+  function clearSelectValue(sel) {
+    setSelectValue(sel, "");
+  }
 
   function syncPartyFields() {
     const pt = partyType.value;
@@ -85,37 +98,35 @@
     if (pt === "CLIENT") {
       clientWrap.style.display = "";
       clientSel.required = true;
-      supplierSel.value = "";
+      clearSelectValue(supplierSel);
     } else if (pt === "SUPPLIER") {
       supplierWrap.style.display = "";
       supplierSel.required = true;
-      clientSel.value = "";
+      clearSelectValue(clientSel);
     } else {
       partyNameWrap.style.display = "";
       partyNameInput.required = true;
-      clientSel.value = "";
-      supplierSel.value = "";
+      clearSelectValue(clientSel);
+      clearSelectValue(supplierSel);
     }
   }
 
   function syncPartyTypeFromDirection() {
-    if (!directionEl) return;
     if (directionEl.value === "OUT") {
-      partyType.value = "SUPPLIER";
-    } else if (directionEl.value === "IN") {
-      partyType.value = "CLIENT";
+      setSelectValue(partyType, "SUPPLIER");
+    } else {
+      setSelectValue(partyType, "CLIENT");
     }
     syncPartyFields();
   }
 
   partyType.addEventListener("change", syncPartyFields);
-  if (directionEl) {
-    directionEl.addEventListener("change", syncPartyTypeFromDirection);
-    if (!{{ is_edit|yesno:"true,false" }}) {
-      syncPartyTypeFromDirection();
-    }
+  directionEl.addEventListener("change", syncPartyTypeFromDirection);
+  if (!isEdit) {
+    syncPartyTypeFromDirection();
+  } else {
+    syncPartyFields();
   }
-  syncPartyFields();
 })();
 </script>
 {% endblock %}
