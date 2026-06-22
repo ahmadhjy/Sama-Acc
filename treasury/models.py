@@ -129,7 +129,16 @@ class ARAllocation(models.Model):
             raise ValueError("Allocation requires an active invoice.")
         if self.allocated_amount <= 0:
             raise ValueError("Allocated amount must be greater than zero.")
-        if self.allocated_amount > self.payment.remaining_amount:
+        other_ar = sum(
+            [x.allocated_amount for x in self.payment.ar_allocations.exclude(pk=self.pk)],
+            Decimal("0.00"),
+        )
+        other_ap = sum(
+            [x.allocated_amount for x in self.payment.ap_allocations.exclude(pk=self.pk)],
+            Decimal("0.00"),
+        )
+        payment_remaining = self.payment.amount - other_ar - other_ap
+        if self.allocated_amount > payment_remaining:
             raise ValueError("Allocated amount exceeds payment remaining amount.")
         allocated_total = sum([x.allocated_amount for x in self.sales_invoice.allocations.exclude(pk=self.pk)], Decimal("0.00"))
         invoice_remaining = self.sales_invoice.grand_total - allocated_total
@@ -157,7 +166,16 @@ class APAllocation(models.Model):
             raise ValueError("Allocation requires posted supplier bill.")
         if self.allocated_amount <= 0:
             raise ValueError("Allocated amount must be greater than zero.")
-        if self.allocated_amount > self.payment.remaining_amount:
+        other_ar = sum(
+            [x.allocated_amount for x in self.payment.ar_allocations.exclude(pk=self.pk)],
+            Decimal("0.00"),
+        )
+        other_ap = sum(
+            [x.allocated_amount for x in self.payment.ap_allocations.exclude(pk=self.pk)],
+            Decimal("0.00"),
+        )
+        payment_remaining = self.payment.amount - other_ar - other_ap
+        if self.allocated_amount > payment_remaining:
             raise ValueError("Allocated amount exceeds payment remaining amount.")
         allocated_total = sum([x.allocated_amount for x in self.supplier_bill.allocations.exclude(pk=self.pk)], Decimal("0.00"))
         bill_remaining = self.supplier_bill.grand_total - allocated_total

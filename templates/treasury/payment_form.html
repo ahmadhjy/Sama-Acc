@@ -55,6 +55,9 @@
     <p><label>Date</label><input type="date" name="date" value="{% if payment.date %}{{ payment.date|date:'Y-m-d' }}{% else %}{{ default_payment_date }}{% endif %}" required></p>
     <p><label>Currency</label><input name="currency" value="{{ payment.currency|default:'USD' }}"></p>
     <p><label>Amount</label><input name="amount" type="number" step="0.01" value="{{ payment.amount|default:'' }}" required></p>
+    {% if is_edit and payment.status == "POSTED" %}
+    <p class="muted">Currently allocated: {{ payment.allocated_amount }} {{ payment.currency }} · Unallocated: {{ payment.remaining_amount }} {{ payment.currency }}. Changing the amount will adjust allocations automatically.</p>
+    {% endif %}
     <p><label>Ref No</label><input name="reference" maxlength="255" placeholder="Cheque no., bank ref, transfer ID…" value="{{ payment.reference|default:'' }}"></p>
     <p><label>Note</label><textarea name="note" rows="3">{{ payment.note|default:'' }}</textarea></p>
     <p><label><input type="checkbox" name="is_refund" {% if payment and payment.is_refund %}checked{% endif %}> Is Client Refund</label></p>

@@ -14,7 +14,7 @@ from auditlog.utils import log_audit, log_document_event
 from purchases.models import SupplierBill
 from treasury.forms import MoneyAccountForm
 from treasury.models import MoneyAccount, Payment
-from treasury.payment_flow import post_payment_and_allocate
+from treasury.payment_flow import post_payment_and_allocate, sync_posted_payment_after_edit
 from sales.models import SalesInvoice
 from treasury.models import APAllocation, ARAllocation, AccountTransfer, ReconciliationRecord
 from django.views.decorators.http import require_http_methods
@@ -217,6 +217,10 @@ def payment_edit(request, payment_id):
 
     if request.method == "POST":
         was_draft = payment.status == Payment.Status.DRAFT
+        old_client_id = payment.client_id
+        old_supplier_id = payment.supplier_id
+        old_direction = payment.direction
+        old_party_type = payment.party_type
         try:
             receipt_no = request.POST.get("receipt_no") or payment.receipt_no
             direction = request.POST.get("direction") or payment.direction
@@ -233,11 +237,15 @@ def payment_edit(request, payment_id):
             note = request.POST.get("note") or ""
             is_refund = request.POST.get("is_refund") == "on"
 
-            if payment.status == Payment.Status.POSTED:
-                if amount < payment.allocated_amount:
-                    raise ValueError(
-                        f"Amount cannot be less than already allocated amount ({payment.allocated_amount})."
-                    )
+            if amount <= 0:
+                raise ValueError("Payment amount must be greater than zero.")
+
+            party_changed = (
+                old_client_id != (client_id if party_type == Payment.PartyType.CLIENT else None)
+                or old_supplier_id != (supplier_id if party_type == Payment.PartyType.SUPPLIER else None)
+                or old_direction != direction
+                or old_party_type != party_type
+            )
 
             payment.receipt_no = receipt_no
             payment.direction = direction
@@ -263,13 +271,14 @@ def payment_edit(request, payment_id):
                     f"Unallocated amount remains as client/supplier credit.",
                 )
             else:
-                log_document_event(
-                    DocumentEventLog.EventType.UPDATED_DRAFT,
-                    payment,
-                    request.user,
-                    {"edited_while_status": payment.status},
+                sync_posted_payment_after_edit(payment, request.user, party_changed=party_changed)
+                payment.refresh_from_db()
+                messages.success(
+                    request,
+                    f"Payment {payment.receipt_no} updated. "
+                    f"Allocated {payment.allocated_amount} {payment.currency}; "
+                    f"{payment.remaining_amount} {payment.currency} unallocated.",
                 )
-                messages.success(request, f"Payment {payment.receipt_no} updated.")
             return redirect("treasury:payment_list")
         except Exception as exc:
             messages.error(request, str(exc))

@@ -7,6 +7,38 @@ from sales.models import SalesInvoice
 from treasury.models import APAllocation, ARAllocation, Payment
 
 
+def _allocation_rows(payment: Payment):
+    rows = []
+    for alloc in payment.ar_allocations.all():
+        rows.append(alloc)
+    for alloc in payment.ap_allocations.all():
+        rows.append(alloc)
+    rows.sort(key=lambda row: row.created_at, reverse=True)
+    return rows
+
+
+def trim_allocations_to_fit(payment: Payment) -> None:
+    """Reduce or remove allocations when payment amount is lowered below allocated total."""
+    excess = payment.allocated_amount - payment.amount
+    if excess <= 0:
+        return
+    for alloc in _allocation_rows(payment):
+        if excess <= 0:
+            break
+        if alloc.allocated_amount <= excess:
+            excess -= alloc.allocated_amount
+            alloc.delete()
+        else:
+            alloc.allocated_amount -= excess
+            alloc.save(update_fields=["allocated_amount"])
+            excess = Decimal("0.00")
+
+
+def clear_payment_allocations(payment: Payment) -> None:
+    payment.ar_allocations.all().delete()
+    payment.ap_allocations.all().delete()
+
+
 @transaction.atomic
 def auto_allocate_payment(payment: Payment) -> None:
     """Allocate posted payment to oldest open invoices (AR) or bills (AP)."""
