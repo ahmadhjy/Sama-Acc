@@ -378,10 +378,38 @@
     return { id: mainSel.value, label: label };
   }
 
-  function syncMainDestination(id, label) {
-    var mainSel = document.getElementById('id_main_destination');
-    if (!mainSel) return;
-    safeAppendSelectOption(mainSel, id, label);
+  function addSelectOptionIfMissing(select, id, label) {
+    if (!select) return;
+    var sid = String(id);
+    var lab = String(label || id);
+    for (var i = 0; i < select.options.length; i++) {
+      if (select.options[i].value === sid) return;
+    }
+    var opt = document.createElement('option');
+    opt.value = sid;
+    opt.textContent = lab;
+    select.appendChild(opt);
+    if (select._choicesInstance || select.dataset.choicesInitialized) {
+      window.refreshSearchableSelect(select, select.value);
+    }
+  }
+
+  function finishQuickCreate(select, id, label, searchInput) {
+    var isLineDestination = select
+      && select.classList.contains('destination-select')
+      && !select.classList.contains('main-destination-select');
+    safeAppendSelectOption(select, id, label);
+    if (searchInput) searchInput.value = label || '';
+    if (isLineDestination) {
+      select.dataset.userOverridden = '1';
+      addSelectOptionIfMissing(document.getElementById('id_main_destination'), id, label);
+    }
+    markFormDirty();
+    closeQuickModal();
+  }
+
+  function markFormDirty() {
+    formDirty = true;
   }
 
   function applyMainDestinationToLine(box) {
@@ -392,20 +420,6 @@
     if (!destSel || destSel.dataset.userOverridden === '1') return;
     appendDestinationOption(destSel, main.id, main.label);
     if (search) search.value = main.label;
-  }
-
-  function finishQuickCreate(select, id, label, searchInput) {
-    safeAppendSelectOption(select, id, label);
-    if (searchInput) searchInput.value = label || '';
-    if (select && select.classList.contains('destination-select')) {
-      syncMainDestination(id, label);
-    }
-    markFormDirty();
-    closeQuickModal();
-  }
-
-  function markFormDirty() {
-    formDirty = true;
   }
 
   function openLeaveModal(url) {
@@ -821,6 +835,12 @@
       }
     }
     const destSel = box.querySelector('select.destination-select[name$="-destination"]');
+    if (destSel && destSel.value) {
+      var main = getMainDestination();
+      if (!main || destSel.value !== main.id) {
+        destSel.dataset.userOverridden = '1';
+      }
+    }
     function refresh() {
       const tid = typeSelect && typeSelect.value;
       renderDynamicFields(dyn, tid, getLineDataInitial(box));
@@ -882,16 +902,16 @@
     salesEmpEl.addEventListener('change', function() {
       syncLineEmployeesFromHeader(false);
     });
-    document.getElementById('invoice-lines').addEventListener('change', function(ev) {
-      if (ev.target && ev.target.name && ev.target.name.endsWith('line_employee')) {
-        ev.target.dataset.userOverridden = '1';
-        delete ev.target.dataset.syncedFromHeader;
-      }
-      if (ev.target && ev.target.classList && ev.target.classList.contains('destination-select') && !ev.target.classList.contains('main-destination-select')) {
-        ev.target.dataset.userOverridden = '1';
-      }
-    });
   }
+  document.getElementById('invoice-lines').addEventListener('change', function(ev) {
+    if (ev.target && ev.target.name && ev.target.name.endsWith('line_employee')) {
+      ev.target.dataset.userOverridden = '1';
+      delete ev.target.dataset.syncedFromHeader;
+    }
+    if (ev.target && ev.target.classList && ev.target.classList.contains('destination-select') && !ev.target.classList.contains('main-destination-select')) {
+      ev.target.dataset.userOverridden = '1';
+    }
+  });
   const mainDestSel = document.getElementById('id_main_destination');
   if (mainDestSel) {
     mainDestSel.addEventListener('change', function() { syncLineDestinationsFromHeader(false); });
