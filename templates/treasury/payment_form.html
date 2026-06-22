@@ -98,16 +98,22 @@
     }
   }
 
+  function syncPartyTypeFromDirection() {
+    if (!directionEl) return;
+    if (directionEl.value === "OUT") {
+      partyType.value = "SUPPLIER";
+    } else if (directionEl.value === "IN") {
+      partyType.value = "CLIENT";
+    }
+    syncPartyFields();
+  }
+
   partyType.addEventListener("change", syncPartyFields);
   if (directionEl) {
-    directionEl.addEventListener("change", function() {
-      if (directionEl.value === "OUT") {
-        partyType.value = "SUPPLIER";
-      } else if (directionEl.value === "IN" && partyType.value === "SUPPLIER") {
-        partyType.value = "CLIENT";
-      }
-      syncPartyFields();
-    });
+    directionEl.addEventListener("change", syncPartyTypeFromDirection);
+    if (!{{ is_edit|yesno:"true,false" }}) {
+      syncPartyTypeFromDirection();
+    }
   }
   syncPartyFields();
 })();

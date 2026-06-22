@@ -1,4 +1,5 @@
 {% extends "hub/layout.html" %}
+{% load formatting %}
 {% block title %}Client Statement{% endblock %}
 {% block hub_title %}Statement of account — {{ client.name_en }}{% endblock %}
 {% block hub_subtitle %}Service lines and payments; running balance in USD.{% endblock %}
@@ -24,6 +25,16 @@
         <tr><td colspan="7">No statement entries.</td></tr>
     {% endfor %}
     </tbody>
+    {% if rows %}
+    <tfoot>
+        <tr>
+            <th colspan="4">Totals</th>
+            <th class="num">{{ tot_dr|money }}</th>
+            <th class="num">{{ tot_cr|money }}</th>
+            <th class="num">{{ closing_balance|money }}</th>
+        </tr>
+    </tfoot>
+    {% endif %}
 </table>
 </div>
 {% endblock %}

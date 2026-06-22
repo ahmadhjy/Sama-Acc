@@ -112,76 +112,48 @@ window.destroySearchableSelect = function(el) {
     delete el.dataset.choicesInitialized;
 };
 
+/** Rebuild Choices.js from the native &lt;select&gt; options (reliable after quick-create). */
+window.refreshSearchableSelect = function(select, selectedId) {
+    if (!select) return null;
+    if (selectedId != null && selectedId !== "") {
+        select.value = String(selectedId);
+    }
+    if (select._choicesInstance || select.dataset.choicesInitialized) {
+        window.destroySearchableSelect(select);
+    }
+    var instance = window.initSearchableSelect(select);
+    var val = selectedId != null && selectedId !== "" ? String(selectedId) : (select.value || "");
+    if (instance && val) {
+        try {
+            instance.setChoiceByValue(val);
+        } catch (e) {
+            select.value = val;
+        }
+    }
+    return instance;
+};
+
 /** Append option to a native select and refresh Choices.js if active. */
 window.appendSelectChoice = function(select, id, label) {
     if (!select) return;
     id = String(id);
     label = String(label || id);
-
-    function setNativeOption() {
-        var exists = false;
-        for (var i = 0; i < select.options.length; i++) {
-            if (select.options[i].value === id) {
-                exists = true;
-                select.options[i].textContent = label;
-                break;
-            }
+    var exists = false;
+    for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === id) {
+            exists = true;
+            select.options[i].textContent = label;
+            break;
         }
-        if (!exists) {
-            var opt = document.createElement("option");
-            opt.value = id;
-            opt.textContent = label;
-            select.appendChild(opt);
-        }
-        select.value = id;
     }
-
-    function refreshChoices() {
-        if (!select._choicesInstance) return;
-        var exists = false;
-        for (var i = 0; i < select.options.length; i++) {
-            if (select.options[i].value === id) { exists = true; break; }
-        }
-        if (!exists) {
-            select._choicesInstance.setChoices(
-                [{ value: id, label: label, selected: true }],
-                "value",
-                "label",
-                false
-            );
-        }
-        select._choicesInstance.setChoiceByValue(id);
+    if (!exists) {
+        var opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = label;
+        select.appendChild(opt);
     }
-
-    try {
-        setNativeOption();
-        if (select._choicesInstance) {
-            try {
-                refreshChoices();
-            } catch (e) {
-                window.destroySearchableSelect(select);
-                window.initSearchableSelect(select);
-                if (select._choicesInstance) {
-                    select._choicesInstance.setChoiceByValue(id);
-                }
-            }
-        } else {
-            window.initSearchableSelect(select);
-            if (select._choicesInstance) {
-                select._choicesInstance.setChoiceByValue(id);
-            }
-        }
-        select.dispatchEvent(new Event("change", { bubbles: true }));
-    } catch (e) {
-        try { window.destroySearchableSelect(select); } catch (e2) { /* ignore */ }
-        setNativeOption();
-        try {
-            window.initSearchableSelect(select);
-            if (select._choicesInstance) {
-                select._choicesInstance.setChoiceByValue(id);
-            }
-        } catch (e3) { /* native value already set */ }
-    }
+    window.refreshSearchableSelect(select, id);
+    select.dispatchEvent(new Event("change", { bubbles: true }));
 };
 
 window.initSearchableSelects = function(root) {

@@ -20,6 +20,7 @@ from reporting.statement_summary import (
     build_supplier_summary_rows,
     summarize_totals,
 )
+from reporting.statement_running import annotate_client_statement_rows, annotate_supplier_statement_rows
 from reporting.supplier_statement_rows import build_supplier_statement_rows
 from purchases.models import SupplierBill, SupplierBillLine
 from sales.models import SalesInvoice
@@ -99,16 +100,16 @@ def client_statement(request, client_id):
     client = get_object_or_404(Client, pk=client_id)
     df, dt, _ = resolve_report_dates(request)
     rows = _client_rows_raw(client, df, dt)
-    running = Decimal("0.00")
-    for row in rows:
-        running = running + row["debit"] - row["credit"]
-        row["running_balance"] = running
+    rows, tot_dr, tot_cr, closing_balance = annotate_client_statement_rows(rows)
     return render_or_pdf(
         request,
         "reporting/client_statement.html",
         {
             "client": client,
             "rows": rows,
+            "tot_dr": tot_dr,
+            "tot_cr": tot_cr,
+            "closing_balance": closing_balance,
             "date_from": df,
             "date_to": dt,
             "pdf_report_title": "Statement of Account",
@@ -209,16 +210,16 @@ def supplier_statement(request, supplier_id):
     supplier = get_object_or_404(Supplier, pk=supplier_id)
     df, dt, _ = resolve_report_dates(request)
     rows = build_supplier_statement_rows(supplier, df, dt)
-    running = Decimal("0.00")
-    for row in rows:
-        running = running + row["credit"] - row["debit"]
-        row["running_balance"] = running
+    rows, tot_dr, tot_cr, closing_balance = annotate_supplier_statement_rows(rows)
     return render_or_pdf(
         request,
         "reporting/supplier_statement.html",
         {
             "supplier": supplier,
             "rows": rows,
+            "tot_dr": tot_dr,
+            "tot_cr": tot_cr,
+            "closing_balance": closing_balance,
             "date_from": df,
             "date_to": dt,
             "pdf_report_title": "Supplier Statement",

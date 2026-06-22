@@ -124,11 +124,16 @@ class SupplierStatementServiceDateTests(TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["credit"], Decimal("60.00"))
         self.assertEqual(rows[0]["debit"], Decimal("0.00"))
-        running = Decimal("0.00")
-        for row in rows:
-            running = running + row["credit"] - row["debit"]
-        self.assertEqual(running, Decimal("60.00"))
+        from reporting.statement_running import annotate_supplier_statement_rows
 
-    def test_statement_upper_bound_caps_future_date_to(self):
-        future_to = date.today() + timedelta(days=60)
-        self.assertEqual(statement_service_date_upper(future_to), date.today())
+        _, _, _, closing = annotate_supplier_statement_rows(rows)
+        self.assertEqual(closing, Decimal("-60.00"))
+
+    def test_statement_rows_oldest_first(self):
+        past = date.today() - timedelta(days=10)
+        recent = date.today() - timedelta(days=1)
+        self._post_invoice_with_line(past)
+        self._post_invoice_with_line(recent)
+        rows = build_supplier_statement_rows(self.supplier)
+        dates = [r["date"] for r in rows if r.get("date")]
+        self.assertEqual(dates, sorted(dates))

@@ -116,12 +116,12 @@
                     <div class="destination-results"></div>
                     {{ line_form.destination }}
                 </div>
+                <div>{{ line_form.sell_price.label_tag }} {{ line_form.sell_price }}</div>
                 {% if can_view_cost %}
                 <div>{{ line_form.cost_price.label_tag }} {{ line_form.cost_price }}</div>
                 {% endif %}
                 {{ line_form.qty }}
                 {{ line_form.line_discount }}
-                <div>{{ line_form.sell_price.label_tag }} {{ line_form.sell_price }}</div>
             </div>
             <div class="dynamic-fields" data-dynamic-for="{{ forloop.counter0 }}"></div>
             <div>{{ line_form.notes.label_tag }} {{ line_form.notes }}</div>
@@ -340,31 +340,11 @@
 
   function safeAppendSelectOption(select, id, label) {
     if (!select) return;
-    try {
-      appendSelectOption(select, id, label);
-    } catch (e) {
-      var sid = String(id);
-      var found = false;
-      for (var i = 0; i < select.options.length; i++) {
-        if (select.options[i].value === sid) { found = true; break; }
-      }
-      if (!found) {
-        var opt = document.createElement('option');
-        opt.value = sid;
-        opt.textContent = label;
-        select.appendChild(opt);
-      }
-      select.value = sid;
-      if (window.destroySearchableSelect) {
-        try { window.destroySearchableSelect(select); } catch (e2) { /* ignore */ }
-      }
-      if (window.initSearchableSelect) {
-        try {
-          window.initSearchableSelect(select);
-          if (select._choicesInstance) select._choicesInstance.setChoiceByValue(sid);
-        } catch (e3) { /* ignore */ }
-      }
+    if (window.appendSelectChoice) {
+      window.appendSelectChoice(select, id, label);
+      return;
     }
+    appendSelectOption(select, id, label);
   }
 
   function finishQuickCreate(select, id, label, searchInput) {
@@ -449,8 +429,7 @@
           errEl.style.display = 'block';
           return;
         }
-        appendSelectOption(document.getElementById('id_client'), res.data.id, res.data.name);
-        closeQuickModal();
+        finishQuickCreate(document.getElementById('id_client'), res.data.id, res.data.name);
       }).catch(function() {
         errEl.textContent = 'Could not create client.';
         errEl.style.display = 'block';
