@@ -13,6 +13,7 @@
     <button class="btn" type="submit">Filter</button>
     <a class="btn btn-clear hub-btn-clear" href="{% url 'sales:invoice_list' %}?{{ default_filter_query }}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
 </form>
+<div class="hub-table-wrap">
 <table class="table-compact invoice-list-table">
     <thead>
         <tr>
@@ -54,4 +55,5 @@
     {% endfor %}
     </tbody>
 </table>
+</div>
 {% endblock %}

@@ -15,21 +15,23 @@
     {% endif %}
 </div>
 <h3>Lines</h3>
-<table>
-    <thead><tr><th>Kind</th><th>Description</th><th>Cost</th><th>Notes</th></tr></thead>
+<div class="hub-table-wrap">
+<table class="table-compact">
+    <thead><tr><th>Kind</th><th>Description</th><th class="num">Cost</th><th>Notes</th></tr></thead>
     <tbody>
     {% for line in lines %}
         <tr>
             <td>{{ line.get_line_kind_display }}</td>
-            <td>{{ line.description|default:"-" }}</td>
-            <td>{{ line.cost_amount }}</td>
-            <td>{{ line.notes|default:"-" }}</td>
+            <td class="col-detail">{{ line.description|default:"—" }}</td>
+            <td class="num">{{ line.cost_amount }}</td>
+            <td class="col-detail">{{ line.notes|default:"—" }}</td>
         </tr>
     {% empty %}
         <tr><td colspan="4">No lines.</td></tr>
     {% endfor %}
     </tbody>
 </table>
+</div>
 <p style="margin-top:12px;">
     {% if bill.status == "DRAFT" %}
     <a class="btn" href="{% url 'purchases:bill_edit' bill.id %}">Edit</a>

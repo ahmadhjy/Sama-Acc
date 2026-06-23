@@ -1,5 +1,5 @@
 (function () {
-  var DETAIL_HEADERS = /description|details|note|summary|party|client|supplier|name/i;
+  var DETAIL_HEADERS = /description|details|note|notes|summary/i;
   var TRUNCATE_LEN = 42;
 
   function truncateText(text, limit) {
@@ -9,7 +9,7 @@
   }
 
   function initTable(root) {
-    (root || document).querySelectorAll(".hub-table-wrap table, .app-page__body > table, .panel > table").forEach(function (table) {
+    (root || document).querySelectorAll(".hub-table-wrap table, .app-page__body table, .panel > table").forEach(function (table) {
       var headers = Array.from(table.querySelectorAll("thead th")).map(function (th) {
         return (th.textContent || "").trim();
       });
@@ -20,7 +20,11 @@
 
       table.querySelectorAll("tbody tr").forEach(function (row) {
         Array.from(row.children).forEach(function (cell, index) {
-          if (cell.classList.contains("num") || cell.querySelector("a, button, input, select, form")) {
+          if (cell.classList.contains("num") || cell.closest("th")) {
+            cell.classList.add("cell-nowrap");
+            return;
+          }
+          if (cell.classList.contains("cell-nowrap") || cell.querySelector("a, button, input, select, form")) {
             cell.classList.add("cell-nowrap");
             return;
           }

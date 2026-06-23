@@ -1,4 +1,5 @@
 {% extends "page/layout.html" %}
+{% load formatting %}
 {% block title %}Invoice {{ invoice.invoice_no }}{% endblock %}
 {% block page_content %}
 <h1 class="title">Invoice {{ invoice.invoice_no }}</h1>
@@ -27,28 +28,44 @@
 </div>
 
 <h3>Service Lines</h3>
-<table>
-    <thead><tr><th>Date</th><th>Service</th><th>Destination</th><th>Supplier</th><th>Employee</th><th>Qty</th><th>Sell</th><th>Cost</th><th>Sell USD</th><th>Cost USD</th><th>Details</th></tr></thead>
+<div class="hub-table-wrap">
+<table class="table-compact">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Service</th>
+            <th>Description</th>
+            <th>Destination</th>
+            <th>Supplier</th>
+            <th>Employee</th>
+            <th class="num">Qty</th>
+            <th class="num">Sell</th>
+            <th class="num">Cost</th>
+            <th class="num">Sell USD</th>
+            <th class="num">Cost USD</th>
+        </tr>
+    </thead>
     <tbody>
     {% for line in lines %}
         <tr>
-            <td>{{ line.effective_service_date|date:"d/m/Y" }}</td>
-            <td>{{ line.service_type.name|default:"-" }}</td>
-            <td>{{ line.destination.name|default:"-" }}</td>
-            <td>{{ line.supplier.name|default:"-" }}</td>
-            <td>{{ line.line_employee.name|default:"-" }}</td>
-            <td>{{ line.qty }}</td>
-            <td>{{ line.sell_price }}</td>
-            <td>{{ line.cost_price }}</td>
-            <td>{{ line.sell_price_usd }}</td>
-            <td>{{ line.cost_price_usd }}</td>
-            <td>{{ line.line_summary_label }}</td>
+            <td class="cell-nowrap">{{ line.effective_service_date|date:"d/m/Y" }}</td>
+            <td>{{ line.service_type.name|default:"—" }}</td>
+            <td class="col-detail">{{ line.statement_line_details|truncate_detail }}</td>
+            <td>{{ line.destination.name|default:"—" }}</td>
+            <td>{{ line.supplier.name|default:"—" }}</td>
+            <td>{{ line.line_employee.name|default:"—" }}</td>
+            <td class="num">{{ line.qty }}</td>
+            <td class="num">{{ line.sell_price }}</td>
+            <td class="num">{{ line.cost_price }}</td>
+            <td class="num">{{ line.sell_price_usd }}</td>
+            <td class="num">{{ line.cost_price_usd }}</td>
         </tr>
     {% empty %}
         <tr><td colspan="11">No lines.</td></tr>
     {% endfor %}
     </tbody>
 </table>
+</div>
 
 <div class="detail-actions" style="margin-top:14px;">
     <a class="btn" href="{% url 'sales:invoice_pdf' invoice.id %}?version=client">PDF (Client)</a>

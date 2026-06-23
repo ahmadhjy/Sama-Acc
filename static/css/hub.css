@@ -397,9 +397,14 @@
 
 .hub-kpis,
 .hub-charts,
-.hub-panel,
-.hub-table-wrap {
+.hub-panel {
     overflow: visible;
+}
+
+.hub-table-wrap {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
 }
 
 .hub-hero__subtitle .info-tip {
