@@ -2,8 +2,6 @@ from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 
-from django.db.models import Q
-
 from sales.models import SalesInvoice, SalesInvoiceLine
 
 
@@ -35,30 +33,25 @@ def _line_cost_usd(line):
 
 
 def build_brief_report(employee, date_from=None, date_to=None):
-    line_invoice_ids = SalesInvoiceLine.objects.filter(line_employee=employee).values_list("invoice_id", flat=True)
-    invoices = SalesInvoice.objects.filter(
-        Q(sales_employee=employee) | Q(pk__in=line_invoice_ids),
-        status__in=SalesInvoice.reporting_statuses(),
-    ).distinct()
-    invoices = _date_filter_qs(invoices, "issue_date", date_from, date_to)
+    """Totals from service lines assigned to this employee (line_employee)."""
     lines = _employee_line_qs(employee, date_from, date_to)
 
     revenue = Decimal("0.00")
-    for inv in invoices:
-        revenue += inv.grand_total_usd or Decimal("0.00")
-
     cost_usd = Decimal("0.00")
     for line in lines:
+        revenue += _line_selling_usd(line)
         cost_usd += _line_cost_usd(line)
 
-    client_ids = set(invoices.values_list("client_id", flat=True))
+    invoice_ids = set(lines.values_list("invoice_id", flat=True))
+    client_ids = {c for c in lines.values_list("invoice__client_id", flat=True) if c}
+
     return {
         "employee": employee,
         "date_from": date_from,
         "date_to": date_to,
         "total_services": lines.count(),
         "total_clients": len(client_ids),
-        "total_invoices": invoices.count(),
+        "total_invoices": len(invoice_ids),
         "total_revenue": revenue,
         "total_profit": revenue - cost_usd,
         "total_cost": cost_usd,
@@ -66,48 +59,17 @@ def build_brief_report(employee, date_from=None, date_to=None):
 
 
 def build_detailed_report(employee, date_from=None, date_to=None):
-    """
-    One row per invoice:
-    - Main salesperson on invoice → whole invoice selling, cost, profit (USD).
-    - Line participant only → selling/cost/profit for that employee's lines only.
-    """
-    rows = []
-    seen_invoice_ids = set()
-
-    main_invoices = _date_filter_qs(
-        SalesInvoice.objects.filter(
-            sales_employee=employee,
-            status__in=SalesInvoice.reporting_statuses(),
-        ).select_related("client"),
-        "issue_date",
-        date_from,
-        date_to,
-    )
-
-    for inv in main_invoices.order_by("issue_date", "invoice_no"):
-        selling = inv.grand_total_usd or Decimal("0.00")
-        cost = inv.total_line_cost_usd()
-        profit = selling - cost
-        rows.append(
-            {
-                "date": inv.issue_date,
-                "invoice_id": inv.id,
-                "invoice_no": inv.invoice_no,
-                "client_name": inv.client.name_en if inv.client_id else "",
-                "selling": selling,
-                "cost": cost,
-                "profit": profit,
-            }
-        )
-        seen_invoice_ids.add(inv.id)
-
+    """One row per invoice: selling, cost, and profit for this employee's assigned lines only."""
     lines = list(_employee_line_qs(employee, date_from, date_to))
     lines_by_invoice = defaultdict(list)
     for line in lines:
-        if line.invoice_id not in seen_invoice_ids:
-            lines_by_invoice[line.invoice_id].append(line)
+        lines_by_invoice[line.invoice_id].append(line)
 
-    for invoice_id in sorted(lines_by_invoice.keys(), key=lambda i: lines_by_invoice[i][0].invoice.issue_date or date.today()):
+    rows = []
+    for invoice_id in sorted(
+        lines_by_invoice.keys(),
+        key=lambda i: lines_by_invoice[i][0].invoice.issue_date or date.today(),
+    ):
         inv_lines = lines_by_invoice[invoice_id]
         inv = inv_lines[0].invoice
         selling = sum((_line_selling_usd(ln) for ln in inv_lines), Decimal("0.00"))

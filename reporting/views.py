@@ -257,7 +257,7 @@ def all_suppliers_statement(request):
             "bal_cr": bal_cr,
             "total_balance": total_balance,
             "pdf_report_title": "Supplier Statement — All Suppliers",
-            "pdf_report_subtitle": "Summary balance per supplier (service lines from service date onward)",
+            "pdf_report_subtitle": "Summary balance per supplier for the selected period",
         },
         export_filename("All_Suppliers_Statement", export_period_suffix(df, dt)),
     )

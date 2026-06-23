@@ -2,7 +2,7 @@
 {% load formatting %}
 {% block title %}Supplier Statement{% endblock %}
 {% block hub_title %}Supplier statement — {{ supplier.name }}{% endblock %}
-{% block hub_subtitle %}Costs, bills, and payments with running balance.{% endblock %}
+{% block hub_subtitle %}Costs, bills, and payments with running balance. <span class="statement-legend"><span class="statement-legend__swatch statement-legend__swatch--pending"></span> Highlighted until service date</span>{% endblock %}
 {% block hub_extra_actions %}
 {% include "partials/export_buttons.html" %}
 {% endblock %}
@@ -12,7 +12,7 @@
     <thead><tr><th>Date</th><th>Service</th><th>Description</th><th>Destination</th><th>Ref</th><th class="num">Debit</th><th class="num">Credit</th><th class="num">Balance</th></tr></thead>
     <tbody>
     {% for row in rows %}
-        <tr>
+        <tr{% if row.is_pending %} class="statement-row--pending"{% endif %}>
             <td class="cell-nowrap">{{ row.date|date:"d/m/Y" }}</td>
             <td>{{ row.type }}</td>
             <td class="col-detail">{{ row.description|default:"—"|truncate_detail }}</td>

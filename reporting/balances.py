@@ -49,7 +49,7 @@ def supplier_ap_balance(supplier, on_or_before):
     lines = SalesInvoiceLine.objects.filter(
         supplier=supplier,
         invoice__status__in=SalesInvoice.reporting_statuses(),
-        service_date__lte=on_or_before,
+        invoice__issue_date__lte=on_or_before,
     )
     costs = sum((line.line_cost_amount_usd() for line in lines), Decimal("0.00"))
     payments = sum((p.amount for p in _supplier_payments_qs(supplier, on_or_before=on_or_before)), Decimal("0.00"))

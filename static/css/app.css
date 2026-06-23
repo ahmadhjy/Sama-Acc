@@ -967,6 +967,28 @@ td .btn {
 /* Due rows */
 tr.due-overdue td { background: #fef2f2 !important; }
 tr.due-today td { background: #fffbeb !important; }
+tr.statement-row--pending td { background: #fff7ed !important; }
+
+.statement-legend {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    margin-left: 8px;
+}
+
+.statement-legend__swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    vertical-align: -2px;
+    margin-right: 4px;
+    border: 1px solid rgba(15, 39, 68, 0.08);
+}
+
+.statement-legend__swatch--pending {
+    background: #fff7ed;
+}
 
 /* Info tips */
 .info-tip {
