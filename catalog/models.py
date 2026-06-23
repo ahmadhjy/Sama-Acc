@@ -43,7 +43,11 @@ class ServiceFieldDefinition(models.Model):
     service_type = models.ForeignKey(ServiceType, on_delete=models.CASCADE, related_name="field_definitions")
     key = models.CharField(max_length=64)
     label = models.CharField(max_length=120)
-    field_type = models.CharField(max_length=20, choices=FieldType.choices)
+    field_type = models.CharField(
+        max_length=20,
+        choices=FieldType.choices,
+        default=FieldType.TEXT,
+    )
     required = models.BooleanField(default=False)
     choices = models.JSONField(default=list, blank=True)
     order = models.PositiveIntegerField(default=1)

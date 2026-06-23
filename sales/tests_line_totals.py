@@ -103,7 +103,8 @@ class InvoiceLineTotalTests(TestCase):
         invoice_rows = [r for r in rows if r["ref"] == invoice.invoice_no]
         self.assertEqual(len(invoice_rows), 2)
         descriptions = {r["description"] for r in invoice_rows}
+        destinations = {r["destination"] for r in invoice_rows}
         self.assertTrue(any("Jane" in d and "Rome" in d for d in descriptions))
-        self.assertIn("Paris", descriptions)
+        self.assertIn("Paris", destinations)
         debits = sorted(r["debit"] for r in invoice_rows)
         self.assertEqual(debits, [Decimal("200.00"), Decimal("300.00")])

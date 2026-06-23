@@ -13,13 +13,14 @@ from django.template.loader import render_to_string
 
 from accounts_core.branding import get_company_branding
 
-STATEMENT_HEADERS = ["Date", "Reference", "Description", "Type", "Debit", "Credit", "Balance"]
+STATEMENT_HEADERS = ["Date", "Service", "Description", "Destination", "Ref", "Debit", "Credit", "Balance"]
 STATEMENT_HEADERS_WITH_PARTY = [
     "Account",
     "Date",
-    "Reference",
+    "Service",
     "Description",
-    "Type",
+    "Destination",
+    "Ref",
     "Debit",
     "Credit",
     "Balance",
@@ -171,30 +172,13 @@ def _prepare_income_statement_pdf(context):
     return context
 
 
-def _statement_description(r):
-    desc = (r.get("description") or "").strip()
-    typ = (r.get("type") or "").strip()
-    if desc and typ and typ not in desc:
-        return f"{typ} — {desc}"
-    return desc or typ or ""
-
-
-def _statement_type_label(r):
-    debit = Decimal(str(r.get("debit") or 0))
-    credit = Decimal(str(r.get("credit") or 0))
-    if debit > 0:
-        return "DEBIT"
-    if credit > 0:
-        return "CREDIT"
-    return (r.get("type") or "").upper()
-
-
 def _flatten_statement_row(r):
     return [
         _format_cell(r.get("date")),
+        _format_cell(r.get("type")),
+        _format_cell(r.get("description")),
+        _format_cell(r.get("destination")),
         _format_cell(r.get("ref")),
-        _statement_description(r),
-        _statement_type_label(r),
         _format_cell(r.get("debit")),
         _format_cell(r.get("credit")),
         _format_cell(r.get("running_balance")),
@@ -205,9 +189,10 @@ def _flatten_statement_row_with_party(r, party_label):
     return [
         party_label,
         _format_cell(r.get("date")),
+        _format_cell(r.get("type")),
+        _format_cell(r.get("description")),
+        _format_cell(r.get("destination")),
         _format_cell(r.get("ref")),
-        _statement_description(r),
-        _statement_type_label(r),
         _format_cell(r.get("debit")),
         _format_cell(r.get("credit")),
         _format_cell(r.get("running_balance")),
@@ -223,18 +208,18 @@ def _statement_pdf_meta(context, rows, *, with_party=False):
     closing = rows[-1].get("running_balance") if rows else Decimal("0")
     if with_party:
         context["pdf_table_headers"] = STATEMENT_HEADERS_WITH_PARTY
-        context["pdf_numeric_column_indexes"] = [5, 6, 7]
-        context["pdf_ref_column_index"] = 2
+        context["pdf_numeric_column_indexes"] = [6, 7, 8]
+        context["pdf_ref_column_index"] = 5
         context["pdf_description_column_index"] = 3
-        context["pdf_badge_column_index"] = 4
-        context["pdf_column_widths"] = ["13%", "9%", "15%", "20%", "11%", "11%", "10%", "11%"]
+        context["pdf_badge_column_index"] = -1
+        context["pdf_column_widths"] = ["12%", "8%", "10%", "22%", "11%", "12%", "9%", "9%", "7%"]
     else:
         context["pdf_table_headers"] = STATEMENT_HEADERS
-        context["pdf_numeric_column_indexes"] = [4, 5, 6]
-        context["pdf_ref_column_index"] = 1
+        context["pdf_numeric_column_indexes"] = [5, 6, 7]
+        context["pdf_ref_column_index"] = 4
         context["pdf_description_column_index"] = 2
-        context["pdf_badge_column_index"] = 3
-        context["pdf_column_widths"] = ["10%", "16%", "24%", "12%", "12%", "11%", "15%"]
+        context["pdf_badge_column_index"] = -1
+        context["pdf_column_widths"] = ["9%", "11%", "24%", "12%", "13%", "10%", "10%", "11%"]
     context["pdf_totals"] = [
         ("Total Debit", _format_cell(total_dr)),
         ("Total Credit", _format_cell(total_cr)),
@@ -342,37 +327,34 @@ def _prepare_invoice_document_pdf(context):
     if not invoice or lines is None:
         return
     show_costs = context.get("show_costs")
-    headers = ["Date", "Service", "Destination"]
+    headers = ["Date", "Service", "Description", "Destination"]
     if show_costs:
-        headers.append("Supplier")
-    headers.extend(["Qty", "Sell"])
-    if show_costs:
-        headers.extend(["Cost", "Cost USD"])
-    headers.append("Description")
+        headers.extend(["Supplier", "Sell", "Cost", "Cost USD"])
+    else:
+        headers.append("Sell")
 
     table_rows = []
     for line in lines:
         row = [
             _format_cell(line.effective_service_date() if callable(getattr(line, "effective_service_date", None)) else line.effective_service_date),
             line.service_type.name if line.service_type_id else "—",
+            (line.statement_line_details() if callable(getattr(line, "statement_line_details", None)) else "") or "—",
             line.destination.name if line.destination_id else "—",
         ]
         if show_costs:
             row.append(line.supplier.name if line.supplier_id else "—")
-        row.extend([_format_cell(line.qty), _format_cell(line.sell_price)])
-        if show_costs:
-            row.extend([_format_cell(line.cost_price), _format_cell(line.cost_price_usd)])
-        desc = line.statement_description() if callable(getattr(line, "statement_description", None)) else ""
-        row.append(desc or "—")
+            row.extend([_format_cell(line.sell_price), _format_cell(line.cost_price), _format_cell(line.cost_price_usd)])
+        else:
+            row.append(_format_cell(line.sell_price))
         table_rows.append(row)
 
-    numeric_start = 3 if not show_costs else 4
-    numeric_indexes = list(range(numeric_start, numeric_start + (4 if show_costs else 2)))
+    numeric_start = 4 if not show_costs else 5
+    numeric_indexes = list(range(numeric_start, len(headers)))
     context["pdf_table_headers"] = headers
     context["pdf_table_rows"] = table_rows
     context["pdf_numeric_column_indexes"] = numeric_indexes
-    context["pdf_description_column_index"] = len(headers) - 1
-    context["pdf_wrap_column_indexes"] = [len(headers) - 1]
+    context["pdf_description_column_index"] = 2
+    context["pdf_wrap_column_indexes"] = [2, 3]
     context["pdf_hide_subtitle_in_body"] = True
 
     context["pdf_account_name"] = invoice.client.name_en if invoice.client_id else "Draft"

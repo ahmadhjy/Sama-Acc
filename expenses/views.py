@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
 from accounts_core.list_utils import parse_date
+from accounts_core.export_names import export_filename, export_period_suffix
 from accounts_core.pdf_utils import render_or_pdf
 from auditlog.utils import log_audit
 from expenses.category_forms import ExpenseCategoryForm
@@ -47,7 +48,7 @@ def expense_list(request):
             "selected_category": cat,
             "pdf_report_title": "Operating Expenses",
         },
-        "operating_expenses.pdf",
+        export_filename("Operating_Expenses", export_period_suffix(df, dt)),
     )
 
 

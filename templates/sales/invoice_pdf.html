@@ -29,12 +29,11 @@
         <tr>
             <th>Date</th>
             <th>Service</th>
+            <th>Description</th>
             <th>Destination</th>
             {% if show_costs %}<th>Supplier</th>{% endif %}
-            <th class="num">Qty</th>
             <th class="num">Sell</th>
             {% if show_costs %}<th class="num">Cost</th><th class="num">Cost USD</th>{% endif %}
-            <th>Description</th>
         </tr>
     </thead>
     <tbody>
@@ -42,31 +41,34 @@
         <tr>
             <td>{{ line.effective_service_date|date:"d/m/Y" }}</td>
             <td>{{ line.service_type.name|default:"—" }}</td>
+            <td class="desc">{{ line.statement_line_details }}</td>
             <td>{{ line.destination.name|default:"—" }}</td>
             {% if show_costs %}<td>{{ line.supplier.name|default:"—" }}</td>{% endif %}
-            <td class="num">{{ line.qty }}</td>
             <td class="num">{{ line.sell_price }}</td>
             {% if show_costs %}
             <td class="num">{{ line.cost_price }}</td>
             <td class="num">{{ line.cost_price_usd }}</td>
             {% endif %}
-            <td class="desc">{{ line.statement_description }}</td>
         </tr>
     {% endfor %}
     </tbody>
     <tfoot>
         <tr>
-            <td colspan="{% if show_costs %}8{% else %}5{% endif %}" style="text-align:right;"><strong>Grand total</strong></td>
+            <td colspan="{% if show_costs %}5{% else %}4{% endif %}" style="text-align:right;"><strong>Grand total</strong></td>
             <td class="num"><strong>{{ invoice.grand_total }} {{ invoice.currency }}</strong>{% if invoice.grand_total_usd %}<br><strong>{{ invoice.grand_total_usd }} USD</strong>{% endif %}</td>
+            {% if show_costs %}<td></td><td></td>{% endif %}
         </tr>
         {% if show_costs %}
         <tr>
-            <td colspan="8" style="text-align:right;"><strong>Total cost (USD)</strong></td>
+            <td colspan="5" style="text-align:right;"><strong>Total cost (USD)</strong></td>
+            <td></td>
             <td class="num"><strong>{{ invoice.total_line_cost_usd }}</strong></td>
+            <td></td>
         </tr>
         <tr>
-            <td colspan="8" style="text-align:right;"><strong>Profit (USD)</strong></td>
+            <td colspan="5" style="text-align:right;"><strong>Profit (USD)</strong></td>
             <td class="num"><strong>{{ invoice.profit_amount }}</strong></td>
+            <td></td><td></td>
         </tr>
         {% endif %}
     </tfoot>
@@ -93,12 +95,11 @@
         <tr>
             <th>Date</th>
             <th>Service</th>
+            <th>Description</th>
             <th>Destination</th>
             {% if show_costs %}<th>Supplier</th>{% endif %}
-            <th class="num">Qty</th>
             <th class="num">Sell</th>
             {% if show_costs %}<th class="num">Cost</th><th class="num">Cost USD</th>{% endif %}
-            <th>Description</th>
         </tr>
     </thead>
     <tbody>
@@ -106,15 +107,14 @@
         <tr>
             <td>{{ line.effective_service_date|date:"d/m/Y" }}</td>
             <td>{{ line.service_type.name|default:"-" }}</td>
+            <td>{{ line.statement_line_details }}</td>
             <td>{{ line.destination.name|default:"-" }}</td>
             {% if show_costs %}<td>{{ line.supplier.name|default:"-" }}</td>{% endif %}
-            <td class="num">{{ line.qty }}</td>
             <td class="num">{{ line.sell_price }}</td>
             {% if show_costs %}
             <td class="num">{{ line.cost_price }}</td>
             <td class="num">{{ line.cost_price_usd }}</td>
             {% endif %}
-            <td>{{ line.statement_description }}</td>
         </tr>
     {% endfor %}
     </tbody>

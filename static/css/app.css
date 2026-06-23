@@ -305,6 +305,8 @@ table {
     margin: 0;
     box-shadow: none;
     border-radius: 0;
+    table-layout: auto;
+    width: 100%;
 }
 
 th, td {
@@ -345,6 +347,20 @@ td.num,
 th.num {
     text-align: right;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.cell-nowrap {
+    white-space: nowrap;
+}
+
+.cell-detail,
+.col-detail {
+    max-width: min(240px, 28vw);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: help;
 }
 
 td .btn {

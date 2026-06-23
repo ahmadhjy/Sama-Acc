@@ -411,8 +411,8 @@ class SalesInvoiceLine(models.Model):
             self.line_discount_usd or Decimal("0")
         )
 
-    def statement_description(self):
-        """Client statement: custom service-type fields + destination."""
+    def statement_line_details(self):
+        """Custom service-type field values only (destination has its own column)."""
         st = self.service_type
         if not st and self.service_instance_id:
             st = self.service_instance.service_type
@@ -427,15 +427,25 @@ class SalesInvoiceLine(models.Model):
                     parts.append("Yes" if val else "No")
                 else:
                     parts.append(str(val))
-        if self.destination_id and self.destination:
-            parts.append(self.destination.name)
         if parts:
             return " - ".join(parts)
         return st.name if st else "Service"
 
+    def statement_description(self):
+        """Client statement: custom fields plus destination (legacy combined text)."""
+        details = self.statement_line_details()
+        if self.destination_id and self.destination:
+            dest = self.destination.name
+            if details and dest not in details:
+                return f"{details} - {dest}"
+            if details:
+                return details
+            return dest
+        return details
+
     def supplier_statement_description(self):
-        """Supplier statement: service type, custom fields, destination."""
-        return self.statement_description()
+        """Supplier statement line details without destination duplication."""
+        return self.statement_line_details()
 
     def line_summary_label(self):
         st = self.service_type

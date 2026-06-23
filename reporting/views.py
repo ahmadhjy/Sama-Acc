@@ -5,6 +5,7 @@ from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
 from reporting.date_ranges import resolve_report_dates
+from accounts_core.export_names import export_filename, export_period_suffix
 from accounts_core.models import Client, Employee, Supplier
 from accounts_core.pdf_utils import pdf_download_query, render_or_pdf
 from reporting.salesman import build_brief_report, build_detailed_report
@@ -90,7 +91,7 @@ def reports_home(request):
             "pdf_report_title": "Reporting Overview",
             "pdf_report_subtitle": "Summary for posted documents in the selected period",
         },
-        "reporting_overview.pdf",
+        export_filename("Reporting_Overview", export_period_suffix(df, dt)),
     )
 
 
@@ -120,7 +121,7 @@ def client_statement(request, client_id):
             "pdf_account_name": client.name_en,
             "pdf_account_id": client.client_code,
         },
-        f"client_statement_{client.client_code}.pdf",
+        export_filename("Statement", client.name_en, client.client_code, export_period_suffix(df, dt)),
     )
 
 
@@ -148,7 +149,7 @@ def all_clients_statement(request):
             "pdf_report_title": "Statement of Account — All Clients",
             "pdf_report_subtitle": "Summary balance per client for the selected period",
         },
-        "all_clients_statement.pdf",
+        export_filename("All_Clients_Statement", export_period_suffix(df, dt)),
     )
 
 
@@ -196,7 +197,7 @@ def ar_aging(request):
             "pdf_report_title": "Accounts Receivable Aging",
             "pdf_report_subtitle": "Outstanding posted invoices by due-date bucket",
         },
-        "ar_aging.pdf",
+        export_filename("AR_Aging", export_period_suffix(df, dt)),
     )
 
 
@@ -230,7 +231,7 @@ def supplier_statement(request, supplier_id):
             "pdf_account_name": supplier.name,
             "pdf_account_id": supplier.supplier_code,
         },
-        f"supplier_statement_{supplier.supplier_code}.pdf",
+        export_filename("Supplier_Statement", supplier.name, supplier.supplier_code, export_period_suffix(df, dt)),
     )
 
 
@@ -258,7 +259,7 @@ def all_suppliers_statement(request):
             "pdf_report_title": "Supplier Statement — All Suppliers",
             "pdf_report_subtitle": "Summary balance per supplier (service lines from service date onward)",
         },
-        "all_suppliers_statement.pdf",
+        export_filename("All_Suppliers_Statement", export_period_suffix(df, dt)),
     )
 
 
@@ -306,7 +307,7 @@ def ap_aging(request):
             "pdf_report_title": "Accounts Payable Aging",
             "pdf_report_subtitle": "Outstanding posted supplier bills by due-date bucket",
         },
-        "ap_aging.pdf",
+        export_filename("AP_Aging", export_period_suffix(df, dt)),
     )
 
 
@@ -323,7 +324,7 @@ def cash_movement(request):
             "pdf_report_title": "Cash Movement",
             "pdf_report_subtitle": "Expected balance per money account (as of today)",
         },
-        "cash_movement.pdf",
+        export_filename("Cash_Movement"),
     )
 
 
@@ -360,7 +361,7 @@ def opex_by_category(request):
             "pdf_report_title": "Operating Expenses by Category",
             "pdf_report_subtitle": "Posted operating expenses from the Operating Expenses module (USD)",
         },
-        "opex_by_category.pdf",
+        export_filename("Operating_Expenses_by_Category", export_period_suffix(df, dt)),
     )
 
 
@@ -463,7 +464,7 @@ def activity_trial_balance(request):
             "pdf_report_subtitle": "Posted sales revenue, cost of sales, and operating expenses (USD)",
             "pdf_account_range": "Accounts: 401 (Sales revenue), 501 (Cost of sales), 632 (Operating expenses)",
         },
-        "income_statement.pdf",
+        export_filename("Income_Statement", export_period_suffix(df, dt)),
     )
 
 
@@ -526,7 +527,7 @@ def clients_trial_balance(request):
             "pdf_report_subtitle": "Per-client debits, credits, and closing balance in the selected period",
             "pdf_account_range": "Client receivables (41 series — symbolic codes)",
         },
-        "clients_trial_balance.pdf",
+        export_filename("Clients_Trial_Balance", export_period_suffix(df, dt)),
     )
 
 
@@ -589,7 +590,7 @@ def suppliers_trial_balance(request):
             "pdf_report_subtitle": "Per-supplier debits, credits, and closing balance in the selected period",
             "pdf_account_range": "Trade payables (21 series — symbolic codes)",
         },
-        "suppliers_trial_balance.pdf",
+        export_filename("Suppliers_Trial_Balance", export_period_suffix(df, dt)),
     )
 
 
@@ -625,7 +626,7 @@ def salesman_brief_report(request, employee_id):
         request,
         "reporting/salesman_brief_report.html",
         report,
-        f"salesman_brief_{employee.name.replace(' ', '_')}.pdf",
+        export_filename("Sales_Report_Brief", employee.name, export_period_suffix(df, dt)),
     )
 
 
@@ -639,5 +640,5 @@ def salesman_detailed_report(request, employee_id):
         request,
         "reporting/salesman_detailed_report.html",
         report,
-        f"salesman_detailed_{employee.name.replace(' ', '_')}.pdf",
+        export_filename("Sales_Report_Detailed", employee.name, export_period_suffix(df, dt)),
     )

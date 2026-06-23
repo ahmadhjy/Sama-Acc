@@ -53,7 +53,8 @@ def build_client_statement_rows(client, date_from=None, date_to=None):
                 {
                     "date": line_date,
                     "type": st.name if st else "Service",
-                    "description": line.statement_description(),
+                    "description": line.statement_line_details(),
+                    "destination": line.destination.name if line.destination_id else "—",
                     "ref": inv.invoice_no,
                     "ref_url": invoice_ref_url(inv.id),
                     "debit": amt,
@@ -69,6 +70,7 @@ def build_client_statement_rows(client, date_from=None, date_to=None):
                 "date": pay.date,
                 "type": "Payment",
                 "description": _payment_statement_description(pay),
+                "destination": "—",
                 "ref": pay.receipt_no,
                 "ref_url": payment_ref_url(pay.id),
                 "debit": Decimal("0.00"),

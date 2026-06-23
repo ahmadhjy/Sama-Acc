@@ -11,6 +11,7 @@ from accounts_core.forms import ClientForm, SupplierForm
 from accounts_core.list_utils import client_list_filters, supplier_list_filters
 from accounts_core.models import BookingFile, Client, Employee, Supplier
 from accounts_core.party_codes import next_client_code, next_supplier_code
+from accounts_core.export_names import export_filename
 from accounts_core.pdf_utils import render_or_pdf
 from purchases.models import SupplierBill
 from sales.models import SalesInvoice
@@ -59,7 +60,7 @@ def dashboard(request):
 def clients_list(request):
     qs = Client.objects.order_by("name_en")
     clients = client_list_filters(qs, request)[:500]
-    return render_or_pdf(request, "accounts_core/clients_list.html", {"clients": clients}, "clients.pdf")
+    return render_or_pdf(request, "accounts_core/clients_list.html", {"clients": clients}, export_filename("Clients"))
 
 
 @login_required
@@ -120,7 +121,7 @@ def suppliers_list(request):
         request,
         "accounts_core/suppliers_list.html",
         {"supplier_rows": rows[:500], "min_balance": min_balance or "", "sort": sort_by},
-        "suppliers.pdf",
+        export_filename("Suppliers"),
     )
 
 
@@ -303,7 +304,7 @@ def employees_list(request):
         request,
         "accounts_core/employees_list.html",
         {"employees": qs[:500], "q": q},
-        "employees.pdf",
+        export_filename("Employees"),
     )
 
 
@@ -369,5 +370,5 @@ def employee_salary_pdf(request, employee_id):
                 ("Monthly salary", f"{employee.monthly_salary:,.2f} USD"),
             ],
         },
-        f"salary_{employee.name.replace(' ', '_')}_{period_label.replace('/', '-')}.pdf",
+        export_filename("Salary", employee.name, period_label.replace("/", "-")),
     )

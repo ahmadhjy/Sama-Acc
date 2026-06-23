@@ -13,6 +13,7 @@ from django.views.decorators.http import require_http_methods
 
 from accounts_core.list_utils import invoice_search_filters
 from accounts_core.models import get_default_employee_for_accounting
+from accounts_core.export_names import export_filename
 from accounts_core.pdf_utils import render_or_pdf
 from auditlog.models import DocumentEventLog
 from auditlog.utils import log_audit, log_document_event
@@ -126,7 +127,7 @@ def _invoice_page_context(form, formset, invoice, can_view_cost):
 def invoice_list(request):
     qs = SalesInvoice.objects.select_related("client", "sales_employee").order_by("-created_at")
     qs = invoice_search_filters(qs, request)[:500]
-    return render_or_pdf(request, "sales/invoice_list.html", {"invoices": qs}, "sales_invoices.pdf")
+    return render_or_pdf(request, "sales/invoice_list.html", {"invoices": qs}, export_filename("Invoices"))
 
 
 @login_required
@@ -235,7 +236,12 @@ def invoice_pdf(request, invoice_id):
             "pdf_currency": invoice.currency,
             "pdf_account_range": f"Client: {client_name}",
         },
-        f"invoice_{invoice.invoice_no}_{version}.pdf",
+        export_filename(
+            "Invoice",
+            invoice.invoice_no,
+            client_name,
+            "accountant" if show_costs else "client",
+        ),
     )
 
 

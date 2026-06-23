@@ -8,6 +8,7 @@ from django.contrib.auth.decorators import login_required
 
 from accounts_core.list_utils import parse_post_date
 from accounts_core.models import Client, Supplier
+from accounts_core.export_names import export_filename
 from accounts_core.pdf_utils import render_or_pdf
 from auditlog.models import DocumentEventLog
 from auditlog.utils import log_audit, log_document_event
@@ -56,7 +57,7 @@ def money_accounts_list(request):
         request,
         "treasury/money_accounts_list.html",
         {"accounts": qs},
-        "money_accounts.pdf",
+        export_filename("Money_Accounts"),
     )
 
 
@@ -138,7 +139,7 @@ def payment_list(request):
 
     qs = Payment.objects.select_related("money_account", "client", "supplier").order_by("-created_at")
     qs = payment_search_filters(qs, request)[:500]
-    return render_or_pdf(request, "treasury/payment_list.html", {"payments": qs}, "payments.pdf")
+    return render_or_pdf(request, "treasury/payment_list.html", {"payments": qs}, export_filename("Payments"))
 
 
 def _default_payment_date():
@@ -300,6 +301,12 @@ def payment_edit(request, payment_id):
 @login_required
 def payment_receipt(request, payment_id):
     payment = get_object_or_404(Payment.objects.select_related("client", "supplier", "money_account"), pk=payment_id)
+    if payment.client_id:
+        party = payment.client.name_en
+    elif payment.supplier_id:
+        party = payment.supplier.name
+    else:
+        party = payment.party_name or "Other"
     return render_or_pdf(
         request,
         "treasury/payment_receipt.html",
@@ -309,7 +316,7 @@ def payment_receipt(request, payment_id):
             "pdf_report_subtitle": payment.receipt_no,
             "pdf_currency": payment.currency,
         },
-        f"payment_receipt_{payment.receipt_no}.pdf",
+        export_filename("Receipt", payment.receipt_no, party),
     )
 
 

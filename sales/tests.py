@@ -264,3 +264,44 @@ class InvoiceLineOrderTests(TestCase):
         )
         resp = self.http.get(reverse("sales:invoice_edit", kwargs={"invoice_id": invoice.id}))
         self.assertEqual(resp.status_code, 200)
+
+
+class StatementLineDetailsTests(TestCase):
+    def setUp(self):
+        Currency.objects.get_or_create(code="USD", defaults={"name": "US Dollar", "is_active": True, "sort_order": 0})
+        self.client_obj = Client.objects.create(client_code="C0002", name_en="Client B")
+        self.employee = Employee.objects.create(name="Emp B", role=Employee.EmployeeRole.SALES)
+        self.service_type = ServiceType.objects.create(name="Hotel", code="HTL")
+        from catalog.models import ServiceFieldDefinition
+
+        ServiceFieldDefinition.objects.create(
+            service_type=self.service_type,
+            key="guest",
+            label="Guest",
+            field_type=ServiceFieldDefinition.FieldType.TEXT,
+        )
+        self.destination = Destination.objects.create(name="Paris")
+
+    def test_statement_line_details_excludes_destination(self):
+        invoice = SalesInvoice.objects.create(
+            invoice_no="TMP-2",
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=date.today(),
+            currency="USD",
+        )
+        line = SalesInvoiceLine.objects.create(
+            invoice=invoice,
+            service_type=self.service_type,
+            destination=self.destination,
+            line_employee=self.employee,
+            qty=Decimal("1"),
+            sell_price=Decimal("100"),
+            line_data={"guest": "John Smith"},
+        )
+        details = line.statement_line_details()
+        self.assertIn("John Smith", details)
+        self.assertNotIn("Paris", details)
+        combined = line.statement_description()
+        self.assertIn("Paris", combined)
+

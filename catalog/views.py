@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
 from accounts_core.list_utils import service_instance_list_filters, service_type_list_filters
+from accounts_core.export_names import export_filename
 from accounts_core.pdf_utils import render_or_pdf
 from catalog.forms import ServiceFieldInlineFormSet, ServiceTypeForm
 from catalog.models import Destination, ServiceInstance, ServiceType
@@ -56,7 +57,7 @@ def service_types_list(request):
         request,
         "catalog/service_types_list.html",
         {"service_types": service_types},
-        "service_types.pdf",
+        export_filename("Service_Types"),
     )
 
 
@@ -143,5 +144,5 @@ def service_instances_list(request):
         request,
         "catalog/service_instances_list.html",
         {"service_instances": service_instances},
-        "service_instances.pdf",
+        export_filename("Service_Instances"),
     )

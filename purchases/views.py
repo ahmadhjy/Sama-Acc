@@ -4,6 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 
 from accounts_core.list_utils import bill_search_filters
+from accounts_core.export_names import export_filename
 from accounts_core.pdf_utils import render_or_pdf
 from auditlog.models import DocumentEventLog
 from auditlog.utils import log_audit, log_document_event
@@ -15,7 +16,7 @@ from purchases.models import SupplierBill
 def bill_list(request):
     qs = SupplierBill.objects.select_related("supplier").order_by("-created_at")
     bills = bill_search_filters(qs, request)[:500]
-    return render_or_pdf(request, "purchases/bill_list.html", {"bills": bills}, "supplier_bills.pdf")
+    return render_or_pdf(request, "purchases/bill_list.html", {"bills": bills}, export_filename("Supplier_Bills"))
 
 
 @login_required
