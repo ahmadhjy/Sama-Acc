@@ -1,0 +1,17 @@
+{
+  "extracted_at": "2026-07-02T17:52:31.387671",
+  "source": "csv",
+  "company": {
+    "name": "SAMA TOURS TRAVEL & TOURISM",
+    "legacy_code": "SATO26"
+  },
+  "counts": {
+    "clients": 428,
+    "suppliers": 62,
+    "service_types": 6,
+    "invoices": 72,
+    "invoice_lines": 130,
+    "payments": 101,
+    "unpaid_invoices_legacy": 14
+  }
+}

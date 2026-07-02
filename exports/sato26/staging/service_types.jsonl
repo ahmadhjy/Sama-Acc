@@ -1,0 +1,6 @@
+{"legacy_item_code": "10001", "code": "LEG-10001", "name": "Hotel", "requires_supplier": true, "default_currency": "USD"}
+{"legacy_item_code": "10002", "code": "LEG-10002", "name": "Visa", "requires_supplier": true, "default_currency": "USD"}
+{"legacy_item_code": "10004", "code": "LEG-10004", "name": "Ticket", "requires_supplier": true, "default_currency": "USD"}
+{"legacy_item_code": "10007", "code": "LEG-10007", "name": "Insurance", "requires_supplier": true, "default_currency": "USD"}
+{"legacy_item_code": "10011", "code": "LEG-10011", "name": "Transfer", "requires_supplier": true, "default_currency": "USD"}
+{"legacy_item_code": "10015", "code": "LEG-10015", "name": "Package / Activities", "requires_supplier": true, "default_currency": "USD"}

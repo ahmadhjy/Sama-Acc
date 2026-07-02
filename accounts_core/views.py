@@ -9,10 +9,12 @@ from django.views.decorators.http import require_http_methods
 from accounts_core.employee_forms import EmployeeForm
 from accounts_core.forms import ClientForm, SupplierForm
 from accounts_core.list_utils import client_list_filters, supplier_list_filters
-from accounts_core.models import BookingFile, Client, Employee, Supplier
+from auditlog.utils import log_audit
 from accounts_core.party_codes import next_client_code, next_supplier_code
 from accounts_core.export_names import export_filename
+from accounts_core.models import BookingFile, Client, Employee, Supplier
 from accounts_core.pdf_utils import render_or_pdf
+from expenses.models import OperatingExpense
 from purchases.models import SupplierBill
 from sales.models import SalesInvoice
 from treasury.models import Payment
@@ -336,11 +338,43 @@ def employee_edit(request, employee_id):
             return redirect("accounts_core:employee_edit", employee_id=employee.id)
     else:
         form = EmployeeForm(instance=employee)
+    paid_salaries = []
+    if employee and employee.monthly_salary:
+        desc_prefix = f"Salary {employee.name} ("
+        paid_salaries = list(
+            OperatingExpense.objects.filter(description__startswith=desc_prefix)
+            .exclude(status=OperatingExpense.Status.VOIDED)
+            .order_by("-expense_date")[:12]
+        )
     return render(
         request,
         "accounts_core/employee_form.html",
-        {"form": form, "employee": employee, "is_edit": True},
+        {
+            "form": form,
+            "employee": employee,
+            "is_edit": True,
+            "paid_salaries": paid_salaries,
+        },
     )
+
+
+@login_required
+@require_http_methods(["POST"])
+def employee_pay_salary(request, employee_id):
+    from accounts_core.salary_expense import parse_salary_month, pay_employee_salary
+
+    employee = get_object_or_404(Employee, pk=employee_id)
+    try:
+        year, month = parse_salary_month(request.POST.get("salary_month"))
+        opex = pay_employee_salary(employee, year, month, user=request.user)
+        log_audit("PAY_EMPLOYEE_SALARY", employee, actor=request.user, reason=opex.expense_no)
+        messages.success(
+            request,
+            f"Salary for {year}-{month:02d} posted as expense {opex.expense_no}.",
+        )
+    except ValueError as exc:
+        messages.error(request, str(exc))
+    return redirect("accounts_core:employee_edit", employee_id=employee.id)
 
 
 @login_required

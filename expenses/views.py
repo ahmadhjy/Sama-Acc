@@ -65,8 +65,10 @@ def expense_create(request):
             exp.recalc_usd()
             exp.save()
             _save_attachments(request, exp)
-            messages.success(request, f"Expense {exp.expense_no} created.")
-            return redirect("expenses:expense_edit", expense_id=exp.id)
+            exp.post(request.user)
+            log_audit("POST_OPERATING_EXPENSE", exp, actor=request.user)
+            messages.success(request, f"Expense {exp.expense_no} saved and posted.")
+            return redirect("expenses:expense_list")
     else:
         form = OperatingExpenseForm(instance=expense, initial={"expense_date": date.today()})
     return render(

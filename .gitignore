@@ -1,42 +1,16 @@
+# Legacy SQL Server restore artifacts
+exports/sato26/*.mdf
+exports/sato26/*.ldf
+exports/sato26/backup/
+exports/sato26/inventory/
+exports/sato26/*.csv
+
 # Python
 __pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.Python
-*.egg-info/
-.eggs/
-dist/
-build/
+*.pyc
 
-# Virtual environments
-.venv/
-venv/
-env/
-djangoenv/
-
-# Django / local data (never commit)
-.env
+# Local DB
 db.sqlite3
-*.sqlite3
-staticfiles/
-media/branding/
-media/invoices/
-media/invoice_attachments/
-media/attachments/
 
-# IDE / OS
-.idea/
-.vscode/
-*.swp
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# PythonAnywhere private notes (may contain account hints)
-PYTHONANYWHERE_REFERENCE.txt
-
-# Production deploy (server-only)
-deploy/production.env
+# Do not commit raw backup files
+*.bak

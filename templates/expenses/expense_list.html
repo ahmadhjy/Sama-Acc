@@ -39,7 +39,6 @@
             <td>
                 {% if e.status == "DRAFT" %}
                 <a href="{% url 'expenses:expense_edit' e.id %}">Edit</a>
-                <a href="{% url 'expenses:post_expense' e.id %}">Post</a>
                 {% endif %}
             </td>
         </tr>

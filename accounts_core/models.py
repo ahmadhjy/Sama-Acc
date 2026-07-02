@@ -133,7 +133,7 @@ class Employee(TimeStampedModel):
         max_digits=14,
         decimal_places=2,
         default=0,
-        help_text="Monthly salary in USD; posted to operating expenses at month end.",
+        help_text="Monthly salary in USD; can be paid manually or on the 1st of each month.",
     )
     role = models.CharField(max_length=20, choices=EmployeeRole.choices, default=EmployeeRole.SALES)
     start_date = models.DateField(null=True, blank=True)
