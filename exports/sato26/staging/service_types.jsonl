@@ -4,3 +4,9 @@
 {"legacy_item_code": "10007", "code": "LEG-10007", "name": "Insurance", "requires_supplier": true, "default_currency": "USD"}
 {"legacy_item_code": "10011", "code": "LEG-10011", "name": "Transfer", "requires_supplier": true, "default_currency": "USD"}
 {"legacy_item_code": "10015", "code": "LEG-10015", "name": "Package / Activities", "requires_supplier": true, "default_currency": "USD"}
+{"legacy_item_code": "10018", "code": "LEG-10018", "name": "Service 10018", "requires_supplier": true, "default_currency": "USD"}
+{"legacy_item_code": "10019", "code": "LEG-10019", "name": "Service 10019", "requires_supplier": true, "default_currency": "USD"}
+{"legacy_item_code": "10020", "code": "LEG-10020", "name": "Service 10020", "requires_supplier": true, "default_currency": "USD"}
+{"legacy_item_code": "10021", "code": "LEG-10021", "name": "Service 10021", "requires_supplier": true, "default_currency": "USD"}
+{"legacy_item_code": "10022", "code": "LEG-10022", "name": "Service 10022", "requires_supplier": true, "default_currency": "USD"}
+{"legacy_item_code": "10023", "code": "LEG-10023", "name": "Service 10023", "requires_supplier": true, "default_currency": "USD"}
