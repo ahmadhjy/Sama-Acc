@@ -13,7 +13,8 @@ from django.utils import timezone
 
 from accounts_core.models import Client, Employee, Supplier, UserProfile, get_default_employee_for_accounting
 from catalog.models import Destination, ServiceType
-from purchases.models import SupplierBillLine
+from expenses.models import OperatingExpense
+from purchases.models import ExpenseCategory, SupplierBillLine
 from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import MoneyAccount, Payment
 from treasury.payment_flow import post_payment_and_allocate
@@ -59,6 +60,7 @@ class Sato26Importer:
             "supplier_bills_skipped": 0,
             "supplier_bill_errors": 0,
             "payments": 0,
+            "operating_expenses": 0,
             "skipped": 0,
         }
         self._clients: dict[str, Client] = {}
@@ -78,6 +80,7 @@ class Sato26Importer:
             "invoices",
             "supplier_bills",
             "payments",
+            "operating_expenses",
         ]
         if "service_types" in steps:
             self.import_service_types()
@@ -93,6 +96,8 @@ class Sato26Importer:
             self.sync_supplier_bills()
         if "payments" in steps:
             self.import_payments()
+        if "operating_expenses" in steps:
+            self.import_operating_expenses()
         return self.stats
 
     def ensure_default_destination(self) -> Destination | None:
@@ -420,3 +425,37 @@ class Sato26Importer:
             payment.save()
             post_payment_and_allocate(payment, self.user)
             self.stats["payments"] += 1
+
+    @transaction.atomic
+    def import_operating_expenses(self):
+        for row in read_jsonl(self.staging_dir / "operating_expenses.jsonl"):
+            expense_no = row["expense_no"]
+            if OperatingExpense.objects.filter(expense_no=expense_no).exists():
+                self.stats["skipped"] += 1
+                continue
+            if self.dry_run:
+                self.stats["operating_expenses"] += 1
+                continue
+
+            cat, _ = ExpenseCategory.objects.get_or_create(
+                code=row["category_code"][:20],
+                defaults={"name": row["category_name"][:100], "is_active": True},
+            )
+            if cat.name != row["category_name"] and row["category_name"]:
+                cat.name = row["category_name"][:100]
+                cat.save(update_fields=["name"])
+
+            opex = OperatingExpense(
+                expense_no=expense_no,
+                category=cat,
+                expense_date=_parse_date(row.get("expense_date")),
+                currency=row.get("currency") or "USD",
+                amount=_D(row.get("amount")),
+                exchange_rate_to_usd=_D(row.get("exchange_rate") or "1"),
+                description=(row.get("description") or "")[:2000],
+                status=OperatingExpense.Status.DRAFT,
+            )
+            opex.recalc_usd()
+            opex.save()
+            opex.post(self.user)
+            self.stats["operating_expenses"] += 1

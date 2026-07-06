@@ -1,5 +1,5 @@
 {
-  "extracted_at": "2026-07-06T15:39:34.791741",
+  "extracted_at": "2026-07-06T15:54:14.043449",
   "source": "sql",
   "company": {
     "name": "SAMA TOURS TRAVEL & TOURISM",
@@ -12,6 +12,8 @@
     "invoices": 413,
     "invoice_lines": 1053,
     "payments": 524,
+    "operating_expenses": 150,
+    "expense_categories": 30,
     "unpaid_invoices_legacy": 14
   }
 }

@@ -537,6 +537,102 @@ def transform_payments(
     return payments
 
 
+EXPENSE_ACCOUNT_PREFIXES = ("626", "631")
+
+
+def build_expense_accounts_index(accounts: list[dict]) -> dict[str, dict]:
+    index: dict[str, dict] = {}
+    for acc in accounts:
+        acc_no = str(acc.get("AccNo") or "").strip()
+        if not any(acc_no.startswith(prefix) for prefix in EXPENSE_ACCOUNT_PREFIXES):
+            continue
+        name = (acc.get("AccName1") or acc.get("AccName2") or "").strip() or f"Expense {acc_no}"
+        index[acc_no] = {
+            "code": acc_no[:20],
+            "name": name[:100],
+            "legacy_acc_no": acc_no,
+        }
+    return index
+
+
+def _category_for_expense(acc_no: str, expense_accounts: dict[str, dict]) -> dict:
+    acc = str(acc_no or "").strip()
+    if acc in expense_accounts:
+        return expense_accounts[acc]
+    if acc.startswith("626"):
+        return {"code": "626", "name": "General operating expenses"}
+    if acc.startswith("631"):
+        return {"code": "631", "name": "Marketing & administrative expenses"}
+    return {"code": "OPEX", "name": "Operating expenses"}
+
+
+def _opex_expense_no(jvno: str, acc_no: str, seq: int) -> str:
+    base = f"SATO26-OPEX-{jvno.zfill(5)}"
+    if seq == 0:
+        return base
+    tail = re.sub(r"\D", "", acc_no or "")[-4:] or str(seq)
+    return f"{base}-{tail}"
+
+
+def transform_operating_expenses(
+    jheaders: list[dict],
+    jdetails: list[dict],
+    expense_accounts: dict[str, dict],
+) -> list[dict]:
+    """Legacy PV debit lines on 626/631 expense accounts → operating expenses."""
+    details_by_jv = defaultdict(list)
+    for d in jdetails:
+        key = (str(d.get("Type") or ""), str(d.get("JVNO") or ""))
+        details_by_jv[key].append(d)
+
+    expenses = []
+    for h in jheaders:
+        typ = str(h.get("Type") or "").upper()
+        if typ != "PV":
+            continue
+        jvno = str(h.get("JVNO") or "")
+        rows = details_by_jv.get((typ, jvno), [])
+        if not rows:
+            continue
+        expense_date = parse_date(h.get("Date")) or date.today()
+        header_note = (h.get("Note") or "").strip()
+        ref = (h.get("REF") or "").strip()
+
+        expense_lines = [
+            r
+            for r in rows
+            if str(r.get("DC") or "").upper() == "D"
+            and any(str(r.get("ACCNO") or "").startswith(p) for p in EXPENSE_ACCOUNT_PREFIXES)
+        ]
+        ei = 0
+        for row in expense_lines:
+            amt = D(row.get("AMT"))
+            if amt <= 0:
+                continue
+            acc_no = str(row.get("ACCNO") or "")
+            cat = _category_for_expense(acc_no, expense_accounts)
+            line_note = (row.get("Note") or header_note or "").strip()
+            expenses.append(
+                {
+                    "legacy_type": typ,
+                    "legacy_jvno": jvno,
+                    "legacy_accno": acc_no,
+                    "expense_no": _opex_expense_no(jvno, acc_no, ei),
+                    "category_code": cat["code"],
+                    "category_name": cat["name"],
+                    "expense_date": expense_date.isoformat(),
+                    "currency": "USD",
+                    "amount": str(amt),
+                    "exchange_rate": "1",
+                    "description": line_note or cat["name"],
+                    "reference": ref,
+                    "status": "POSTED",
+                }
+            )
+            ei += 1
+    return expenses
+
+
 def build_client_indexes(clients: list[dict], accounts: list[dict], idcards: list[dict]):
     by_legacy = {c["legacy_id"]: c for c in clients}
     by_acc = {}
@@ -585,6 +681,7 @@ def main():
     suppliers_by_acc = {s["legacy_acc_no"]: s for s in suppliers}
     service_by_item = {st["legacy_item_code"]: st for st in service_types}
 
+    expense_accounts = build_expense_accounts_index(data["accounts"])
     invoices = transform_invoices(
         data["headers"],
         data["footers"],
@@ -594,6 +691,9 @@ def main():
     )
     payments = transform_payments(
         data["jheaders"], data["jdetails"], clients_by_acc, suppliers_by_acc, {}
+    )
+    operating_expenses = transform_operating_expenses(
+        data["jheaders"], data["jdetails"], expense_accounts
     )
 
     manifest = {
@@ -610,6 +710,8 @@ def main():
             "invoices": len(invoices),
             "invoice_lines": sum(len(i["lines"]) for i in invoices),
             "payments": len(payments),
+            "operating_expenses": len(operating_expenses),
+            "expense_categories": len({e["category_code"] for e in operating_expenses}),
             "unpaid_invoices_legacy": len(data.get("unpaid") or []),
         },
     }
@@ -620,6 +722,7 @@ def main():
     write_jsonl(args.output / "service_types.jsonl", service_types)
     write_jsonl(args.output / "invoices.jsonl", invoices)
     write_jsonl(args.output / "payments.jsonl", payments)
+    write_jsonl(args.output / "operating_expenses.jsonl", operating_expenses)
 
     print(json.dumps(manifest, indent=2))
     print(f"Staging written to {args.output}")

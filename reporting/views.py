@@ -415,15 +415,19 @@ def activity_trial_balance(request):
         standalone_qs = standalone_qs.filter(expense_date__gte=df)
     if dt:
         standalone_qs = standalone_qs.filter(expense_date__lte=dt)
-    for exp in standalone_qs.order_by("expense_date"):
-        amt = exp.amount_usd or Decimal("0.00")
-        cat = exp.category
-        label = (exp.description or "").strip() or (cat.name if cat else "Operating expense")
-        suffix = str(exp.id).replace("-", "")[:7]
+    opex_groups = (
+        standalone_qs.values("category__code", "category__name")
+        .annotate(total=Sum("amount_usd"))
+        .order_by("category__code")
+    )
+    for grp in opex_groups:
+        amt = (grp["total"] or Decimal("0.00")).quantize(Decimal("0.01"))
+        code = (grp["category__code"] or "OPEX")[:32]
+        name = grp["category__name"] or "Operating expense"
         rows.append(
             {
-                "account": f"632{suffix}",
-                "name": f"{label} ({exp.expense_no})",
+                "account": code,
+                "name": name,
                 "curr": "USD",
                 "tot_dr": amt,
                 "tot_cr": Decimal("0.00"),
@@ -437,7 +441,10 @@ def activity_trial_balance(request):
     bal_dr = sum((r["bal_dr"] for r in rows), Decimal("0.00"))
     bal_cr = sum((r["bal_cr"] for r in rows), Decimal("0.00"))
     gross_profit = sales_total - cogs_total
-    opex_sum = sum((r["tot_dr"] for r in rows if r["account"].startswith("632")), Decimal("0.00"))
+    opex_sum = sum(
+        (r["tot_dr"] for r in rows if r["account"] not in ("4010000001", "5010000001") and "profit" not in r["name"].lower()),
+        Decimal("0.00"),
+    )
     net_profit = gross_profit - opex_sum
     rows.append(profit_summary_row("Gross profit (Revenue − COGS)", gross_profit))
     rows.append(profit_summary_row("Net profit (Gross profit − OPEX)", net_profit))
@@ -462,7 +469,7 @@ def activity_trial_balance(request):
             "pdf_income_statement": True,
             "pdf_report_title": "Income Statement",
             "pdf_report_subtitle": "Posted sales revenue, cost of sales, and operating expenses (USD)",
-            "pdf_account_range": "Accounts: 401 (Sales revenue), 501 (Cost of sales), 632 (Operating expenses)",
+            "pdf_account_range": "Accounts: 401 (Sales revenue), 501 (Cost of sales), 626/631 (Operating expenses by category)",
         },
         export_filename("Income_Statement", export_period_suffix(df, dt)),
     )
