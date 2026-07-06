@@ -396,6 +396,7 @@ class Sato26Importer:
                 exchange_rate=_D(row.get("exchange_rate") or "1"),
                 reference=row.get("reference") or "",
                 note=(row.get("note") or "")[:2000],
+                is_refund=bool(row.get("is_refund")),
                 status=Payment.Status.DRAFT,
             )
             if row["party_type"] == Payment.PartyType.CLIENT:

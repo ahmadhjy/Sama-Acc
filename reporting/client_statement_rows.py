@@ -8,13 +8,14 @@ from sales.models import SalesInvoice
 from treasury.models import Payment
 
 
-def _client_payments_qs(client, date_from=None, date_to=None):
+def _client_payments_qs(client, date_from=None, date_to=None, direction=None):
     qs = Payment.objects.filter(
         client=client,
         party_type=Payment.PartyType.CLIENT,
-        direction=Payment.Direction.IN,
         status=Payment.Status.POSTED,
     )
+    if direction:
+        qs = qs.filter(direction=direction)
     if date_from:
         qs = qs.filter(date__gte=date_from)
     if date_to:
@@ -64,7 +65,7 @@ def build_client_statement_rows(client, date_from=None, date_to=None):
                 }
             )
 
-    for pay in _client_payments_qs(client, date_from, date_to).order_by("date", "created_at"):
+    for pay in _client_payments_qs(client, date_from, date_to, Payment.Direction.IN).order_by("date", "created_at"):
         rows.append(
             {
                 "date": pay.date,
@@ -77,6 +78,22 @@ def build_client_statement_rows(client, date_from=None, date_to=None):
                 "credit": payment_usd_amount(pay),
                 "sort_seq": pay.created_at,
                 "sort_id": str(pay.id),
+            }
+        )
+
+    for pay in _client_payments_qs(client, date_from, date_to, Payment.Direction.OUT).order_by("date", "created_at"):
+        rows.append(
+            {
+                "date": pay.date,
+                "type": "Refund" if pay.is_refund else "Payment",
+                "description": _payment_statement_description(pay),
+                "destination": "—",
+                "ref": pay.receipt_no,
+                "ref_url": payment_ref_url(pay.id),
+                "debit": payment_usd_amount(pay),
+                "credit": Decimal("0.00"),
+                "sort_seq": pay.created_at,
+                "sort_id": f"out-{pay.id}",
             }
         )
 

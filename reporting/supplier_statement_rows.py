@@ -9,13 +9,14 @@ from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import Payment
 
 
-def _supplier_payments_qs(supplier, date_from=None, date_to=None):
+def _supplier_payments_qs(supplier, date_from=None, date_to=None, direction=None):
     qs = Payment.objects.filter(
         supplier=supplier,
         party_type=Payment.PartyType.SUPPLIER,
-        direction=Payment.Direction.OUT,
         status=Payment.Status.POSTED,
     ).select_related("money_account")
+    if direction:
+        qs = qs.filter(direction=direction)
     if date_from:
         qs = qs.filter(date__gte=date_from)
     if date_to:
@@ -79,7 +80,7 @@ def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
             }
         )
 
-    for pay in _supplier_payments_qs(supplier, date_from, date_to).order_by("date", "created_at"):
+    for pay in _supplier_payments_qs(supplier, date_from, date_to, Payment.Direction.OUT).order_by("date", "created_at"):
         rows.append(
             {
                 "date": pay.date,
@@ -92,6 +93,23 @@ def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
                 "credit": Decimal("0.00"),
                 "sort_seq": pay.created_at,
                 "sort_id": str(pay.id),
+                "is_pending": False,
+            }
+        )
+
+    for pay in _supplier_payments_qs(supplier, date_from, date_to, Payment.Direction.IN).order_by("date", "created_at"):
+        rows.append(
+            {
+                "date": pay.date,
+                "type": "Receipt",
+                "description": _payment_supplier_description(pay),
+                "destination": "—",
+                "ref": pay.receipt_no,
+                "ref_url": payment_ref_url(pay.id),
+                "debit": pay.amount,
+                "credit": Decimal("0.00"),
+                "sort_seq": pay.created_at,
+                "sort_id": f"in-{pay.id}",
                 "is_pending": False,
             }
         )

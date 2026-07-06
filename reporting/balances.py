@@ -7,19 +7,19 @@ from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import Payment
 
 
-def _client_payments_qs(client, date_from=None, date_to=None, on_or_before=None):
+def _client_payments_qs(client, date_from=None, date_to=None, on_or_before=None, direction=None):
     from reporting.client_statement_rows import _client_payments_qs as qs_fn
 
-    qs = qs_fn(client, date_from=date_from, date_to=date_to)
+    qs = qs_fn(client, date_from=date_from, date_to=date_to, direction=direction)
     if on_or_before is not None:
         qs = qs.filter(date__lte=on_or_before)
     return qs
 
 
-def _supplier_payments_qs(supplier, date_from=None, date_to=None, on_or_before=None):
+def _supplier_payments_qs(supplier, date_from=None, date_to=None, on_or_before=None, direction=None):
     from reporting.supplier_statement_rows import _supplier_payments_qs as qs_fn
 
-    qs = qs_fn(supplier, date_from=date_from, date_to=date_to)
+    qs = qs_fn(supplier, date_from=date_from, date_to=date_to, direction=direction)
     if on_or_before is not None:
         qs = qs.filter(date__lte=on_or_before)
     return qs
@@ -36,11 +36,15 @@ def client_ar_balance(client, on_or_before):
         ).aggregate(t=Sum("grand_total_usd"))["t"]
         or Decimal("0.00")
     )
-    payments = sum(
-        (payment_usd_amount(p) for p in _client_payments_qs(client, on_or_before=on_or_before)),
+    payments_in = sum(
+        (payment_usd_amount(p) for p in _client_payments_qs(client, on_or_before=on_or_before, direction=Payment.Direction.IN)),
         Decimal("0.00"),
     )
-    return inv - payments
+    payments_out = sum(
+        (payment_usd_amount(p) for p in _client_payments_qs(client, on_or_before=on_or_before, direction=Payment.Direction.OUT)),
+        Decimal("0.00"),
+    )
+    return inv - payments_in + payments_out
 
 
 def supplier_ap_balance(supplier, on_or_before):
@@ -52,8 +56,15 @@ def supplier_ap_balance(supplier, on_or_before):
         invoice__issue_date__lte=on_or_before,
     )
     costs = sum((line.line_cost_amount_usd() for line in lines), Decimal("0.00"))
-    payments = sum((p.amount for p in _supplier_payments_qs(supplier, on_or_before=on_or_before)), Decimal("0.00"))
-    return costs - payments
+    payments_out = sum(
+        (p.amount for p in _supplier_payments_qs(supplier, on_or_before=on_or_before, direction=Payment.Direction.OUT)),
+        Decimal("0.00"),
+    )
+    payments_in = sum(
+        (p.amount for p in _supplier_payments_qs(supplier, on_or_before=on_or_before, direction=Payment.Direction.IN)),
+        Decimal("0.00"),
+    )
+    return costs - payments_out - payments_in
 
 
 def supplier_line_purchases(supplier, date_from=None, date_to=None):

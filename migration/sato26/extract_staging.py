@@ -389,6 +389,37 @@ def _parse_client_acc_from_note(note: str) -> str | None:
     return m.group(0) if m else None
 
 
+def _resolve_client(clients_by_acc: dict[str, dict], acc_no: str, note: str = "") -> dict | None:
+    acc = str(acc_no or "").strip()
+    if not acc:
+        return None
+    for key in (acc, acc.lstrip("0")):
+        if key in clients_by_acc:
+            return clients_by_acc[key]
+    guess = _parse_client_acc_from_note(note)
+    if guess and guess in clients_by_acc:
+        return clients_by_acc[guess]
+    return None
+
+
+def _resolve_supplier(suppliers_by_acc: dict[str, dict], acc_no: str) -> dict | None:
+    acc = str(acc_no or "").strip()
+    if not acc:
+        return None
+    for key in (acc, acc.lstrip("0")):
+        if key in suppliers_by_acc:
+            return suppliers_by_acc[key]
+    return None
+
+
+def _payment_receipt_no(typ: str, jvno: str, acc_no: str, seq: int) -> str:
+    base = f"SATO26-{typ}-{jvno.zfill(5)}"
+    if seq == 0:
+        return base
+    tail = re.sub(r"\D", "", acc_no or "")[-4:] or str(seq)
+    return f"{base}-{tail}"
+
+
 def transform_payments(
     jheaders: list[dict],
     jdetails: list[dict],
@@ -396,6 +427,7 @@ def transform_payments(
     suppliers_by_acc: dict[str, dict],
     invoices_by_client: dict[str, list[dict]],
 ) -> list[dict]:
+    """Map every legacy RV/PV line on 411 (client) or 401 (supplier) to a treasury payment."""
     details_by_jv = defaultdict(list)
     for d in jdetails:
         key = (str(d.get("Type") or ""), str(d.get("JVNO") or ""))
@@ -411,79 +443,97 @@ def transform_payments(
         if not rows:
             continue
         pay_date = parse_date(h.get("Date")) or date.today()
-        note = (h.get("Note") or "").strip()
+        header_note = (h.get("Note") or "").strip()
         ref = (h.get("REF") or "").strip()
 
-        if typ == "RV":
-            direction = "IN"
-            party_type = "CLIENT"
-            # Credit line on 411* is client receipt
-            client_row = next((r for r in rows if str(r.get("DC") or "").upper() == "C" and str(r.get("ACCNO") or "").startswith("411")), None)
-            if not client_row:
-                client_row = next((r for r in rows if str(r.get("ACCNO") or "").startswith("411")), None)
-            if not client_row:
+        client_lines = [r for r in rows if str(r.get("ACCNO") or "").startswith("411")]
+        supplier_lines = [r for r in rows if str(r.get("ACCNO") or "").startswith("401")]
+
+        ci = 0
+        for row in client_lines:
+            amt = D(row.get("AMT"))
+            if amt <= 0:
                 continue
-            acc = str(client_row.get("ACCNO") or "")
-            client = clients_by_acc.get(acc)
-            if not client:
-                acc_guess = _parse_client_acc_from_note(str(client_row.get("Note") or note))
-                client = clients_by_acc.get(acc_guess or "")
+            dc = str(row.get("DC") or "").upper()
+            line_note = (row.get("Note") or header_note or "").strip()
+            client = _resolve_client(clients_by_acc, str(row.get("ACCNO") or ""), line_note)
             if not client:
                 continue
-            amount = D(client_row.get("AMT"))
-            if amount <= 0:
+            if typ == "RV" and dc == "C":
+                direction = "IN"
+            elif typ == "PV" and dc == "D":
+                direction = "OUT"
+            elif typ == "RV" and dc == "D":
+                direction = "OUT"
+            elif typ == "PV" and dc == "C":
+                direction = "IN"
+            else:
                 continue
             payments.append(
                 {
                     "legacy_type": typ,
                     "legacy_jvno": jvno,
-                    "receipt_no": f"SATO26-RV-{jvno.zfill(5)}",
+                    "legacy_accno": str(row.get("ACCNO") or ""),
+                    "receipt_no": _payment_receipt_no(typ, jvno, str(row.get("ACCNO") or ""), ci),
                     "direction": direction,
-                    "party_type": party_type,
+                    "party_type": "CLIENT",
                     "client_code": client["client_code"],
                     "supplier_code": None,
                     "party_name": "",
                     "date": pay_date.isoformat(),
                     "currency": "USD",
-                    "amount": str(amount),
+                    "amount": str(amt),
                     "exchange_rate": "1",
                     "reference": ref,
-                    "note": (client_row.get("Note") or note or "").strip(),
+                    "note": line_note,
+                    "is_refund": direction == "OUT",
                     "status": "POSTED",
                 }
             )
-        else:  # PV
-            supplier_row = next((r for r in rows if str(r.get("DC") or "").upper() == "D" and str(r.get("ACCNO") or "").startswith("401")), None)
-            if not supplier_row:
-                supplier_row = next((r for r in rows if str(r.get("ACCNO") or "").startswith("401")), None)
-            if not supplier_row:
+            ci += 1
+
+        si = 0
+        for row in supplier_lines:
+            amt = D(row.get("AMT"))
+            if amt <= 0:
                 continue
-            acc = str(supplier_row.get("ACCNO") or "")
-            supplier = suppliers_by_acc.get(acc)
+            dc = str(row.get("DC") or "").upper()
+            line_note = (row.get("Note") or header_note or "").strip()
+            supplier = _resolve_supplier(suppliers_by_acc, str(row.get("ACCNO") or ""))
             if not supplier:
                 continue
-            amount = D(supplier_row.get("AMT"))
-            if amount <= 0:
+            if typ == "PV" and dc == "D":
+                direction = "OUT"
+            elif typ == "RV" and dc == "C":
+                direction = "IN"
+            elif typ == "PV" and dc == "C":
+                direction = "IN"
+            elif typ == "RV" and dc == "D":
+                direction = "OUT"
+            else:
                 continue
             payments.append(
                 {
                     "legacy_type": typ,
                     "legacy_jvno": jvno,
-                    "receipt_no": f"SATO26-PV-{jvno.zfill(5)}",
-                    "direction": "OUT",
+                    "legacy_accno": str(row.get("ACCNO") or ""),
+                    "receipt_no": _payment_receipt_no(typ, jvno, str(row.get("ACCNO") or ""), si),
+                    "direction": direction,
                     "party_type": "SUPPLIER",
                     "client_code": None,
                     "supplier_code": supplier["supplier_code"],
                     "party_name": "",
                     "date": pay_date.isoformat(),
                     "currency": "USD",
-                    "amount": str(amount),
+                    "amount": str(amt),
                     "exchange_rate": "1",
                     "reference": ref,
-                    "note": (supplier_row.get("Note") or note or "").strip(),
+                    "note": line_note,
+                    "is_refund": False,
                     "status": "POSTED",
                 }
             )
+            si += 1
     return payments
 
 
