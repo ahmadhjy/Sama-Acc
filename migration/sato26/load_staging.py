@@ -17,6 +17,7 @@ from expenses.models import OperatingExpense
 from purchases.models import ExpenseCategory, SupplierBillLine
 from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import MoneyAccount, Payment
+from treasury.allocation import rebuild_client_ar_allocations, rebuild_supplier_ap_allocations
 from treasury.payment_flow import post_payment_and_allocate
 
 LEGACY_INVOICE_PREFIX = "SATO26-SI-"
@@ -61,6 +62,8 @@ class Sato26Importer:
             "supplier_bill_errors": 0,
             "payments": 0,
             "operating_expenses": 0,
+            "ar_allocations_rebuilt": 0,
+            "ap_allocations_rebuilt": 0,
             "skipped": 0,
         }
         self._clients: dict[str, Client] = {}
@@ -381,7 +384,17 @@ class Sato26Importer:
         if not self.dry_run and not self._money_account:
             self.ensure_setup()
 
-        for row in read_jsonl(self.staging_dir / "payments.jsonl"):
+        payment_rows = read_jsonl(self.staging_dir / "payments.jsonl")
+        payment_rows.sort(
+            key=lambda row: (
+                row.get("date") or "",
+                row.get("legacy_type") or "",
+                row.get("legacy_jvno") or "",
+                row.get("receipt_no") or "",
+            )
+        )
+
+        for row in payment_rows:
             receipt_no = row["receipt_no"]
             if Payment.objects.filter(receipt_no=receipt_no).exists():
                 self.stats["skipped"] += 1
@@ -425,6 +438,10 @@ class Sato26Importer:
             payment.save()
             post_payment_and_allocate(payment, self.user)
             self.stats["payments"] += 1
+
+        if not self.dry_run:
+            self.stats["ar_allocations_rebuilt"] = rebuild_client_ar_allocations()
+            self.stats["ap_allocations_rebuilt"] = rebuild_supplier_ap_allocations()
 
     @transaction.atomic
     def import_operating_expenses(self):

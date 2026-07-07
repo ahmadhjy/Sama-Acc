@@ -52,7 +52,7 @@ class Command(BaseCommand):
         staging_dir = Path(options["staging_dir"]) if options["staging_dir"] else base / "exports" / "sato26" / "staging"
 
         if not options["import_only"]:
-            self.stdout.write("Extracting SATO26 → staging JSON...")
+            self.stdout.write("Extracting SATO26 -> staging JSON...")
             extract_main()
 
         if options["extract_only"]:

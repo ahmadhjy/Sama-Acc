@@ -71,7 +71,7 @@ def build_dashboard_analytics(request):
         .order_by("due_date", "issue_date")
     ):
         allocated = sum((a.allocated_amount for a in inv.allocations.all()), Decimal("0.00"))
-        total = inv.grand_total or Decimal("0.00")
+        total = inv.grand_total_usd if inv.grand_total_usd is not None else (inv.grand_total or Decimal("0.00"))
         remaining = total - allocated
         if remaining <= 0:
             continue
@@ -183,7 +183,7 @@ def build_dashboard_analytics(request):
     today_d = today
     for inv in SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses()).select_related("client"):
         allocated = sum((a.allocated_amount for a in inv.allocations.all()), Decimal("0.00"))
-        remaining = (inv.grand_total or Decimal("0")) - allocated
+        remaining = (inv.grand_total_usd if inv.grand_total_usd is not None else (inv.grand_total or Decimal("0.00"))) - allocated
         if remaining <= 0:
             continue
         due = inv.due_date or inv.issue_date

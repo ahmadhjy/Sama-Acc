@@ -209,3 +209,76 @@ class TreasuryAllocationTests(TestCase):
         )
         with self.assertRaises(ValueError):
             payment.post(self.user)
+
+
+class ClientFifoAllocationTests(TestCase):
+    """Payments apply to oldest due invoice first (overdue FIFO)."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="fifo", password="test12345")
+        self.client_obj = Client.objects.create(client_code="C-FIFO", name_en="Sammy")
+        self.employee = Employee.objects.create(name="Emp FIFO", role=Employee.EmployeeRole.ACCOUNTING)
+        self.service_type = ServiceType.objects.create(name="Tour", code="TRF")
+        self.destination = Destination.objects.create(name="Beirut")
+        self.supplier = Supplier.objects.create(supplier_code="S-FIFO", name="Supplier FIFO")
+        self.service_instance = ServiceInstance.objects.create(service_type=self.service_type, data={})
+        self.account = MoneyAccount.objects.create(name="Cash FIFO", type=MoneyAccount.AccountType.CASH, currency="USD")
+
+    def _post_invoice(self, invoice_no, due_date, sell_price):
+        inv = SalesInvoice.objects.create(
+            invoice_no=invoice_no,
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=due_date,
+            due_date=due_date,
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=inv,
+            supplier=self.supplier,
+            service_instance=self.service_instance,
+            line_employee=self.employee,
+            destination=self.destination,
+            qty=Decimal("1"),
+            sell_price=sell_price,
+            line_discount=Decimal("0"),
+        )
+        inv.recalc_usd_amounts()
+        inv.post(self.user)
+        return inv
+
+    def _post_payment(self, receipt_no, amount):
+        payment = Payment.objects.create(
+            receipt_no=receipt_no,
+            direction=Payment.Direction.IN,
+            party_type=Payment.PartyType.CLIENT,
+            client=self.client_obj,
+            money_account=self.account,
+            date=date.today(),
+            currency="USD",
+            amount=amount,
+            status=Payment.Status.DRAFT,
+        )
+        post_payment_and_allocate(payment, self.user)
+        return payment
+
+    def test_payments_apply_to_oldest_due_invoice_first(self):
+        older = self._post_invoice("TMP-FIFO-1", date(2026, 1, 1), Decimal("500"))
+        newer = self._post_invoice("TMP-FIFO-2", date(2026, 2, 1), Decimal("1000"))
+
+        self._post_payment("TMP-FIFO-P1", Decimal("400"))
+        older.refresh_from_db()
+        newer.refresh_from_db()
+        older_alloc = sum(a.allocated_amount for a in older.allocations.all())
+        newer_alloc = sum(a.allocated_amount for a in newer.allocations.all())
+        self.assertEqual(older_alloc, Decimal("400"))
+        self.assertEqual(newer_alloc, Decimal("0"))
+        self.assertEqual(older.grand_total - older_alloc, Decimal("100"))
+        self.assertEqual(newer.grand_total - newer_alloc, Decimal("1000"))
+
+        self._post_payment("TMP-FIFO-P2", Decimal("200"))
+        older_alloc = sum(a.allocated_amount for a in older.allocations.all())
+        newer_alloc = sum(a.allocated_amount for a in newer.allocations.all())
+        self.assertEqual(older_alloc, Decimal("500"))
+        self.assertEqual(newer_alloc, Decimal("100"))
+        self.assertEqual(newer.grand_total - newer_alloc, Decimal("900"))

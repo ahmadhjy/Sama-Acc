@@ -2,9 +2,21 @@ from decimal import Decimal
 
 from django.db import transaction
 
+from accounts_core.models import Client, Supplier
 from purchases.models import SupplierBill
 from sales.models import SalesInvoice
 from treasury.models import APAllocation, ARAllocation, Payment
+
+
+def _invoice_open_amount(invoice: SalesInvoice) -> Decimal:
+    allocated = sum((a.allocated_amount for a in invoice.allocations.all()), Decimal("0.00"))
+    total = invoice.grand_total_usd if invoice.grand_total_usd is not None else (invoice.grand_total or Decimal("0.00"))
+    return total - allocated
+
+
+def _bill_open_amount(bill: SupplierBill) -> Decimal:
+    allocated = sum((a.allocated_amount for a in bill.allocations.all()), Decimal("0.00"))
+    return (bill.grand_total or Decimal("0.00")) - allocated
 
 
 def _allocation_rows(payment: Payment):
@@ -57,8 +69,7 @@ def auto_allocate_payment(payment: Payment) -> None:
         for inv in invoices:
             if remaining <= 0:
                 break
-            allocated = sum((a.allocated_amount for a in inv.allocations.all()), Decimal("0.00"))
-            due = inv.grand_total - allocated
+            due = _invoice_open_amount(inv)
             if due <= 0:
                 continue
             take = min(remaining, due)
@@ -78,10 +89,47 @@ def auto_allocate_payment(payment: Payment) -> None:
         for bill in bills:
             if remaining <= 0:
                 break
-            allocated = sum((a.allocated_amount for a in bill.allocations.all()), Decimal("0.00"))
-            due = bill.grand_total - allocated
+            due = _bill_open_amount(bill)
             if due <= 0:
                 continue
             take = min(remaining, due)
             APAllocation.objects.create(payment=payment, supplier_bill=bill, allocated_amount=take)
             remaining -= take
+
+
+@transaction.atomic
+def rebuild_client_ar_allocations(client: Client | None = None) -> int:
+    """Clear and rebuild client payment allocations oldest due-date first."""
+    clients = Client.objects.filter(pk=client.pk) if client else Client.objects.all()
+    rebuilt = 0
+    for party in clients:
+        ARAllocation.objects.filter(sales_invoice__client=party).delete()
+        payments = Payment.objects.filter(
+            client=party,
+            party_type=Payment.PartyType.CLIENT,
+            direction=Payment.Direction.IN,
+            status=Payment.Status.POSTED,
+        ).order_by("date", "created_at", "receipt_no")
+        for payment in payments:
+            auto_allocate_payment(payment)
+            rebuilt += 1
+    return rebuilt
+
+
+@transaction.atomic
+def rebuild_supplier_ap_allocations(supplier: Supplier | None = None) -> int:
+    """Clear and rebuild supplier payment allocations oldest due-date first."""
+    suppliers = Supplier.objects.filter(pk=supplier.pk) if supplier else Supplier.objects.all()
+    rebuilt = 0
+    for party in suppliers:
+        APAllocation.objects.filter(supplier_bill__supplier=party).delete()
+        payments = Payment.objects.filter(
+            supplier=party,
+            party_type=Payment.PartyType.SUPPLIER,
+            direction=Payment.Direction.OUT,
+            status=Payment.Status.POSTED,
+        ).order_by("date", "created_at", "receipt_no")
+        for payment in payments:
+            auto_allocate_payment(payment)
+            rebuilt += 1
+    return rebuilt
