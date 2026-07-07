@@ -161,6 +161,10 @@ def build_account_lookup(accounts: list[dict]) -> dict[str, dict]:
     return {str(a.get("AccNo") or "").strip(): a for a in accounts if a.get("AccNo")}
 
 
+def _gl_account_display_name(acc: dict) -> str:
+    return (acc.get("AccName1") or acc.get("AccName2") or "").strip()
+
+
 def _client_gl_accounts_by_idno(accounts: list[dict]) -> dict[str, dict]:
     """Map legacy client IDNO -> primary 411 GL account (name + number)."""
     by_idno: dict[str, dict] = {}
@@ -171,7 +175,7 @@ def _client_gl_accounts_by_idno(accounts: list[dict]) -> dict[str, dict]:
         idno = str(acc.get("IDNO") or "").strip()
         if not idno:
             continue
-        name = (acc.get("AccName1") or acc.get("AccName2") or "").strip()
+        name = _gl_account_display_name(acc)
         existing = by_idno.get(idno)
         if not existing or len(acc_no) >= len(existing.get("acc_no", "")):
             by_idno[idno] = {"acc_no": acc_no, "name": name}
@@ -193,8 +197,8 @@ def transform_clients(idcards: list[dict], accounts: list[dict] | None = None) -
         gl = gl_by_idno.get(legacy_id, {})
         gl_name = (gl.get("name") or "").strip()
         gl_acc = (gl.get("acc_no") or "").strip()
-        name = gl_name or idcard_name or f"Client {legacy_id}"
-        acc_no = (row.get("AccNo") or "").strip() or gl_acc
+        name = gl_name if gl_name else (idcard_name or f"Client {legacy_id}")
+        acc_no = gl_acc or (row.get("AccNo") or "").strip()
         notes_parts = []
         if (row.get("Remark") or "").strip():
             notes_parts.append((row.get("Remark") or "").strip())
@@ -218,6 +222,29 @@ def transform_clients(idcards: list[dict], accounts: list[dict] | None = None) -
                 "notes": "\n".join(notes_parts),
                 "legacy_route": str(row.get("Route") or "").strip(),
                 "date_of_birth": parse_date(row.get("BirthDay")).isoformat() if parse_date(row.get("BirthDay")) else None,
+            }
+        )
+
+    for legacy_id, gl in sorted(gl_by_idno.items(), key=lambda item: int(item[0]) if item[0].isdigit() else item[0]):
+        if legacy_id in seen:
+            continue
+        seen.add(legacy_id)
+        gl_name = (gl.get("name") or "").strip() or f"Client {legacy_id}"
+        gl_acc = (gl.get("acc_no") or "").strip()
+        clients.append(
+            {
+                "legacy_id": legacy_id,
+                "legacy_acc_no": gl_acc,
+                "legacy_gl_account": gl_acc,
+                "client_code": f"C-{legacy_id}",
+                "name_en": gl_name,
+                "type": "INDIVIDUAL",
+                "phone": "",
+                "email": "",
+                "address": "",
+                "notes": "Imported from legacy GL account only (no IDCard row).",
+                "legacy_route": "",
+                "date_of_birth": None,
             }
         )
     return sorted(clients, key=lambda c: c["client_code"])
@@ -284,10 +311,11 @@ def transform_suppliers(accounts: list[dict], footers: list[dict]) -> list[dict]
         if acc_no in seen:
             continue
         seen.add(acc_no)
-        name = (acc.get("AccName1") or acc.get("AccName2") or "").strip() or f"Supplier {acc_no}"
+        name = _gl_account_display_name(acc) or f"Supplier {acc_no}"
         suppliers.append(
             {
                 "legacy_acc_no": acc_no,
+                "legacy_gl_account": acc_no,
                 "supplier_code": f"S-{acc_no}"[:32],
                 "name": name,
                 "type": "OTHER",

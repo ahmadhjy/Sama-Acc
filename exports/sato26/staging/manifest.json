@@ -1,12 +1,12 @@
 {
-  "extracted_at": "2026-07-07T14:14:10.795765",
+  "extracted_at": "2026-07-07T14:23:29.509346",
   "source": "sql",
   "company": {
     "name": "SAMA TOURS TRAVEL & TOURISM",
     "legacy_code": "NSAT26"
   },
   "counts": {
-    "clients": 491,
+    "clients": 492,
     "suppliers": 79,
     "service_types": 12,
     "invoices": 413,

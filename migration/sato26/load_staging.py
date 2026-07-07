@@ -259,7 +259,9 @@ class Sato26Importer:
                 "email": row.get("email") or "",
                 "address": row.get("address") or "",
                 "default_currency": row.get("default_currency") or "USD",
-                "notes": f"Legacy SATO26 AccNo={row.get('legacy_acc_no')}",
+                "notes": (
+                    f"Legacy SATO26 GL={row.get('legacy_gl_account') or row.get('legacy_acc_no')}"
+                ),
                 "is_active": True,
             }
             supplier, _ = Supplier.objects.update_or_create(supplier_code=code, defaults=defaults)
