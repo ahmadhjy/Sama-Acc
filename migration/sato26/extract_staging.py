@@ -161,7 +161,25 @@ def build_account_lookup(accounts: list[dict]) -> dict[str, dict]:
     return {str(a.get("AccNo") or "").strip(): a for a in accounts if a.get("AccNo")}
 
 
-def transform_clients(idcards: list[dict]) -> list[dict]:
+def _client_gl_accounts_by_idno(accounts: list[dict]) -> dict[str, dict]:
+    """Map legacy client IDNO -> primary 411 GL account (name + number)."""
+    by_idno: dict[str, dict] = {}
+    for acc in accounts:
+        acc_no = str(acc.get("AccNo") or "").strip()
+        if not acc_no.startswith("411"):
+            continue
+        idno = str(acc.get("IDNO") or "").strip()
+        if not idno:
+            continue
+        name = (acc.get("AccName1") or acc.get("AccName2") or "").strip()
+        existing = by_idno.get(idno)
+        if not existing or len(acc_no) >= len(existing.get("acc_no", "")):
+            by_idno[idno] = {"acc_no": acc_no, "name": name}
+    return by_idno
+
+
+def transform_clients(idcards: list[dict], accounts: list[dict] | None = None) -> list[dict]:
+    gl_by_idno = _client_gl_accounts_by_idno(accounts or [])
     clients = []
     seen = set()
     for row in idcards:
@@ -171,13 +189,23 @@ def transform_clients(idcards: list[dict]) -> list[dict]:
         if not legacy_id or legacy_id in seen:
             continue
         seen.add(legacy_id)
-        name = (row.get("AccName") or "").strip() or f"Client {legacy_id}"
-        acc_no = (row.get("AccNo") or "").strip()
+        idcard_name = (row.get("AccName") or "").strip()
+        gl = gl_by_idno.get(legacy_id, {})
+        gl_name = (gl.get("name") or "").strip()
+        gl_acc = (gl.get("acc_no") or "").strip()
+        name = gl_name or idcard_name or f"Client {legacy_id}"
+        acc_no = (row.get("AccNo") or "").strip() or gl_acc
+        notes_parts = []
+        if (row.get("Remark") or "").strip():
+            notes_parts.append((row.get("Remark") or "").strip())
+        if idcard_name and gl_name and idcard_name.upper() != gl_name.upper():
+            notes_parts.append(f"Legacy IDCard name: {idcard_name}")
         code = f"C-{legacy_id}"
         clients.append(
             {
                 "legacy_id": legacy_id,
                 "legacy_acc_no": acc_no,
+                "legacy_gl_account": gl_acc,
                 "client_code": code,
                 "name_en": name,
                 "type": "CORPORATE" if str(row.get("Official") or "").upper() == "Y" else "INDIVIDUAL",
@@ -187,7 +215,7 @@ def transform_clients(idcards: list[dict]) -> list[dict]:
                     p for p in [(row.get("Address1") or ""), (row.get("Address2") or ""), (row.get("Address3") or "")]
                     if p and str(p).strip()
                 ).strip(),
-                "notes": (row.get("Remark") or "").strip(),
+                "notes": "\n".join(notes_parts),
                 "legacy_route": str(row.get("Route") or "").strip(),
                 "date_of_birth": parse_date(row.get("BirthDay")).isoformat() if parse_date(row.get("BirthDay")) else None,
             }
@@ -674,7 +702,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     data = load_source(args.csv_dir)
 
-    clients = transform_clients(data["idcards"])
+    clients = transform_clients(data["idcards"], data["accounts"])
     suppliers = transform_suppliers(data["accounts"], data["footers"])
     service_types = transform_service_types(data["footers"])
     clients_by_legacy, clients_by_acc = build_client_indexes(clients, data["accounts"], data["idcards"])

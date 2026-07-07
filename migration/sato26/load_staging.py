@@ -235,7 +235,10 @@ class Sato26Importer:
             }
             if row.get("date_of_birth"):
                 defaults["date_of_birth"] = _parse_date(row["date_of_birth"])
-            legacy_note = f"Legacy SATO26 IDNO={row.get('legacy_id')} AccNo={row.get('legacy_acc_no')}"
+            legacy_note = (
+                f"Legacy SATO26 IDNO={row.get('legacy_id')} "
+                f"AccNo={row.get('legacy_acc_no')} GL={row.get('legacy_gl_account') or ''}"
+            ).strip()
             defaults["notes"] = (defaults["notes"] + "\n" + legacy_note).strip()
             client, _ = Client.objects.update_or_create(client_code=code, defaults=defaults)
             self._clients[code] = client
