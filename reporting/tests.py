@@ -308,3 +308,39 @@ class SalesmanReportLineAttributionTests(TestCase):
         self.assertEqual(detailed_y["rows"][0]["selling"], Decimal("500.00"))
         self.assertEqual(detailed_y["rows"][0]["cost"], Decimal("200.00"))
 
+
+class SupplierJournalCreditStatementTests(TestCase):
+    def setUp(self):
+        self.supplier = Supplier.objects.create(supplier_code="S-JC", name="Journal Supplier")
+        self.account = MoneyAccount.objects.create(name="Cash", type=MoneyAccount.AccountType.CASH, currency="USD")
+        from purchases.models import SupplierJournalCredit
+
+        SupplierJournalCredit.objects.create(
+            supplier=self.supplier,
+            legacy_key="test-jc-same-day",
+            legacy_jvno="1147",
+            credit_date=date(2026, 7, 3),
+            amount=Decimal("1076.00"),
+            invoice_no="SATO26-SI-00440",
+            description="Invoice SATO26-SI-00440",
+        )
+        Payment.objects.create(
+            receipt_no="SATO26-PV-TEST",
+            direction=Payment.Direction.OUT,
+            party_type=Payment.PartyType.SUPPLIER,
+            supplier=self.supplier,
+            money_account=self.account,
+            date=date(2026, 7, 3),
+            currency="USD",
+            amount=Decimal("836.00"),
+            status=Payment.Status.POSTED,
+        )
+
+    def test_journal_credit_and_payment_same_date_do_not_crash_sort(self):
+        rows = build_supplier_statement_rows(self.supplier)
+        self.assertEqual(len(rows), 2)
+        credits = sum((r["credit"] for r in rows), Decimal("0.00"))
+        debits = sum((r["debit"] for r in rows), Decimal("0.00"))
+        self.assertEqual(credits, Decimal("1076.00"))
+        self.assertEqual(debits, Decimal("836.00"))
+

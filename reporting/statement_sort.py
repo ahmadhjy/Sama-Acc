@@ -1,4 +1,24 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
+
+from django.conf import settings
+from django.utils import timezone
+
+
+def _normalize_sort_seq(seq):
+    if isinstance(seq, datetime):
+        dt = seq
+    elif isinstance(seq, date):
+        dt = datetime.combine(seq, time.min)
+    elif seq is None:
+        dt = datetime.min
+    else:
+        return seq
+
+    if settings.USE_TZ and timezone.is_naive(dt):
+        return timezone.make_aware(dt, timezone.get_current_timezone())
+    if not settings.USE_TZ and timezone.is_aware(dt):
+        return timezone.make_naive(dt, timezone.get_current_timezone())
+    return dt
 
 
 def sort_statement_rows(rows):
@@ -6,14 +26,7 @@ def sort_statement_rows(rows):
 
     def _key(row):
         d = row.get("date") or date.min
-        seq = row.get("sort_seq")
-        if isinstance(seq, datetime):
-            seq_val = seq
-        elif seq is not None:
-            seq_val = seq
-        else:
-            seq_val = datetime.min
-        return (d, seq_val, row.get("sort_id") or "")
+        return (d, _normalize_sort_seq(row.get("sort_seq")), row.get("sort_id") or "")
 
     rows.sort(key=_key)
     return rows
