@@ -1,11 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
-from django.db.models import Sum
-
-from purchases.models import SupplierJournalCredit
-from reporting.payment_amounts import payment_usd_amount
-from reporting.statement_refs import invoice_ref_url, payment_ref_url
+from purchases.models import SupplierLedgerLine
+from reporting.statement_refs import invoice_ref_url
 from reporting.statement_sort import sort_statement_rows
 from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import Payment
@@ -39,13 +36,15 @@ def _line_visible_by_report_dates(line, date_from=None, date_to=None):
     return True
 
 
-def _supplier_journal_credits_qs(supplier, date_from=None, date_to=None):
-    qs = SupplierJournalCredit.objects.filter(supplier=supplier)
+def _supplier_ledger_qs(supplier, date_from=None, date_to=None, on_or_before=None):
+    qs = SupplierLedgerLine.objects.filter(supplier=supplier)
+    if on_or_before is not None:
+        qs = qs.filter(line_date__lte=on_or_before)
     if date_from:
-        qs = qs.filter(credit_date__gte=date_from)
+        qs = qs.filter(line_date__gte=date_from)
     if date_to:
-        qs = qs.filter(credit_date__lte=date_to)
-    return qs.order_by("credit_date", "legacy_jvno", "line_seq")
+        qs = qs.filter(line_date__lte=date_to)
+    return qs.order_by("line_date", "journal_type", "legacy_jvno", "line_seq")
 
 
 def _invoice_id_for_no(invoice_no: str):
@@ -55,6 +54,42 @@ def _invoice_id_for_no(invoice_no: str):
     return inv.id if inv else None
 
 
+def _ledger_row_type(line: SupplierLedgerLine) -> str:
+    if line.journal_type == "SI" and line.dc == SupplierLedgerLine.DC.CREDIT:
+        return "Purchase"
+    if line.journal_type in ("PV", "RV") and line.dc == SupplierLedgerLine.DC.DEBIT:
+        return "Payment"
+    if line.journal_type in ("PV", "RV") and line.dc == SupplierLedgerLine.DC.CREDIT:
+        return "Receipt"
+    return f"{line.journal_type} {'Credit' if line.dc == SupplierLedgerLine.DC.CREDIT else 'Debit'}"
+
+
+def _legacy_ledger_imported() -> bool:
+    return SupplierLedgerLine.objects.exists()
+
+
+def supplier_has_ledger(supplier) -> bool:
+    return SupplierLedgerLine.objects.filter(supplier=supplier).exists()
+
+
+def supplier_ledger_balance(
+    supplier,
+    *,
+    date_from=None,
+    date_to=None,
+    on_or_before=None,
+) -> Decimal:
+    """Net AP from legacy 401* journal lines: sum(C) - sum(D)."""
+    credits = Decimal("0.00")
+    debits = Decimal("0.00")
+    for line in _supplier_ledger_qs(supplier, date_from, date_to, on_or_before):
+        if line.dc == SupplierLedgerLine.DC.CREDIT:
+            credits += line.amount
+        else:
+            debits += line.amount
+    return credits - debits
+
+
 def supplier_purchase_credits(
     supplier,
     *,
@@ -62,16 +97,16 @@ def supplier_purchase_credits(
     date_to=None,
     on_or_before=None,
 ) -> Decimal:
-    """Total supplier purchase credits — legacy journal SI when imported, else invoice line costs."""
-    journal_qs = SupplierJournalCredit.objects.filter(supplier=supplier)
-    if journal_qs.exists():
-        if on_or_before is not None:
-            journal_qs = journal_qs.filter(credit_date__lte=on_or_before)
-        if date_from:
-            journal_qs = journal_qs.filter(credit_date__gte=date_from)
-        if date_to:
-            journal_qs = journal_qs.filter(credit_date__lte=date_to)
-        return sum((jc.amount for jc in journal_qs), Decimal("0.00"))
+    """Total supplier credits for movement reports (legacy ledger or invoice line costs)."""
+    if supplier_has_ledger(supplier):
+        credits = Decimal("0.00")
+        for line in _supplier_ledger_qs(supplier, date_from, date_to, on_or_before):
+            if line.dc == SupplierLedgerLine.DC.CREDIT:
+                credits += line.amount
+        return credits
+
+    if _legacy_ledger_imported():
+        return Decimal("0.00")
 
     lines = SalesInvoiceLine.objects.filter(
         supplier=supplier,
@@ -87,28 +122,32 @@ def supplier_purchase_credits(
 
 
 def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
-    """Credits from legacy SI journals when present; otherwise invoice line costs."""
+    """Legacy 401* journal lines when imported; otherwise invoice lines + treasury payments."""
     today = date.today()
     rows = []
 
-    if SupplierJournalCredit.objects.filter(supplier=supplier).exists():
-        for jc in _supplier_journal_credits_qs(supplier, date_from, date_to):
-            inv_id = _invoice_id_for_no(jc.invoice_no)
+    if supplier_has_ledger(supplier):
+        for line in _supplier_ledger_qs(supplier, date_from, date_to):
+            inv_id = _invoice_id_for_no(line.invoice_no)
+            debit = line.amount.quantize(Decimal("0.01")) if line.dc == SupplierLedgerLine.DC.DEBIT else Decimal("0.00")
+            credit = line.amount.quantize(Decimal("0.01")) if line.dc == SupplierLedgerLine.DC.CREDIT else Decimal("0.00")
             rows.append(
                 {
-                    "date": jc.credit_date,
-                    "type": "Purchase",
-                    "description": jc.description or jc.invoice_no or f"JV {jc.legacy_jvno}",
+                    "date": line.line_date,
+                    "type": _ledger_row_type(line),
+                    "description": line.description or line.invoice_no or f"JV {line.legacy_jvno}",
                     "destination": "—",
-                    "ref": jc.invoice_no or jc.legacy_jvno,
+                    "ref": line.invoice_no or f"{line.journal_type}-{line.legacy_jvno}",
                     "ref_url": invoice_ref_url(inv_id) if inv_id else None,
-                    "debit": Decimal("0.00"),
-                    "credit": jc.amount.quantize(Decimal("0.01")),
-                    "sort_seq": jc.credit_date,
-                    "sort_id": str(jc.id),
-                    "is_pending": bool(jc.credit_date and jc.credit_date > today),
+                    "debit": debit,
+                    "credit": credit,
+                    "sort_seq": line.line_date,
+                    "sort_id": str(line.id),
+                    "is_pending": bool(line.line_date and line.line_date > today),
                 }
             )
+    elif _legacy_ledger_imported():
+        return []
     else:
         lines = (
             SalesInvoiceLine.objects.filter(
@@ -148,38 +187,38 @@ def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
                 }
             )
 
-    for pay in _supplier_payments_qs(supplier, date_from, date_to, Payment.Direction.OUT).order_by("date", "created_at"):
-        rows.append(
-            {
-                "date": pay.date,
-                "type": "Payment",
-                "description": _payment_supplier_description(pay),
-                "destination": "—",
-                "ref": pay.receipt_no,
-                "ref_url": payment_ref_url(pay.id),
-                "debit": pay.amount,
-                "credit": Decimal("0.00"),
-                "sort_seq": pay.created_at,
-                "sort_id": str(pay.id),
-                "is_pending": False,
-            }
-        )
+        for pay in _supplier_payments_qs(supplier, date_from, date_to, Payment.Direction.OUT).order_by("date", "created_at"):
+            rows.append(
+                {
+                    "date": pay.date,
+                    "type": "Payment",
+                    "description": _payment_supplier_description(pay),
+                    "destination": "—",
+                    "ref": pay.receipt_no,
+                    "ref_url": None,
+                    "debit": pay.amount,
+                    "credit": Decimal("0.00"),
+                    "sort_seq": pay.created_at,
+                    "sort_id": str(pay.id),
+                    "is_pending": False,
+                }
+            )
 
-    for pay in _supplier_payments_qs(supplier, date_from, date_to, Payment.Direction.IN).order_by("date", "created_at"):
-        rows.append(
-            {
-                "date": pay.date,
-                "type": "Receipt",
-                "description": _payment_supplier_description(pay),
-                "destination": "—",
-                "ref": pay.receipt_no,
-                "ref_url": payment_ref_url(pay.id),
-                "debit": pay.amount,
-                "credit": Decimal("0.00"),
-                "sort_seq": pay.created_at,
-                "sort_id": f"in-{pay.id}",
-                "is_pending": False,
-            }
-        )
+        for pay in _supplier_payments_qs(supplier, date_from, date_to, Payment.Direction.IN).order_by("date", "created_at"):
+            rows.append(
+                {
+                    "date": pay.date,
+                    "type": "Receipt",
+                    "description": _payment_supplier_description(pay),
+                    "destination": "—",
+                    "ref": pay.receipt_no,
+                    "ref_url": None,
+                    "debit": pay.amount,
+                    "credit": Decimal("0.00"),
+                    "sort_seq": pay.created_at,
+                    "sort_id": f"in-{pay.id}",
+                    "is_pending": False,
+                }
+            )
 
     return sort_statement_rows(rows)

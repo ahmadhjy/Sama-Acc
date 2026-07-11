@@ -85,25 +85,31 @@ class ExpenseCategory(models.Model):
         return f"{self.code} - {self.name}"
 
 
-class SupplierJournalCredit(models.Model):
-    """Legacy SI journal credit on 401* supplier accounts (AP trial balance parity)."""
+class SupplierLedgerLine(models.Model):
+    """Legacy journal line on 401* supplier accounts (AP statement / trial balance parity)."""
+
+    class DC(models.TextChoices):
+        DEBIT = "D", "Debit"
+        CREDIT = "C", "Credit"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     supplier = models.ForeignKey(
-        "accounts_core.Supplier", on_delete=models.CASCADE, related_name="journal_credits"
+        "accounts_core.Supplier", on_delete=models.CASCADE, related_name="ledger_lines"
     )
     legacy_key = models.CharField(max_length=64, unique=True)
+    journal_type = models.CharField(max_length=8, blank=True, default="SI")
     legacy_jvno = models.CharField(max_length=32, blank=True)
     legacy_accno = models.CharField(max_length=32, blank=True)
     line_seq = models.PositiveSmallIntegerField(default=0)
-    credit_date = models.DateField()
+    dc = models.CharField(max_length=1, choices=DC.choices, default=DC.CREDIT)
+    line_date = models.DateField()
     amount = models.DecimalField(max_digits=14, decimal_places=2)
     invoice_no = models.CharField(max_length=32, blank=True)
     description = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["credit_date", "legacy_jvno", "line_seq"]
+        ordering = ["line_date", "journal_type", "legacy_jvno", "line_seq"]
 
     def __str__(self):
-        return f"{self.legacy_key} {self.amount}"
+        return f"{self.legacy_key} {self.dc} {self.amount}"

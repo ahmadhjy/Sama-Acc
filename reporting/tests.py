@@ -309,34 +309,35 @@ class SalesmanReportLineAttributionTests(TestCase):
         self.assertEqual(detailed_y["rows"][0]["cost"], Decimal("200.00"))
 
 
-class SupplierJournalCreditStatementTests(TestCase):
+class SupplierLedgerStatementTests(TestCase):
     def setUp(self):
         self.supplier = Supplier.objects.create(supplier_code="S-JC", name="Journal Supplier")
         self.account = MoneyAccount.objects.create(name="Cash", type=MoneyAccount.AccountType.CASH, currency="USD")
-        from purchases.models import SupplierJournalCredit
+        from purchases.models import SupplierLedgerLine
 
-        SupplierJournalCredit.objects.create(
+        SupplierLedgerLine.objects.create(
             supplier=self.supplier,
             legacy_key="test-jc-same-day",
+            journal_type="SI",
             legacy_jvno="1147",
-            credit_date=date(2026, 7, 3),
+            dc=SupplierLedgerLine.DC.CREDIT,
+            line_date=date(2026, 7, 3),
             amount=Decimal("1076.00"),
             invoice_no="SATO26-SI-00440",
             description="Invoice SATO26-SI-00440",
         )
-        Payment.objects.create(
-            receipt_no="SATO26-PV-TEST",
-            direction=Payment.Direction.OUT,
-            party_type=Payment.PartyType.SUPPLIER,
+        SupplierLedgerLine.objects.create(
             supplier=self.supplier,
-            money_account=self.account,
-            date=date(2026, 7, 3),
-            currency="USD",
+            legacy_key="test-pv-same-day",
+            journal_type="PV",
+            legacy_jvno="1158",
+            dc=SupplierLedgerLine.DC.DEBIT,
+            line_date=date(2026, 7, 3),
             amount=Decimal("836.00"),
-            status=Payment.Status.POSTED,
+            description="Payment JV 1158",
         )
 
-    def test_journal_credit_and_payment_same_date_do_not_crash_sort(self):
+    def test_ledger_lines_same_date_do_not_crash_sort(self):
         rows = build_supplier_statement_rows(self.supplier)
         self.assertEqual(len(rows), 2)
         credits = sum((r["credit"] for r in rows), Decimal("0.00"))

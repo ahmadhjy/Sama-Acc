@@ -27,7 +27,7 @@ from accounts_core.models import (
 from auditlog.models import AuditEvent, DocumentEventLog
 from catalog.models import Destination, ServiceFieldDefinition, ServiceInstance, ServiceType
 from expenses.models import OperatingExpense, OperatingExpenseAttachment
-from purchases.models import ExpenseCategory, SupplierBill, SupplierBillLine, SupplierJournalCredit
+from purchases.models import ExpenseCategory, SupplierBill, SupplierBillLine, SupplierLedgerLine
 from sales.models import CreditNote, SalesInvoice, SalesInvoiceAttachment, SalesInvoiceLine
 from treasury.models import (
     APAllocation,
@@ -54,7 +54,7 @@ def collect_wipe_plan(*, include_destinations: bool) -> list[tuple[str, object]]
         ("AP payment allocations", APAllocation.objects.all()),
         ("credit notes", CreditNote.objects.all()),
         ("payments", Payment.objects.all()),
-        ("supplier journal credits", SupplierJournalCredit.objects.all()),
+        ("supplier ledger lines", SupplierLedgerLine.objects.all()),
         ("supplier bill lines", SupplierBillLine.objects.all()),
         ("supplier bills", SupplierBill.objects.all()),
         ("operating expense attachments", OperatingExpenseAttachment.objects.all()),

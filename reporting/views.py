@@ -550,7 +550,7 @@ def suppliers_trial_balance(request):
         opening = supplier_ap_balance(supplier, day_before) if df else Decimal("0.00")
         debit, credit = _supplier_period_movement(supplier, df, dt)
         closing = opening + credit - debit
-        if debit == 0 and credit == 0 and opening == 0 and closing == 0:
+        if abs(closing) < Decimal("0.01"):
             continue
         bill_q = SupplierBill.objects.filter(supplier=supplier, status=SupplierBill.Status.POSTED)
         if df:

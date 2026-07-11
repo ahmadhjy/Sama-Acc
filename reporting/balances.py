@@ -3,7 +3,12 @@ from decimal import Decimal
 from django.db.models import Sum
 
 from reporting.payment_amounts import payment_usd_amount
-from reporting.supplier_statement_rows import supplier_purchase_credits
+from reporting.supplier_statement_rows import (
+    _legacy_ledger_imported,
+    supplier_has_ledger,
+    supplier_ledger_balance,
+    supplier_purchase_credits,
+)
 from sales.models import SalesInvoice
 from treasury.models import Payment
 
@@ -51,6 +56,12 @@ def client_ar_balance(client, on_or_before):
 def supplier_ap_balance(supplier, on_or_before):
     if on_or_before is None:
         return Decimal("0.00")
+    if supplier_has_ledger(supplier):
+        return supplier_ledger_balance(supplier, on_or_before=on_or_before)
+
+    if _legacy_ledger_imported():
+        return Decimal("0.00")
+
     costs = supplier_purchase_credits(supplier, on_or_before=on_or_before)
     payments_out = sum(
         (p.amount for p in _supplier_payments_qs(supplier, on_or_before=on_or_before, direction=Payment.Direction.OUT)),

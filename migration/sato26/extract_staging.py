@@ -605,58 +605,68 @@ def _jvno_to_invoice_map(headers: list[dict]) -> dict[str, str]:
     return mapping
 
 
-def transform_supplier_journal_credits(
+def transform_supplier_ledger_lines(
     jheaders: list[dict],
     jdetails: list[dict],
     suppliers_by_acc: dict[str, dict],
     headers: list[dict],
 ) -> list[dict]:
-    """Legacy SI journal credits on 401* accounts (supplier trial balance parity)."""
+    """All legacy journal lines on 401* accounts (matches supplier trial balance)."""
     details_by_jv = defaultdict(list)
     for d in jdetails:
         key = (str(d.get("Type") or ""), str(d.get("JVNO") or ""))
         details_by_jv[key].append(d)
 
     inv_by_jvno = _jvno_to_invoice_map(headers)
-    credits = []
+    lines = []
     for h in jheaders:
         typ = str(h.get("Type") or "").upper()
-        if typ != "SI":
-            continue
         jvno = str(h.get("JVNO") or "")
-        credit_date = parse_date(h.get("Date")) or date.today()
+        line_date = parse_date(h.get("Date")) or date.today()
         rows = details_by_jv.get((typ, jvno), [])
         seq = 0
         for row in rows:
-            if str(row.get("DC") or "").upper() != "C":
-                continue
             acc_no = str(row.get("ACCNO") or "")
             if not acc_no.startswith("401"):
                 continue
+            dc = str(row.get("DC") or "").upper()
+            if dc not in ("D", "C"):
+                continue
             amt = D(row.get("AMT"))
-            if amt <= 0:
+            if amt == 0:
                 continue
             supplier = _resolve_supplier(suppliers_by_acc, acc_no)
             if not supplier:
                 continue
-            inv_num = inv_by_jvno.get(jvno, "")
+            inv_num = inv_by_jvno.get(jvno, "") if typ == "SI" else ""
             invoice_no = f"SATO26-SI-{inv_num.zfill(5)}" if inv_num else ""
             line_note = (row.get("Note") or "").strip()
-            credits.append(
+            if typ == "SI" and dc == "C":
+                row_type = "Purchase"
+            elif typ in ("PV", "RV") and dc == "D":
+                row_type = "Payment"
+            elif typ in ("PV", "RV") and dc == "C":
+                row_type = "Receipt"
+            else:
+                row_type = f"{typ} {dc}"
+            lines.append(
                 {
-                    "legacy_key": f"SATO26-SJC-{jvno.zfill(5)}-{acc_no}-{seq}",
+                    "legacy_key": f"SATO26-SJL-{typ}-{jvno.zfill(5)}-{acc_no}-{seq}",
+                    "journal_type": typ,
                     "legacy_jvno": jvno,
                     "legacy_accno": acc_no,
                     "line_seq": seq,
+                    "dc": dc,
                     "supplier_code": supplier["supplier_code"],
-                    "credit_date": credit_date.isoformat(),
+                    "line_date": line_date.isoformat(),
                     "amount": str(amt),
                     "invoice_no": invoice_no,
-                    "description": line_note or (f"Purchase JV {jvno}" if not invoice_no else f"Invoice {invoice_no}"),
+                    "description": line_note
+                    or (f"Invoice {invoice_no}" if invoice_no else f"{row_type} JV {jvno}"),
                 }
             )
             seq += 1
-    return credits
+    return lines
 
 
 EXPENSE_ACCOUNT_PREFIXES = ("626", "631")
@@ -817,7 +827,7 @@ def main():
     operating_expenses = transform_operating_expenses(
         data["jheaders"], data["jdetails"], expense_accounts
     )
-    supplier_journal_credits = transform_supplier_journal_credits(
+    supplier_ledger_lines = transform_supplier_ledger_lines(
         data["jheaders"],
         data["jdetails"],
         suppliers_by_acc,
@@ -840,7 +850,7 @@ def main():
             "payments": len(payments),
             "operating_expenses": len(operating_expenses),
             "expense_categories": len({e["category_code"] for e in operating_expenses}),
-            "supplier_journal_credits": len(supplier_journal_credits),
+            "supplier_ledger_lines": len(supplier_ledger_lines),
             "unpaid_invoices_legacy": len(data.get("unpaid") or []),
         },
     }
@@ -852,7 +862,7 @@ def main():
     write_jsonl(args.output / "invoices.jsonl", invoices)
     write_jsonl(args.output / "payments.jsonl", payments)
     write_jsonl(args.output / "operating_expenses.jsonl", operating_expenses)
-    write_jsonl(args.output / "supplier_journal_credits.jsonl", supplier_journal_credits)
+    write_jsonl(args.output / "supplier_ledger_lines.jsonl", supplier_ledger_lines)
 
     print(json.dumps(manifest, indent=2))
     print(f"Staging written to {args.output}")

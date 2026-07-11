@@ -110,7 +110,7 @@ def build_supplier_summary_rows(suppliers, date_from=None, date_to=None):
         opening = supplier_ap_balance(supplier, day_before) if date_from else Decimal("0.00")
         debit, credit = _supplier_period_movement(supplier, date_from, date_to)
         closing = opening + credit - debit
-        if debit == 0 and credit == 0 and opening == 0 and closing == 0:
+        if abs(closing) < Decimal("0.01"):
             continue
         bill_q = SupplierBill.objects.filter(supplier=supplier, status=SupplierBill.Status.POSTED)
         if date_from:

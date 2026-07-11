@@ -1,5 +1,5 @@
 {
-  "extracted_at": "2026-07-11T21:40:21.217098",
+  "extracted_at": "2026-07-11T22:06:45.397405",
   "source": "sql",
   "company": {
     "name": "SAMA TOURS TRAVEL & TOURISM",
@@ -14,7 +14,7 @@
     "payments": 590,
     "operating_expenses": 164,
     "expense_categories": 32,
-    "supplier_journal_credits": 983,
+    "supplier_ledger_lines": 1344,
     "unpaid_invoices_legacy": 14
   }
 }

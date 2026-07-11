@@ -36,6 +36,9 @@ set -a && source "$ENV_FILE" && set +a
 export DJANGO_SETTINGS_MODULE=config.settings.production
 python manage.py rebuild_payment_allocations
 
+log "Validating supplier trial balance vs legacy PDF"
+python migration/sato26/verify_supplier_tb.py
+
 log "Validating import counts and sample client balances"
 python manage.py shell -c "
 from decimal import Decimal
