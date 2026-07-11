@@ -36,10 +36,13 @@ def connect(server: str, database: str = "master"):
 
 
 def latest_backup(folder: Path) -> Path:
-    files = sorted(folder.glob("*.bak"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not files:
-        raise FileNotFoundError(f"No .bak files in {folder}")
-    return files[0]
+    for search_dir in (folder, ARCHIVE_DIR, PROJECT_ROOT / "exports" / "sato26" / "backup"):
+        if not search_dir.exists():
+            continue
+        files = sorted(search_dir.glob("*.bak"), key=lambda p: p.stat().st_mtime, reverse=True)
+        if files:
+            return files[0]
+    raise FileNotFoundError(f"No .bak files in {folder}, {ARCHIVE_DIR}, or exports/sato26/backup")
 
 
 def backup_filelist(server: str, backup_path: Path) -> list[tuple[str, str]]:

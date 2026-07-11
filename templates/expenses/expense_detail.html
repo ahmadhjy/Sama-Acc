@@ -1,0 +1,66 @@
+{% extends "page/layout.html" %}
+{% block title %}Expense {{ expense.expense_no }}{% endblock %}
+{% block page_content %}
+<h1 class="title">Operating Expense {{ expense.expense_no }}</h1>
+<div class="panel">
+    <p><strong>Date:</strong> {{ expense.expense_date|date:"d/m/Y" }}</p>
+    <p><strong>Category:</strong> {{ expense.category.code }} — {{ expense.category.name }}</p>
+    <p><strong>Amount:</strong> {{ expense.amount }} {{ expense.currency }}</p>
+    <p><strong>USD:</strong> {{ expense.amount_usd }}</p>
+    {% if expense.currency != "USD" and expense.exchange_rate_to_usd %}
+    <p><strong>Exchange rate:</strong> {{ expense.exchange_rate_to_usd }}</p>
+    {% endif %}
+    <p><strong>Status:</strong> {{ expense.get_status_display }}</p>
+    {% if expense.posted_at %}
+    <p><strong>Posted:</strong> {{ expense.posted_at|date:"d/m/Y H:i" }}{% if expense.posted_by %} by {{ expense.posted_by }}{% endif %}</p>
+    {% endif %}
+    {% if expense.status == "VOIDED" %}
+    <p><strong>Voided:</strong> {{ expense.voided_at|date:"d/m/Y H:i"|default:"—" }}</p>
+    <p><strong>Void reason:</strong> {{ expense.void_reason|default:"—"|linebreaksbr }}</p>
+    {% endif %}
+    <p><strong>Description:</strong></p>
+    <div class="expense-description">{{ expense.description|default:"—"|linebreaksbr }}</div>
+</div>
+
+{% if attachments %}
+<section class="panel">
+    <h2>Attachments</h2>
+    <ul class="attachment-list">
+        {% for att in attachments %}
+        <li>
+            <a href="{{ att.file.url }}" target="_blank" rel="noopener">
+                {{ att.original_name|default:att.file.name }}
+            </a>
+            <span class="muted">({{ att.uploaded_at|date:"d/m/Y H:i" }})</span>
+            {% if expense.status == "DRAFT" %}
+            <form method="post" action="{% url 'expenses:expense_delete_attachment' expense.id att.id %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-link" onclick="return confirm('Remove this file?');">Remove</button>
+            </form>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% else %}
+<p class="muted">No attachments on this expense.</p>
+{% endif %}
+
+<p class="action-bar">
+    {% if expense.status == "DRAFT" %}
+    <a class="btn" href="{% url 'expenses:expense_edit' expense.id %}">Edit</a>
+    <form method="post" action="{% url 'expenses:expense_delete' expense.id %}" style="display:inline;" onsubmit="return confirm('Delete this draft expense permanently?');">
+        {% csrf_token %}
+        <button type="submit" class="btn">Delete</button>
+    </form>
+    {% endif %}
+    {% if expense.status == "POSTED" %}
+    <form method="post" action="{% url 'expenses:void_expense' expense.id %}" style="display:inline;" onsubmit="return confirm('Void this posted expense?');">
+        {% csrf_token %}
+        <input type="hidden" name="reason" value="Voided from expense detail">
+        <button type="submit" class="btn">Void</button>
+    </form>
+    {% endif %}
+    <a class="btn" href="{% url 'expenses:expense_list' %}">Back to list</a>
+</p>
+{% endblock %}

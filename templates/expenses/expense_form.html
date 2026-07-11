@@ -35,6 +35,9 @@
     {% endif %}
 
     <button class="btn" type="submit">Save</button>
+    {% if is_edit %}
+    <a class="btn" href="{% url 'expenses:expense_detail' expense.id %}">View</a>
+    {% endif %}
     <a class="btn" href="{% url 'expenses:expense_list' %}">Back</a>
 </form>
 

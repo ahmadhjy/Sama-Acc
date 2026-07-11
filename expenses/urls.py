@@ -13,7 +13,9 @@ urlpatterns = [
     path("categories/<int:category_id>/delete/", views.expense_category_delete, name="expense_category_delete"),
     path("", views.expense_list, name="expense_list"),
     path("new/", views.expense_create, name="expense_create"),
+    path("<uuid:expense_id>/", views.expense_detail, name="expense_detail"),
     path("<uuid:expense_id>/edit/", views.expense_edit, name="expense_edit"),
+    path("<uuid:expense_id>/delete/", views.expense_delete, name="expense_delete"),
     path("<uuid:expense_id>/post/", views.post_expense, name="post_expense"),
     path("<uuid:expense_id>/void/", views.void_expense, name="void_expense"),
     path(

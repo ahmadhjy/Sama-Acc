@@ -1,19 +1,19 @@
 {
-  "extracted_at": "2026-07-07T14:23:29.509346",
+  "extracted_at": "2026-07-11T21:08:22.617046",
   "source": "sql",
   "company": {
     "name": "SAMA TOURS TRAVEL & TOURISM",
     "legacy_code": "NSAT26"
   },
   "counts": {
-    "clients": 492,
-    "suppliers": 79,
+    "clients": 503,
+    "suppliers": 80,
     "service_types": 12,
-    "invoices": 413,
-    "invoice_lines": 1053,
-    "payments": 524,
-    "operating_expenses": 150,
-    "expense_categories": 30,
+    "invoices": 446,
+    "invoice_lines": 1184,
+    "payments": 590,
+    "operating_expenses": 164,
+    "expense_categories": 32,
     "unpaid_invoices_legacy": 14
   }
 }

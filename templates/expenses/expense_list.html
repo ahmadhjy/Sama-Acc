@@ -23,27 +23,24 @@
     <thead>
         <tr>
             <th>No</th><th>Date</th><th>Category</th><th>Description</th>
-            <th class="num">Amount</th><th class="num">USD</th><th>Status</th><th></th>
+            <th class="num">Amount</th><th class="num">USD</th><th>Files</th><th>Status</th><th></th>
         </tr>
     </thead>
     <tbody>
     {% for e in expenses %}
         <tr>
-            <td>{{ e.expense_no }}</td>
+            <td><a href="{% url 'expenses:expense_detail' e.id %}">{{ e.expense_no }}</a></td>
             <td>{{ e.expense_date|date:"d/m/Y" }}</td>
             <td>{{ e.category.name }}</td>
             <td>{{ e.description|truncatewords:12 }}</td>
             <td class="num">{{ e.amount }} {{ e.currency }}</td>
             <td class="num">{{ e.amount_usd }}</td>
+            <td>{{ e.attachments.all|length }}</td>
             <td>{{ e.status }}</td>
-            <td>
-                {% if e.status == "DRAFT" %}
-                <a href="{% url 'expenses:expense_edit' e.id %}">Edit</a>
-                {% endif %}
-            </td>
+            <td><a href="{% url 'expenses:expense_detail' e.id %}">View</a></td>
         </tr>
     {% empty %}
-        <tr><td colspan="8">No expenses found.</td></tr>
+        <tr><td colspan="9">No expenses found.</td></tr>
     {% endfor %}
     </tbody>
 </table>

@@ -28,7 +28,11 @@ def _next_temp_expense_no():
 def expense_list(request):
     from reporting.date_ranges import resolve_report_dates
 
-    qs = OperatingExpense.objects.select_related("category").order_by("-expense_date", "-created_at")
+    qs = (
+        OperatingExpense.objects.select_related("category", "posted_by")
+        .prefetch_related("attachments")
+        .order_by("-expense_date", "-created_at")
+    )
     df, dt, _ = resolve_report_dates(request)
     cat = request.GET.get("category")
     if df:
@@ -53,6 +57,22 @@ def expense_list(request):
 
 
 @login_required
+def expense_detail(request, expense_id):
+    expense = get_object_or_404(
+        OperatingExpense.objects.select_related("category", "posted_by"),
+        pk=expense_id,
+    )
+    return render(
+        request,
+        "expenses/expense_detail.html",
+        {
+            "expense": expense,
+            "attachments": expense.attachments.all(),
+        },
+    )
+
+
+@login_required
 def expense_create(request):
     from datetime import date
 
@@ -68,7 +88,7 @@ def expense_create(request):
             exp.post(request.user)
             log_audit("POST_OPERATING_EXPENSE", exp, actor=request.user)
             messages.success(request, f"Expense {exp.expense_no} saved and posted.")
-            return redirect("expenses:expense_list")
+            return redirect("expenses:expense_detail", expense_id=exp.id)
     else:
         form = OperatingExpenseForm(instance=expense, initial={"expense_date": date.today()})
     return render(
@@ -83,7 +103,7 @@ def expense_edit(request, expense_id):
     expense = get_object_or_404(OperatingExpense, pk=expense_id)
     if expense.status != OperatingExpense.Status.DRAFT:
         messages.warning(request, "Only draft expenses can be edited.")
-        return redirect("expenses:expense_list")
+        return redirect("expenses:expense_detail", expense_id=expense.id)
     if request.method == "POST":
         form = OperatingExpenseForm(request.POST, instance=expense)
         if form.is_valid():
@@ -92,7 +112,7 @@ def expense_edit(request, expense_id):
             exp.save()
             _save_attachments(request, exp)
             messages.success(request, f"Expense {exp.expense_no} updated.")
-            return redirect("expenses:expense_edit", expense_id=exp.id)
+            return redirect("expenses:expense_detail", expense_id=exp.id)
     else:
         form = OperatingExpenseForm(instance=expense)
     return render(
@@ -122,13 +142,26 @@ def _save_attachments(request, expense):
 
 @login_required
 @require_http_methods(["POST"])
+def expense_delete(request, expense_id):
+    expense = get_object_or_404(OperatingExpense, pk=expense_id, status=OperatingExpense.Status.DRAFT)
+    expense_no = expense.expense_no
+    for att in expense.attachments.all():
+        att.file.delete(save=False)
+    log_audit("DELETE_OPERATING_EXPENSE", expense, actor=request.user, reason=expense_no)
+    expense.delete()
+    messages.success(request, f"Expense {expense_no} deleted.")
+    return redirect("expenses:expense_list")
+
+
+@login_required
+@require_http_methods(["POST"])
 def expense_delete_attachment(request, expense_id, attachment_id):
     expense = get_object_or_404(OperatingExpense, pk=expense_id, status=OperatingExpense.Status.DRAFT)
     att = get_object_or_404(OperatingExpenseAttachment, pk=attachment_id, expense=expense)
     att.file.delete(save=False)
     att.delete()
     messages.success(request, "Attachment removed.")
-    return redirect("expenses:expense_edit", expense_id=expense.id)
+    return redirect("expenses:expense_detail", expense_id=expense.id)
 
 
 @login_required
@@ -140,7 +173,7 @@ def post_expense(request, expense_id):
         messages.success(request, f"Expense {expense.expense_no} posted.")
     except Exception as exc:
         messages.error(request, str(exc))
-    return redirect("expenses:expense_list")
+    return redirect("expenses:expense_detail", expense_id=expense.id)
 
 
 @login_required
@@ -158,7 +191,7 @@ def void_expense(request, expense_id):
         expense.voided_at = timezone.now()
         expense.save()
         messages.success(request, f"Expense {expense.expense_no} voided.")
-    return redirect("expenses:expense_list")
+    return redirect("expenses:expense_detail", expense_id=expense.id)
 
 
 @login_required

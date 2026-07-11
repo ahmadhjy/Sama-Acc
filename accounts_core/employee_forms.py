@@ -30,7 +30,7 @@ class EmployeeForm(forms.ModelForm):
         self.fields["first_name"].label = "Name"
         self.fields["father_name"].label = "Father name"
         self.fields["last_name"].label = "Last name"
-        self.fields["monthly_salary"].label = "Monthly salary (USD)"
+        self.fields["monthly_salary"].label = "Monthly salary (USD, reference only)"
         self.fields["monthly_salary"].required = False
 
     def clean_monthly_salary(self):

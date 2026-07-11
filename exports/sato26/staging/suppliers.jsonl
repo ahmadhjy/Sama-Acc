@@ -2,7 +2,7 @@
 {"legacy_acc_no": "4010", "legacy_gl_account": "4010", "supplier_code": "S-4010", "name": "Suppliers", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000004", "legacy_gl_account": "4010000004", "supplier_code": "S-4010000004", "name": "SAMAD TOURS", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000007", "legacy_gl_account": "4010000007", "supplier_code": "S-4010000007", "name": "SKYLA", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
-{"legacy_acc_no": "4010000008", "legacy_gl_account": "4010000008", "supplier_code": "S-4010000008", "name": "PEGASUS", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
+{"legacy_acc_no": "4010000008", "legacy_gl_account": "4010000008", "supplier_code": "S-4010000008", "name": "PEGASUS PORTAL", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000009", "legacy_gl_account": "4010000009", "supplier_code": "S-4010000009", "name": "TRAVEL BOOK", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000010", "legacy_gl_account": "4010000010", "supplier_code": "S-4010000010", "name": "BLACK PEARL", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000011", "legacy_gl_account": "4010000011", "supplier_code": "S-4010000011", "name": "SATGURU", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
@@ -23,7 +23,7 @@
 {"legacy_acc_no": "4010000028", "legacy_gl_account": "4010000028", "supplier_code": "S-4010000028", "name": "BOS BAKRI", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000029", "legacy_gl_account": "4010000029", "supplier_code": "S-4010000029", "name": "TRAVEL BERU", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000030", "legacy_gl_account": "4010000030", "supplier_code": "S-4010000030", "name": "CONCORD", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
-{"legacy_acc_no": "4010000031", "legacy_gl_account": "4010000031", "supplier_code": "S-4010000031", "name": "HOOJOOZAT.COM / NAKHAL", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
+{"legacy_acc_no": "4010000031", "legacy_gl_account": "4010000031", "supplier_code": "S-4010000031", "name": "NAKHAL", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000032", "legacy_gl_account": "4010000032", "supplier_code": "S-4010000032", "name": "SKYLEADERS", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000033", "legacy_gl_account": "4010000033", "supplier_code": "S-4010000033", "name": "SEDURA", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000035", "legacy_gl_account": "4010000035", "supplier_code": "S-4010000035", "name": "TBrooms", "type": "OTHER", "phone": "", "email": "", "address": "https://tbrooms.me/  -  \nsamatours   -  \nP@ssw0rdsama2024", "default_currency": "USD"}
@@ -72,8 +72,9 @@
 {"legacy_acc_no": "4010000092", "legacy_gl_account": "4010000092", "supplier_code": "S-4010000092", "name": "SKYLOUNGE", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000093", "legacy_gl_account": "4010000093", "supplier_code": "S-4010000093", "name": "SUN EXPRESS PORTAL", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000094", "legacy_gl_account": "4010000094", "supplier_code": "S-4010000094", "name": "OLD EXPENSES", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
-{"legacy_acc_no": "4010000095", "legacy_gl_account": "4010000095", "supplier_code": "S-4010000095", "name": "DR BASSAM (1)", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000096", "legacy_gl_account": "4010000096", "supplier_code": "S-4010000096", "name": "OZEN RESERVE BOLIFUSHI RESORT", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000097", "legacy_gl_account": "4010000097", "supplier_code": "S-4010000097", "name": "QATAR AIRWAYS TRADE PORTAL", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000098", "legacy_gl_account": "4010000098", "supplier_code": "S-4010000098", "name": "AMAL TOURS", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
 {"legacy_acc_no": "4010000099", "legacy_gl_account": "4010000099", "supplier_code": "S-4010000099", "name": "HOTEL AMMAN ROTANA", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
+{"legacy_acc_no": "4010000104", "legacy_gl_account": "4010000104", "supplier_code": "S-4010000104", "name": "USA EMBASY", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}
+{"legacy_acc_no": "4010000105", "legacy_gl_account": "4010000105", "supplier_code": "S-4010000105", "name": "TURKEY EMBASSY", "type": "OTHER", "phone": "", "email": "", "address": "", "default_currency": "USD"}

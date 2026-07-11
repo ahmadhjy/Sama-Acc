@@ -14,33 +14,11 @@
     {% endfor %}
     <button class="btn" type="submit">{% if is_edit %}Save{% else %}Create employee{% endif %}</button>
     <a class="btn" href="{% url 'accounts_core:employees_list' %}">Back</a>
-    {% if employee and employee.monthly_salary %}
-    <a class="btn" href="{% url 'accounts_core:employee_salary_pdf' employee.id %}?format=pdf">Download salary PDF</a>
-    {% endif %}
 </form>
 {% if employee and employee.passport_file %}
 <p class="panel" style="margin-top:12px;">
     <strong>Passport on file:</strong>
     <a href="{{ employee.passport_file.url }}" target="_blank" download>Download passport</a>
 </p>
-{% endif %}
-{% if employee and employee.monthly_salary %}
-<section class="panel" style="margin-top:16px;">
-    <h2>Salary</h2>
-    <p class="muted">Pay manually for a specific month. If that month is already paid, automatic payroll on the 1st will skip it.</p>
-    <form method="post" action="{% url 'accounts_core:employee_pay_salary' employee.id %}" class="filter-bar">
-        {% csrf_token %}
-        <label>Salary month <input type="month" name="salary_month" required></label>
-        <button class="btn" type="submit">Pay salary</button>
-    </form>
-    {% if paid_salaries %}
-    <h3>Recent salary payments</h3>
-    <ul>
-        {% for exp in paid_salaries %}
-        <li>{{ exp.expense_date|date:"M Y" }} — {{ exp.expense_no }} ({{ exp.amount_usd }} USD)</li>
-        {% endfor %}
-    </ul>
-    {% endif %}
-</section>
 {% endif %}
 {% endblock %}
