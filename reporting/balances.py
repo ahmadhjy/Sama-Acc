@@ -3,7 +3,8 @@ from decimal import Decimal
 from django.db.models import Sum
 
 from reporting.payment_amounts import payment_usd_amount
-from sales.models import SalesInvoice, SalesInvoiceLine
+from reporting.supplier_statement_rows import supplier_purchase_credits
+from sales.models import SalesInvoice
 from treasury.models import Payment
 
 
@@ -50,12 +51,7 @@ def client_ar_balance(client, on_or_before):
 def supplier_ap_balance(supplier, on_or_before):
     if on_or_before is None:
         return Decimal("0.00")
-    lines = SalesInvoiceLine.objects.filter(
-        supplier=supplier,
-        invoice__status__in=SalesInvoice.reporting_statuses(),
-        invoice__issue_date__lte=on_or_before,
-    )
-    costs = sum((line.line_cost_amount_usd() for line in lines), Decimal("0.00"))
+    costs = supplier_purchase_credits(supplier, on_or_before=on_or_before)
     payments_out = sum(
         (p.amount for p in _supplier_payments_qs(supplier, on_or_before=on_or_before, direction=Payment.Direction.OUT)),
         Decimal("0.00"),
@@ -68,12 +64,4 @@ def supplier_ap_balance(supplier, on_or_before):
 
 
 def supplier_line_purchases(supplier, date_from=None, date_to=None):
-    lines = SalesInvoiceLine.objects.filter(
-        supplier=supplier,
-        invoice__status__in=SalesInvoice.reporting_statuses(),
-    )
-    if date_from:
-        lines = lines.filter(service_date__gte=date_from)
-    if date_to:
-        lines = lines.filter(service_date__lte=date_to)
-    return sum((line.line_cost_amount_usd() for line in lines), Decimal("0.00"))
+    return supplier_purchase_credits(supplier, date_from=date_from, date_to=date_to)

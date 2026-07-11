@@ -83,3 +83,27 @@ class ExpenseCategory(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+
+class SupplierJournalCredit(models.Model):
+    """Legacy SI journal credit on 401* supplier accounts (AP trial balance parity)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    supplier = models.ForeignKey(
+        "accounts_core.Supplier", on_delete=models.CASCADE, related_name="journal_credits"
+    )
+    legacy_key = models.CharField(max_length=64, unique=True)
+    legacy_jvno = models.CharField(max_length=32, blank=True)
+    legacy_accno = models.CharField(max_length=32, blank=True)
+    line_seq = models.PositiveSmallIntegerField(default=0)
+    credit_date = models.DateField()
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    invoice_no = models.CharField(max_length=32, blank=True)
+    description = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["credit_date", "legacy_jvno", "line_seq"]
+
+    def __str__(self):
+        return f"{self.legacy_key} {self.amount}"

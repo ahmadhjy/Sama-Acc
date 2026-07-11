@@ -43,7 +43,7 @@ class Command(BaseCommand):
             default="",
             help=(
                 "Comma-separated import steps: service_types,clients,suppliers,setup,"
-                "invoices,supplier_bills,payments,operating_expenses"
+                "invoices,supplier_bills,payments,operating_expenses,supplier_journal_credits"
             ),
         )
 

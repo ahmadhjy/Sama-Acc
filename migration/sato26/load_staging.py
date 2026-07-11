@@ -14,7 +14,7 @@ from django.utils import timezone
 from accounts_core.models import Client, Employee, Supplier, UserProfile, get_default_employee_for_accounting
 from catalog.models import Destination, ServiceType
 from expenses.models import OperatingExpense
-from purchases.models import ExpenseCategory, SupplierBillLine
+from purchases.models import ExpenseCategory, SupplierBillLine, SupplierJournalCredit
 from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import MoneyAccount, Payment
 from treasury.allocation import rebuild_client_ar_allocations, rebuild_supplier_ap_allocations
@@ -62,6 +62,7 @@ class Sato26Importer:
             "supplier_bill_errors": 0,
             "payments": 0,
             "operating_expenses": 0,
+            "supplier_journal_credits": 0,
             "ar_allocations_rebuilt": 0,
             "ap_allocations_rebuilt": 0,
             "skipped": 0,
@@ -84,6 +85,7 @@ class Sato26Importer:
             "supplier_bills",
             "payments",
             "operating_expenses",
+            "supplier_journal_credits",
         ]
         if "service_types" in steps:
             self.import_service_types()
@@ -101,6 +103,8 @@ class Sato26Importer:
             self.import_payments()
         if "operating_expenses" in steps:
             self.import_operating_expenses()
+        if "supplier_journal_credits" in steps:
+            self.import_supplier_journal_credits()
         return self.stats
 
     def ensure_default_destination(self) -> Destination | None:
@@ -481,3 +485,31 @@ class Sato26Importer:
             opex.save()
             opex.post(self.user)
             self.stats["operating_expenses"] += 1
+
+    @transaction.atomic
+    def import_supplier_journal_credits(self):
+        for row in read_jsonl(self.staging_dir / "supplier_journal_credits.jsonl"):
+            if SupplierJournalCredit.objects.filter(legacy_key=row["legacy_key"]).exists():
+                self.stats["skipped"] += 1
+                continue
+            if self.dry_run:
+                self.stats["supplier_journal_credits"] += 1
+                continue
+            supplier = self._suppliers.get(row["supplier_code"]) or Supplier.objects.filter(
+                supplier_code=row["supplier_code"]
+            ).first()
+            if not supplier:
+                self.stats["skipped"] += 1
+                continue
+            SupplierJournalCredit.objects.create(
+                supplier=supplier,
+                legacy_key=row["legacy_key"],
+                legacy_jvno=row.get("legacy_jvno") or "",
+                legacy_accno=row.get("legacy_accno") or "",
+                line_seq=int(row.get("line_seq") or 0),
+                credit_date=_parse_date(row.get("credit_date")),
+                amount=_D(row.get("amount")),
+                invoice_no=(row.get("invoice_no") or "")[:32],
+                description=(row.get("description") or "")[:255],
+            )
+            self.stats["supplier_journal_credits"] += 1

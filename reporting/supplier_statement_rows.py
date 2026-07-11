@@ -1,8 +1,10 @@
 from datetime import date
 from decimal import Decimal
 
-from django.db.models import Q
+from django.db.models import Sum
 
+from purchases.models import SupplierJournalCredit
+from reporting.payment_amounts import payment_usd_amount
 from reporting.statement_refs import invoice_ref_url, payment_ref_url
 from reporting.statement_sort import sort_statement_rows
 from sales.models import SalesInvoice, SalesInvoiceLine
@@ -37,48 +39,114 @@ def _line_visible_by_report_dates(line, date_from=None, date_to=None):
     return True
 
 
-def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
-    """One credit row per invoice service line (cost); one debit per supplier payment."""
-    today = date.today()
-    lines = (
-        SalesInvoiceLine.objects.filter(
-            supplier=supplier,
-            invoice__status__in=SalesInvoice.reporting_statuses(),
-        )
-        .select_related(
-            "invoice",
-            "service_type",
-            "destination",
-            "service_instance__service_type",
-        )
-        .prefetch_related("service_type__field_definitions")
-    )
+def _supplier_journal_credits_qs(supplier, date_from=None, date_to=None):
+    qs = SupplierJournalCredit.objects.filter(supplier=supplier)
+    if date_from:
+        qs = qs.filter(credit_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(credit_date__lte=date_to)
+    return qs.order_by("credit_date", "legacy_jvno", "line_seq")
 
+
+def _invoice_id_for_no(invoice_no: str):
+    if not invoice_no:
+        return None
+    inv = SalesInvoice.objects.filter(invoice_no=invoice_no).only("id").first()
+    return inv.id if inv else None
+
+
+def supplier_purchase_credits(
+    supplier,
+    *,
+    date_from=None,
+    date_to=None,
+    on_or_before=None,
+) -> Decimal:
+    """Total supplier purchase credits — legacy journal SI when imported, else invoice line costs."""
+    journal_qs = SupplierJournalCredit.objects.filter(supplier=supplier)
+    if journal_qs.exists():
+        if on_or_before is not None:
+            journal_qs = journal_qs.filter(credit_date__lte=on_or_before)
+        if date_from:
+            journal_qs = journal_qs.filter(credit_date__gte=date_from)
+        if date_to:
+            journal_qs = journal_qs.filter(credit_date__lte=date_to)
+        return sum((jc.amount for jc in journal_qs), Decimal("0.00"))
+
+    lines = SalesInvoiceLine.objects.filter(
+        supplier=supplier,
+        invoice__status__in=SalesInvoice.reporting_statuses(),
+    )
+    if on_or_before is not None:
+        lines = lines.filter(invoice__issue_date__lte=on_or_before)
+    if date_from:
+        lines = lines.filter(service_date__gte=date_from)
+    if date_to:
+        lines = lines.filter(service_date__lte=date_to)
+    return sum((line.line_cost_amount_usd() for line in lines), Decimal("0.00"))
+
+
+def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
+    """Credits from legacy SI journals when present; otherwise invoice line costs."""
+    today = date.today()
     rows = []
-    for line in lines.order_by("service_date", "invoice__issue_date", "invoice__created_at", "id"):
-        if not _line_visible_by_report_dates(line, date_from, date_to):
-            continue
-        inv = line.invoice
-        svc_date = line.effective_service_date()
-        amt = line.line_cost_amount_usd().quantize(Decimal("0.01"))
-        st = line.service_type
-        if not st and line.service_instance_id and line.service_instance:
-            st = line.service_instance.service_type
-        rows.append(
-            {
-                "date": svc_date,
-                "type": st.name if st else "Service",
-                "description": line.supplier_statement_description(),
-                "destination": line.destination.name if line.destination_id else "—",
-                "ref": inv.invoice_no,
-                "ref_url": invoice_ref_url(inv.id),
-                "debit": Decimal("0.00"),
-                "credit": amt,
-                "sort_seq": inv.created_at,
-                "sort_id": str(line.id),
-                "is_pending": bool(svc_date and svc_date > today),
-            }
+
+    if SupplierJournalCredit.objects.filter(supplier=supplier).exists():
+        for jc in _supplier_journal_credits_qs(supplier, date_from, date_to):
+            inv_id = _invoice_id_for_no(jc.invoice_no)
+            rows.append(
+                {
+                    "date": jc.credit_date,
+                    "type": "Purchase",
+                    "description": jc.description or jc.invoice_no or f"JV {jc.legacy_jvno}",
+                    "destination": "—",
+                    "ref": jc.invoice_no or jc.legacy_jvno,
+                    "ref_url": invoice_ref_url(inv_id) if inv_id else None,
+                    "debit": Decimal("0.00"),
+                    "credit": jc.amount.quantize(Decimal("0.01")),
+                    "sort_seq": jc.credit_date,
+                    "sort_id": str(jc.id),
+                    "is_pending": bool(jc.credit_date and jc.credit_date > today),
+                }
+            )
+    else:
+        lines = (
+            SalesInvoiceLine.objects.filter(
+                supplier=supplier,
+                invoice__status__in=SalesInvoice.reporting_statuses(),
+            )
+            .select_related(
+                "invoice",
+                "service_type",
+                "destination",
+                "service_instance__service_type",
+            )
+            .prefetch_related("service_type__field_definitions")
         )
+        for line in lines.order_by("service_date", "invoice__issue_date", "invoice__created_at", "id"):
+            if not _line_visible_by_report_dates(line, date_from, date_to):
+                continue
+            inv = line.invoice
+            svc_date = line.effective_service_date()
+            amt = line.line_cost_amount_usd().quantize(Decimal("0.01"))
+            st = line.service_type
+            if not st and line.service_instance_id and line.service_instance:
+                st = line.service_instance.service_type
+            rows.append(
+                {
+                    "date": svc_date,
+                    "type": st.name if st else "Service",
+                    "description": line.supplier_statement_description(),
+                    "destination": line.destination.name if line.destination_id else "—",
+                    "ref": inv.invoice_no,
+                    "ref_url": invoice_ref_url(inv.id),
+                    "debit": Decimal("0.00"),
+                    "credit": amt,
+                    "sort_seq": inv.created_at,
+                    "sort_id": str(line.id),
+                    "is_pending": bool(svc_date and svc_date > today),
+                }
+            )
 
     for pay in _supplier_payments_qs(supplier, date_from, date_to, Payment.Direction.OUT).order_by("date", "created_at"):
         rows.append(
