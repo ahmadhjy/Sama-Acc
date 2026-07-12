@@ -104,6 +104,9 @@ if python manage.py help seed_destinations >/dev/null 2>&1; then
   python manage.py seed_destinations
 fi
 
+log "Rebuilding payment allocations (oldest due-date FIFO)"
+python manage.py rebuild_payment_allocations
+
 if [[ -n "${PA_WSGI_FILE:-}" && -f "$PA_WSGI_FILE" ]]; then
   log "Reloading web app via WSGI touch"
   touch "$PA_WSGI_FILE"
