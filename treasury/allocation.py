@@ -8,10 +8,57 @@ from sales.models import SalesInvoice
 from treasury.models import APAllocation, ARAllocation, Payment
 
 
+def _invoice_grand_total(invoice: SalesInvoice) -> Decimal:
+    return invoice.grand_total_usd if invoice.grand_total_usd is not None else (invoice.grand_total or Decimal("0.00"))
+
+
+def _client_invoices_ordered(client: Client):
+    return (
+        SalesInvoice.objects.filter(client=client, status__in=SalesInvoice.reporting_statuses())
+        .order_by("due_date", "issue_date", "created_at")
+        .prefetch_related("allocations")
+    )
+
+
+def _collectible_open_by_invoice(invoices) -> dict:
+    """Apply credit notes (negative invoices) to oldest positive invoices before payments."""
+    credit_pool = Decimal("0.00")
+    collectible: dict = {}
+    positive_invoices = []
+
+    for inv in invoices:
+        total = _invoice_grand_total(inv)
+        if total < 0:
+            credit_pool += -total
+            collectible[inv.id] = Decimal("0.00")
+        elif total == 0:
+            collectible[inv.id] = Decimal("0.00")
+        else:
+            positive_invoices.append(inv)
+
+    for inv in positive_invoices:
+        total = _invoice_grand_total(inv)
+        offset = min(credit_pool, total)
+        collectible[inv.id] = total - offset
+        credit_pool -= offset
+
+    return collectible
+
+
+def _invoice_allocated(invoice: SalesInvoice) -> Decimal:
+    return sum((a.allocated_amount for a in invoice.allocations.all()), Decimal("0.00"))
+
+
+def invoice_collectible_remaining(invoice: SalesInvoice, *, collectible_cache: dict | None = None) -> Decimal:
+    """Open amount collectible on this invoice after credit-note netting and allocations."""
+    if collectible_cache is None:
+        collectible_cache = _collectible_open_by_invoice(_client_invoices_ordered(invoice.client))
+    collectible = collectible_cache.get(invoice.id, Decimal("0.00"))
+    return max(Decimal("0.00"), collectible - _invoice_allocated(invoice))
+
+
 def _invoice_open_amount(invoice: SalesInvoice) -> Decimal:
-    allocated = sum((a.allocated_amount for a in invoice.allocations.all()), Decimal("0.00"))
-    total = invoice.grand_total_usd if invoice.grand_total_usd is not None else (invoice.grand_total or Decimal("0.00"))
-    return total - allocated
+    return invoice_collectible_remaining(invoice)
 
 
 def _bill_open_amount(bill: SupplierBill) -> Decimal:
@@ -53,7 +100,7 @@ def clear_payment_allocations(payment: Payment) -> None:
 
 @transaction.atomic
 def auto_allocate_payment(payment: Payment) -> None:
-    """Allocate posted payment to oldest open invoices (AR) or bills (AP)."""
+    """Allocate posted payment to oldest collectible open invoices (AR) or bills (AP)."""
     if payment.status != Payment.Status.POSTED:
         return
 
@@ -61,15 +108,12 @@ def auto_allocate_payment(payment: Payment) -> None:
         remaining = payment.remaining_amount
         if remaining <= 0:
             return
-        invoices = (
-            SalesInvoice.objects.filter(client=payment.client, status__in=SalesInvoice.reporting_statuses())
-            .order_by("due_date", "issue_date", "created_at")
-            .prefetch_related("allocations")
-        )
+        invoices = list(_client_invoices_ordered(payment.client))
+        collectible = _collectible_open_by_invoice(invoices)
         for inv in invoices:
             if remaining <= 0:
                 break
-            due = _invoice_open_amount(inv)
+            due = max(Decimal("0.00"), collectible.get(inv.id, Decimal("0.00")) - _invoice_allocated(inv))
             if due <= 0:
                 continue
             take = min(remaining, due)

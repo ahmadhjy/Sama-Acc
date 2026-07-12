@@ -27,7 +27,8 @@ from reporting.statement_running import annotate_client_statement_rows, annotate
 from reporting.supplier_statement_rows import build_supplier_statement_rows
 from purchases.models import SupplierBill, SupplierBillLine
 from sales.models import SalesInvoice
-from treasury.models import APAllocation, ARAllocation, MoneyAccount, Payment, ReconciliationRecord
+from treasury.allocation import invoice_collectible_remaining
+from treasury.models import MoneyAccount, Payment
 
 
 def _sum_client_payments_usd(payments_qs):
@@ -152,7 +153,6 @@ def all_clients_statement(request):
         export_filename("All_Clients_Statement", export_period_suffix(df, dt)),
     )
 
-
 def ar_aging(request):
     today = date.today()
     df, dt, _ = resolve_report_dates(request)
@@ -162,9 +162,16 @@ def ar_aging(request):
         qs = qs.filter(issue_date__gte=df)
     if dt:
         qs = qs.filter(issue_date__lte=dt)
+    collectible_cache: dict = {}
     for invoice in qs:
-        allocated = sum([x.allocated_amount for x in invoice.allocations.all()], Decimal("0.00"))
-        due = invoice.grand_total - allocated
+        client_id = invoice.client_id
+        if client_id not in collectible_cache:
+            from treasury.allocation import _client_invoices_ordered, _collectible_open_by_invoice
+
+            collectible_cache[client_id] = _collectible_open_by_invoice(_client_invoices_ordered(invoice.client))
+        if client_ar_balance(invoice.client, today) <= 0:
+            continue
+        due = invoice_collectible_remaining(invoice, collectible_cache=collectible_cache[client_id])
         if due <= 0:
             continue
         due_date = invoice.due_date or invoice.issue_date

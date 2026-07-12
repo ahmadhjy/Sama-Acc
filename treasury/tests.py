@@ -282,3 +282,33 @@ class ClientFifoAllocationTests(TestCase):
         self.assertEqual(older_alloc, Decimal("500"))
         self.assertEqual(newer_alloc, Decimal("100"))
         self.assertEqual(newer.grand_total - newer_alloc, Decimal("900"))
+
+    def test_credit_note_offsets_positive_invoice_before_payment_fifo(self):
+        """Credit notes reduce collectible open before payments allocate (statement parity)."""
+        credit = SalesInvoice.objects.create(
+            invoice_no="TMP-CN",
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=date(2026, 1, 1),
+            due_date=date(2026, 1, 1),
+            currency="USD",
+            status=SalesInvoice.Status.POSTED,
+            grand_total=Decimal("-598.00"),
+            grand_total_usd=Decimal("-598.00"),
+        )
+        charge = self._post_invoice("TMP-CHG", date(2026, 1, 16), Decimal("150"))
+
+        from treasury.allocation import invoice_collectible_remaining, rebuild_client_ar_allocations
+
+        collectible_before = invoice_collectible_remaining(charge)
+        self.assertEqual(collectible_before, Decimal("0.00"))
+
+        payment = self._post_payment("TMP-CN-P1", Decimal("100"))
+        rebuild_client_ar_allocations(self.client_obj)
+
+        charge.refresh_from_db()
+        charge_alloc = sum(a.allocated_amount for a in charge.allocations.all())
+        self.assertEqual(charge_alloc, Decimal("0.00"))
+        self.assertEqual(invoice_collectible_remaining(charge), Decimal("0.00"))
+        self.assertEqual(payment.remaining_amount, Decimal("100.00"))
+        self.assertEqual(credit.grand_total, Decimal("-598.00"))

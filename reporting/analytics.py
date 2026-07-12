@@ -7,6 +7,7 @@ from accounts_core.models import Client, Employee, Supplier
 from expenses.models import OperatingExpense
 from purchases.models import SupplierBill
 from reporting.balances import client_ar_balance, supplier_ap_balance, supplier_line_purchases
+from treasury.allocation import invoice_collectible_remaining
 from reporting.date_ranges import resolve_report_dates
 from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import Payment
@@ -65,14 +66,22 @@ def build_dashboard_analytics(request):
     cash_out = payments_out.aggregate(t=Sum("amount"))["t"] or Decimal("0.00")
 
     receivables_due = []
+    collectible_cache: dict = {}
     for inv in (
         SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
         .select_related("client")
         .order_by("due_date", "issue_date")
     ):
+        client_id = inv.client_id
+        if client_id not in collectible_cache:
+            from treasury.allocation import _client_invoices_ordered, _collectible_open_by_invoice
+
+            collectible_cache[client_id] = _collectible_open_by_invoice(_client_invoices_ordered(inv.client))
+        if client_ar_balance(inv.client, today) <= 0:
+            continue
         allocated = sum((a.allocated_amount for a in inv.allocations.all()), Decimal("0.00"))
         total = inv.grand_total_usd if inv.grand_total_usd is not None else (inv.grand_total or Decimal("0.00"))
-        remaining = total - allocated
+        remaining = invoice_collectible_remaining(inv, collectible_cache=collectible_cache[client_id])
         if remaining <= 0:
             continue
         due = inv.due_date or inv.issue_date
@@ -181,9 +190,16 @@ def build_dashboard_analytics(request):
 
     ar_buckets = {"current": Decimal("0"), "b0_30": Decimal("0"), "b31_60": Decimal("0"), "b61_90": Decimal("0"), "b90": Decimal("0")}
     today_d = today
+    aging_collectible: dict = {}
     for inv in SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses()).select_related("client"):
-        allocated = sum((a.allocated_amount for a in inv.allocations.all()), Decimal("0.00"))
-        remaining = (inv.grand_total_usd if inv.grand_total_usd is not None else (inv.grand_total or Decimal("0.00"))) - allocated
+        client_id = inv.client_id
+        if client_id not in aging_collectible:
+            from treasury.allocation import _client_invoices_ordered, _collectible_open_by_invoice
+
+            aging_collectible[client_id] = _collectible_open_by_invoice(_client_invoices_ordered(inv.client))
+        if client_ar_balance(inv.client, today_d) <= 0:
+            continue
+        remaining = invoice_collectible_remaining(inv, collectible_cache=aging_collectible[client_id])
         if remaining <= 0:
             continue
         due = inv.due_date or inv.issue_date
