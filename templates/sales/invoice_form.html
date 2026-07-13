@@ -1130,6 +1130,21 @@
     if (destSearch) destSearch.value = '';
   }
 
+  function stripChoicesArtifacts(box) {
+    if (!box) return;
+    box.querySelectorAll('.choices').forEach(function(wrap) {
+      var sel = wrap.querySelector('select');
+      if (sel && wrap.parentNode) {
+        wrap.parentNode.insertBefore(sel, wrap);
+        wrap.remove();
+      }
+    });
+    box.querySelectorAll('select').forEach(function(el) {
+      delete el.dataset.choicesInitialized;
+      el._choicesInstance = null;
+    });
+  }
+
   document.getElementById('add-invoice-line').addEventListener('click', function() {
     const totalInput = document.getElementById('id_' + prefix + '-TOTAL_FORMS');
     const maxInput = document.getElementById('id_' + prefix + '-MAX_NUM_FORMS');
@@ -1142,37 +1157,20 @@
     }
     const container = document.getElementById('invoice-lines');
     let lastBox = container.querySelector('.invoice-line:last-of-type');
-    if (!lastBox) {
-      if (!invoiceLineTemplate) {
-        alert('Cannot add a service line — refresh the page and try again.');
-        return;
-      }
-      const fresh = invoiceLineTemplate.cloneNode(true);
-      container.appendChild(fresh);
-      totalInput.value = '1';
-      reindexInvoiceLineForms();
-      resetClonedLineBox(fresh, 0);
-      wireLine(fresh);
-      wireDestinationSearch(fresh);
-      initInvoiceSelects(fresh);
-      defaultEmptyLineServiceDates();
-      syncLineEmployeesFromHeader(true);
-      applyMainDestinationToLine(fresh);
-      renumberLineTitles();
-      updateTotalLineCost();
-      updateSellingTotal();
+    if (!lastBox && !invoiceLineTemplate) {
+      alert('Cannot add a service line — refresh the page and try again.');
       return;
     }
     const oldIndex = total - 1;
     const newIndex = total;
-    const clone = lastBox.cloneNode(true);
+    const clone = (invoiceLineTemplate || lastBox).cloneNode(true);
     clearQuickCreateWiring(clone);
     clone.querySelectorAll('.errorlist').forEach(function(el) { el.remove(); });
 
     function replaceIdx(attr, el) {
       let v = el.getAttribute(attr);
       if (!v) return;
-      const re = new RegExp(prefix + '-' + oldIndex + '-', 'g');
+      const re = new RegExp(prefix + '-\\d+-', 'g');
       el.setAttribute(attr, v.replace(re, prefix + '-' + newIndex + '-'));
     }
 
@@ -1199,13 +1197,7 @@
     clone.querySelectorAll('.line-service-date').forEach(function(inp) {
       inp.value = todayIso();
     });
-    clone.querySelectorAll('.choices').forEach(function(wrap) {
-      var sel = wrap.querySelector('select');
-      if (sel && wrap.parentNode) {
-        wrap.parentNode.insertBefore(sel, wrap);
-        wrap.remove();
-      }
-    });
+    stripChoicesArtifacts(clone);
     clone.querySelectorAll('select').forEach(function(el) {
       if (el.name && el.name.endsWith('-DELETE')) {
         el.checked = false;
@@ -1216,8 +1208,6 @@
       } else {
         el.selectedIndex = 0;
       }
-      delete el.dataset.choicesInitialized;
-      el._choicesInstance = null;
       if (el.name && el.name.endsWith('line_employee')) {
         delete el.dataset.userOverridden;
         delete el.dataset.syncedFromHeader;
