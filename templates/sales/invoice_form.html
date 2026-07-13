@@ -1245,8 +1245,9 @@
   defaultEmptyLineServiceDates();
 
   function initInvoiceSelects(root) {
-    var scope = root || document;
-    scope.querySelectorAll('#invoice-form select:not(.destination-select)').forEach(function(el) {
+    var container = root || document.getElementById('invoice-form');
+    if (!container) return;
+    container.querySelectorAll('select:not(.destination-select)').forEach(function(el) {
       if (window.initSearchableSelect) window.initSearchableSelect(el);
     });
   }
