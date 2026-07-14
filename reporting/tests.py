@@ -109,6 +109,34 @@ class SupplierSummaryBalanceTests(TestCase):
         self.assertEqual(total_balance, Decimal("250"))
 
 
+class ClientSummaryTotalsNetTests(TestCase):
+    def test_footer_nets_balance_debit_and_credit(self):
+        from reporting.statement_summary import summarize_totals
+
+        rows = [
+            {
+                "tot_dr": Decimal("100"),
+                "tot_cr": Decimal("20"),
+                "bal_dr": Decimal("80"),
+                "bal_cr": Decimal("0"),
+                "net_balance": Decimal("80"),
+            },
+            {
+                "tot_dr": Decimal("10"),
+                "tot_cr": Decimal("50"),
+                "bal_dr": Decimal("0"),
+                "bal_cr": Decimal("40"),
+                "net_balance": Decimal("-40"),
+            },
+        ]
+        tot_dr, tot_cr, bal_dr, bal_cr, total_balance = summarize_totals(rows)
+        self.assertEqual(tot_dr, Decimal("110"))
+        self.assertEqual(tot_cr, Decimal("70"))
+        self.assertEqual(bal_dr, Decimal("40"))
+        self.assertEqual(bal_cr, Decimal("0"))
+        self.assertEqual(total_balance, Decimal("40"))
+
+
 class SummaryZeroBalanceToggleTests(TestCase):
     def setUp(self):
         self.user = get_user_model().objects.create_user(username="zero-bal", password="test12345")

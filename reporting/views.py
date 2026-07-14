@@ -531,8 +531,8 @@ def clients_trial_balance(request):
         )
     tot_dr = sum((r["tot_dr"] for r in rows), Decimal("0.00"))
     tot_cr = sum((r["tot_cr"] for r in rows), Decimal("0.00"))
-    bal_dr = sum((r["bal_dr"] for r in rows), Decimal("0.00"))
-    bal_cr = sum((r["bal_cr"] for r in rows), Decimal("0.00"))
+    net_closing = sum((r["closing"] for r in rows), Decimal("0.00"))
+    bal_dr, bal_cr = _split_balance_dr_cr(net_closing)
     return render_or_pdf(
         request,
         "reporting/clients_trial_balance.html",

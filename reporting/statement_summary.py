@@ -146,12 +146,12 @@ def build_supplier_summary_rows(suppliers, date_from=None, date_to=None, *, incl
 
 
 def summarize_totals(rows):
+    """Footer totals for client summaries: net DR/CR balances into a single column."""
     tot_dr = sum((r["tot_dr"] for r in rows), Decimal("0.00"))
     tot_cr = sum((r["tot_cr"] for r in rows), Decimal("0.00"))
-    bal_dr = sum((r["bal_dr"] for r in rows), Decimal("0.00"))
-    bal_cr = sum((r["bal_cr"] for r in rows), Decimal("0.00"))
-    total_balance = bal_dr - bal_cr
-    return tot_dr, tot_cr, bal_dr, bal_cr, total_balance
+    net_balance = sum((r.get("net_balance") or (r["bal_dr"] - r["bal_cr"]) for r in rows), Decimal("0.00"))
+    bal_dr, bal_cr = _split_balance_dr_cr(net_balance)
+    return tot_dr, tot_cr, bal_dr, bal_cr, net_balance
 
 
 def summarize_supplier_totals(rows):
