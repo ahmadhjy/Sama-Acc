@@ -266,7 +266,11 @@ def all_suppliers_statement(request):
             "pdf_report_title": "Supplier Statement — All Suppliers",
             "pdf_report_subtitle": "Summary balance per supplier for the selected period",
         },
-        export_filename("All_Suppliers_Statement", export_period_suffix(df, dt)),
+        export_filename(
+            "All_Suppliers_Statement",
+            export_period_suffix(df, dt),
+            date.today().isoformat(),
+        ),
     )
 
 
