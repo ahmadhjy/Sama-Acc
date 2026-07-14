@@ -4,10 +4,9 @@ from decimal import Decimal
 
 from django.db.models import Sum
 
-from expenses.models import OperatingExpense
 from purchases.models import SupplierBill
 from reporting.date_ranges import resolve_report_dates
-from reporting.invoice_pl import period_cogs_usd, period_revenue_usd
+from reporting.invoice_pl import period_cogs_usd, period_opex_usd, period_revenue_usd
 from treasury.models import Payment
 
 
@@ -27,13 +26,7 @@ def build_report_summary(request):
     posted_cogs_total = period_cogs_usd(df, dt)
     posted_bills_total = bill_q.aggregate(total=Sum("grand_total"))["total"] or Decimal("0.00")
     posted_payments_total = pay_q.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-
-    opex_q = OperatingExpense.objects.filter(status=OperatingExpense.Status.POSTED)
-    if df:
-        opex_q = opex_q.filter(expense_date__gte=df)
-    if dt:
-        opex_q = opex_q.filter(expense_date__lte=dt)
-    total_opex = opex_q.aggregate(total=Sum("amount_usd"))["total"] or Decimal("0.00")
+    total_opex = period_opex_usd(df, dt)
 
     net_profit_estimate = posted_invoices_total - posted_cogs_total - total_opex
     gross_margin_estimate = posted_invoices_total - posted_cogs_total

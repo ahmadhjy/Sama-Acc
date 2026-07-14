@@ -53,20 +53,13 @@ def reports_home(request):
         pay_q = pay_q.filter(date__lte=dt)
         bill_q = bill_q.filter(bill_date__lte=dt)
 
-    from reporting.invoice_pl import period_cogs_usd, period_revenue_usd
-    from expenses.models import OperatingExpense
+    from reporting.invoice_pl import period_cogs_usd, period_opex_usd, period_revenue_usd
 
     posted_invoices_total = period_revenue_usd(df, dt)
     posted_cogs_total = period_cogs_usd(df, dt)
     posted_bills_total = bill_q.aggregate(total=Sum("grand_total")).get("total") or 0
     posted_payments_total = pay_q.aggregate(total=Sum("amount")).get("total") or 0
-
-    opex_q = OperatingExpense.objects.filter(status=OperatingExpense.Status.POSTED)
-    if df:
-        opex_q = opex_q.filter(expense_date__gte=df)
-    if dt:
-        opex_q = opex_q.filter(expense_date__lte=dt)
-    total_opex = opex_q.aggregate(total=Sum("amount_usd")).get("total") or 0
+    total_opex = period_opex_usd(df, dt)
     posted_opex_total = total_opex
     standalone_opex_total = total_opex
     net_profit_estimate = posted_invoices_total - posted_cogs_total - total_opex
@@ -340,27 +333,16 @@ def cash_movement(request):
 
 
 def opex_by_category(request):
-    from expenses.models import OperatingExpense
+    from reporting.invoice_pl import period_opex_by_category
 
     df, dt, _ = resolve_report_dates(request)
-    qs = OperatingExpense.objects.filter(status=OperatingExpense.Status.POSTED)
-    if df:
-        qs = qs.filter(expense_date__gte=df)
-    if dt:
-        qs = qs.filter(expense_date__lte=dt)
-    rows = (
-        qs.values("category__code", "category__name")
-        .annotate(total=Sum("amount_usd"))
-        .order_by("category__code")
-    )
-    # Normalize keys for template / PDF preset
     rows = [
         {
             "expense_category__code": r.get("category__code") or "UNCAT",
             "expense_category__name": r.get("category__name") or "Uncategorized",
             "total": r.get("total") or Decimal("0.00"),
         }
-        for r in rows
+        for r in period_opex_by_category(df, dt)
     ]
     return render_or_pdf(
         request,
@@ -379,10 +361,11 @@ def opex_by_category(request):
 def activity_trial_balance(request):
     """P&L-style trial listing from invoice selling totals, invoice line costs, and OPEX."""
     df, dt, period_label = resolve_report_dates(request)
-    from reporting.invoice_pl import period_cogs_usd, period_revenue_usd
+    from reporting.invoice_pl import period_cogs_usd, period_opex_by_category, period_opex_usd, period_revenue_usd
 
     sales_total = period_revenue_usd(df, dt)
     cogs_total = period_cogs_usd(df, dt)
+    opex_total = period_opex_usd(df, dt)
     currency = (
         SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
         .exclude(currency="")
@@ -394,7 +377,7 @@ def activity_trial_balance(request):
     rows = [
         {
             "account": "4010000001",
-            "name": "Sales Revenue",
+            "name": "Sales Revenue (All Clients SOA debits)",
             "curr": currency,
             "tot_dr": Decimal("0.00"),
             "tot_cr": sales_total,
@@ -412,20 +395,11 @@ def activity_trial_balance(request):
         },
     ]
 
-    from expenses.models import OperatingExpense
-
-    standalone_qs = OperatingExpense.objects.filter(status=OperatingExpense.Status.POSTED).select_related("category")
-    if df:
-        standalone_qs = standalone_qs.filter(expense_date__gte=df)
-    if dt:
-        standalone_qs = standalone_qs.filter(expense_date__lte=dt)
-    opex_groups = (
-        standalone_qs.values("category__code", "category__name")
-        .annotate(total=Sum("amount_usd"))
-        .order_by("category__code")
-    )
+    opex_groups = period_opex_by_category(df, dt)
+    group_sum = Decimal("0.00")
     for grp in opex_groups:
         amt = (grp["total"] or Decimal("0.00")).quantize(Decimal("0.01"))
+        group_sum += amt
         code = (grp["category__code"] or "OPEX")[:32]
         name = grp["category__name"] or "Operating expense"
         rows.append(
@@ -439,17 +413,27 @@ def activity_trial_balance(request):
                 "bal_cr": Decimal("0.00"),
             }
         )
+    # If grouping ever drifts from the full sum, keep the P&L card correct.
+    remainder = (opex_total - group_sum).quantize(Decimal("0.01"))
+    if abs(remainder) >= Decimal("0.01"):
+        rows.append(
+            {
+                "account": "OPEX-OTHER",
+                "name": "Other operating expenses",
+                "curr": "USD",
+                "tot_dr": remainder,
+                "tot_cr": Decimal("0.00"),
+                "bal_dr": remainder,
+                "bal_cr": Decimal("0.00"),
+            }
+        )
 
     tot_dr = sum((r["tot_dr"] for r in rows), Decimal("0.00"))
     tot_cr = sum((r["tot_cr"] for r in rows), Decimal("0.00"))
     bal_dr = sum((r["bal_dr"] for r in rows), Decimal("0.00"))
     bal_cr = sum((r["bal_cr"] for r in rows), Decimal("0.00"))
     gross_profit = sales_total - cogs_total
-    opex_sum = sum(
-        (r["tot_dr"] for r in rows if r["account"] not in ("4010000001", "5010000001") and "profit" not in r["name"].lower()),
-        Decimal("0.00"),
-    )
-    net_profit = gross_profit - opex_sum
+    net_profit = gross_profit - opex_total
     rows.append(profit_summary_row("Gross profit (Revenue − COGS)", gross_profit))
     rows.append(profit_summary_row("Net profit (Gross profit − OPEX)", net_profit))
 
@@ -469,7 +453,7 @@ def activity_trial_balance(request):
             "net_profit": net_profit,
             "sales_total": sales_total,
             "cogs_total": cogs_total,
-            "opex_total": opex_sum,
+            "opex_total": opex_total,
             "pdf_income_statement": True,
             "pdf_report_title": "Income Statement",
             "pdf_report_subtitle": "Revenue and COGS match All Clients / All Suppliers SOA period totals; plus operating expenses (USD)",

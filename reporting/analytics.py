@@ -4,9 +4,8 @@ from decimal import Decimal
 from django.db.models import Q, Sum
 
 from accounts_core.models import Client, Employee, Supplier
-from expenses.models import OperatingExpense
 from reporting.balances import client_ar_balance, supplier_ap_balance, supplier_line_purchases
-from reporting.invoice_pl import period_cogs_usd, period_revenue_usd
+from reporting.invoice_pl import period_cogs_usd, period_opex_by_category, period_opex_usd, period_revenue_usd
 from treasury.allocation import invoice_collectible_remaining
 from reporting.date_ranges import resolve_report_dates
 from sales.models import SalesInvoice, SalesInvoiceLine
@@ -19,12 +18,7 @@ def build_dashboard_analytics(request):
 
     revenue = period_revenue_usd(date_from, date_to)
     cogs = period_cogs_usd(date_from, date_to)
-    opex = OperatingExpense.objects.filter(status=OperatingExpense.Status.POSTED)
-    if date_from:
-        opex = opex.filter(expense_date__gte=date_from)
-    if date_to:
-        opex = opex.filter(expense_date__lte=date_to)
-    opex_total = opex.aggregate(t=Sum("amount_usd"))["t"] or Decimal("0.00")
+    opex_total = period_opex_usd(date_from, date_to)
     gross_profit = revenue - cogs
     net_profit = gross_profit - opex_total
 
@@ -160,11 +154,7 @@ def build_dashboard_analytics(request):
     chart_supplier_labels = [s["supplier"].name for s in top_suppliers]
     chart_supplier_balances = [float(s["balance"]) for s in top_suppliers]
 
-    opex_by_cat = (
-        opex.values("category__name", "category__code")
-        .annotate(total=Sum("amount_usd"))
-        .order_by("-total")[:6]
-    )
+    opex_by_cat = list(period_opex_by_category(date_from, date_to).order_by("-total")[:6])
     chart_opex_labels = [
         (r["category__name"] or r["category__code"] or "Uncategorized") for r in opex_by_cat
     ]
