@@ -7,7 +7,7 @@ from reporting.statement_sort import sort_statement_rows
 from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import Payment
 
-# Migrated SATO26 docs keep ledger as source of truth; live ERP docs use INV-/PAY- prefixes.
+# Migrated receipts stay on the ledger; live PAY- treasury docs are appended separately.
 LEGACY_DOC_PREFIX = "SATO26-"
 
 
@@ -81,12 +81,38 @@ def supplier_has_ledger(supplier) -> bool:
     return SupplierLedgerLine.objects.filter(supplier=supplier).exists()
 
 
-def _live_supplier_invoice_lines_qs(supplier, date_from=None, date_to=None, on_or_before=None):
-    """Invoice lines from live ERP invoices (exclude migrated SATO26 docs already on the ledger)."""
+def _invoice_nos_with_editable_costs(supplier) -> set[str]:
+    """
+    Invoice numbers whose purchase cost should come from SalesInvoiceLine.
+
+    When an imported SATO26 invoice exists in the ERP, editing its line cost must
+    update the supplier statement — so ledger SI rows for that invoice are skipped.
+    """
+    return set(
+        SalesInvoiceLine.objects.filter(
+            supplier=supplier,
+            invoice__status__in=SalesInvoice.reporting_statuses(),
+        )
+        .exclude(invoice__invoice_no="")
+        .values_list("invoice__invoice_no", flat=True)
+        .distinct()
+    )
+
+
+def _ledger_si_superseded_by_invoice(line: SupplierLedgerLine, editable_invoice_nos: set[str]) -> bool:
+    return (
+        line.journal_type == "SI"
+        and bool(line.invoice_no)
+        and line.invoice_no in editable_invoice_nos
+    )
+
+
+def _supplier_invoice_lines_qs(supplier, date_from=None, date_to=None, on_or_before=None):
+    """All reporting invoice lines for this supplier (including imported SATO26 invoices)."""
     lines = SalesInvoiceLine.objects.filter(
         supplier=supplier,
         invoice__status__in=SalesInvoice.reporting_statuses(),
-    ).exclude(invoice__invoice_no__startswith=LEGACY_DOC_PREFIX)
+    )
     if on_or_before is not None:
         lines = lines.filter(invoice__issue_date__lte=on_or_before)
     if date_from:
@@ -96,10 +122,10 @@ def _live_supplier_invoice_lines_qs(supplier, date_from=None, date_to=None, on_o
     return lines
 
 
-def _append_live_invoice_line_rows(rows, supplier, date_from=None, date_to=None, today=None):
+def _append_invoice_line_cost_rows(rows, supplier, date_from=None, date_to=None, today=None):
     today = today or date.today()
     lines = (
-        _live_supplier_invoice_lines_qs(supplier)
+        _supplier_invoice_lines_qs(supplier)
         .select_related(
             "invoice",
             "service_type",
@@ -129,7 +155,7 @@ def _append_live_invoice_line_rows(rows, supplier, date_from=None, date_to=None,
                 "debit": Decimal("0.00"),
                 "credit": amt,
                 "sort_seq": inv.created_at,
-                "sort_id": f"live-line-{line.id}",
+                "sort_id": f"inv-line-{line.id}",
                 "is_pending": bool(svc_date and svc_date > today),
             }
         )
@@ -182,10 +208,13 @@ def supplier_ledger_balance(
     date_to=None,
     on_or_before=None,
 ) -> Decimal:
-    """Net AP from legacy 401* journal lines: sum(C) - sum(D)."""
+    """Net AP from legacy journal lines, excluding SI rows replaced by editable invoice costs."""
+    editable_nos = _invoice_nos_with_editable_costs(supplier)
     credits = Decimal("0.00")
     debits = Decimal("0.00")
     for line in _supplier_ledger_qs(supplier, date_from, date_to, on_or_before):
+        if _ledger_si_superseded_by_invoice(line, editable_nos):
+            continue
         if line.dc == SupplierLedgerLine.DC.CREDIT:
             credits += line.amount
         else:
@@ -200,7 +229,8 @@ def live_supplier_purchase_credits(
     date_to=None,
     on_or_before=None,
 ) -> Decimal:
-    lines = _live_supplier_invoice_lines_qs(
+    """Purchase costs from SalesInvoiceLine (including imported invoices that can be edited)."""
+    lines = _supplier_invoice_lines_qs(
         supplier, date_from=date_from, date_to=date_to, on_or_before=on_or_before
     )
     return sum((line.line_cost_amount_usd() for line in lines), Decimal("0.00"))
@@ -242,12 +272,16 @@ def supplier_purchase_credits(
     date_to=None,
     on_or_before=None,
 ) -> Decimal:
-    """Total supplier credits for movement reports (legacy ledger + live invoice line costs)."""
+    """Total supplier credits: ledger (minus superseded SI) + editable invoice line costs."""
     credits = Decimal("0.00")
+    editable_nos = _invoice_nos_with_editable_costs(supplier)
     if supplier_has_ledger(supplier):
         for line in _supplier_ledger_qs(supplier, date_from, date_to, on_or_before):
-            if line.dc == SupplierLedgerLine.DC.CREDIT:
-                credits += line.amount
+            if line.dc != SupplierLedgerLine.DC.CREDIT:
+                continue
+            if _ledger_si_superseded_by_invoice(line, editable_nos):
+                continue
+            credits += line.amount
 
     credits += live_supplier_purchase_credits(
         supplier, date_from=date_from, date_to=date_to, on_or_before=on_or_before
@@ -256,12 +290,20 @@ def supplier_purchase_credits(
 
 
 def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
-    """Legacy 401* journal lines plus live invoice costs and treasury payments."""
+    """
+    Supplier SOA rows.
+
+    Ledger payments/receipts stay as imported. Ledger SI purchase credits are replaced by
+    SalesInvoiceLine costs whenever that invoice exists in the ERP, so cost edits show up.
+    """
     today = date.today()
     rows = []
+    editable_nos = _invoice_nos_with_editable_costs(supplier)
 
     if supplier_has_ledger(supplier):
         for line in _supplier_ledger_qs(supplier, date_from, date_to):
+            if _ledger_si_superseded_by_invoice(line, editable_nos):
+                continue
             inv_id = _invoice_id_for_no(line.invoice_no)
             debit = line.amount.quantize(Decimal("0.01")) if line.dc == SupplierLedgerLine.DC.DEBIT else Decimal("0.00")
             credit = line.amount.quantize(Decimal("0.01")) if line.dc == SupplierLedgerLine.DC.CREDIT else Decimal("0.00")
@@ -281,7 +323,7 @@ def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
                 }
             )
 
-    _append_live_invoice_line_rows(rows, supplier, date_from, date_to, today)
+    _append_invoice_line_cost_rows(rows, supplier, date_from, date_to, today)
     _append_live_payment_rows(rows, supplier, date_from, date_to)
 
     return sort_statement_rows(rows)

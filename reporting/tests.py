@@ -373,7 +373,7 @@ class SupplierLedgerStatementTests(TestCase):
         inv.recalc_usd_amounts()
         inv.post(user)
 
-        # Migrated invoice line must not double-count against ledger SI credit
+        # Migrated invoice line replaces ledger SI credit (no double-count)
         migrated = SalesInvoice.objects.create(
             invoice_no="SATO26-SI-00440",
             client=client,
@@ -400,8 +400,54 @@ class SupplierLedgerStatementTests(TestCase):
         credits = sum((r["credit"] for r in rows), Decimal("0.00"))
         refs = {r["ref"] for r in rows}
         self.assertIn("INV-2026-00001", refs)
-        self.assertEqual(credits, Decimal("1151.00"))  # 1076 ledger + 75 live
+        self.assertIn("SATO26-SI-00440", refs)
+        self.assertEqual(credits, Decimal("1151.00"))  # 1076 editable migrated + 75 live
         from reporting.balances import supplier_ap_balance
 
         self.assertEqual(supplier_ap_balance(self.supplier, date.today()), Decimal("315.00"))
+
+    def test_edited_imported_invoice_cost_updates_supplier_statement(self):
+        client = Client.objects.create(client_code="C-EDIT-SUP", name_en="Edit Client")
+        employee = Employee.objects.create(name="Edit Emp", role=Employee.EmployeeRole.ACCOUNTING)
+        service_type = ServiceType.objects.create(name="Ticket", code="TKT-E")
+        destination = Destination.objects.create(name="Dubai")
+        migrated = SalesInvoice.objects.create(
+            invoice_no="SATO26-SI-00440",
+            client=client,
+            sales_employee=employee,
+            issue_date=date(2026, 7, 3),
+            currency="USD",
+            status=SalesInvoice.Status.POSTED,
+        )
+        line = SalesInvoiceLine.objects.create(
+            invoice=migrated,
+            supplier=self.supplier,
+            service_type=service_type,
+            destination=destination,
+            line_employee=employee,
+            service_date=date(2026, 7, 3),
+            qty=Decimal("1"),
+            sell_price=Decimal("1000"),
+            cost_price=Decimal("1076"),
+            line_discount=Decimal("0"),
+        )
+        migrated.recalc_usd_amounts()
+
+        rows = build_supplier_statement_rows(self.supplier)
+        purchase = next(r for r in rows if r["ref"] == "SATO26-SI-00440")
+        self.assertEqual(purchase["credit"], Decimal("1076.00"))
+
+        line.cost_price = Decimal("900")
+        line.save(update_fields=["cost_price"])
+        migrated.recalc_usd_amounts()
+
+        rows = build_supplier_statement_rows(self.supplier)
+        purchase = next(r for r in rows if r["ref"] == "SATO26-SI-00440")
+        self.assertEqual(purchase["credit"], Decimal("900.00"))
+        credits = sum((r["credit"] for r in rows), Decimal("0.00"))
+        self.assertEqual(credits, Decimal("900.00"))
+        from reporting.balances import supplier_ap_balance
+
+        # Ledger PV 836 remains; editable purchase now 900 → AP 64
+        self.assertEqual(supplier_ap_balance(self.supplier, date.today()), Decimal("64.00"))
 
