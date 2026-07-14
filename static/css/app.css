@@ -446,6 +446,23 @@ td .btn {
     min-width: 140px;
 }
 
+.panel.filter-bar label.zero-balance-toggle {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    text-transform: none;
+    letter-spacing: normal;
+    min-width: auto;
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
+.panel.filter-bar label.zero-balance-toggle input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    accent-color: var(--color-primary, #1d4ed8);
+}
+
 .panel label {
     display: block;
     font-weight: 600;

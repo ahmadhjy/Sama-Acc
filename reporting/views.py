@@ -129,10 +129,11 @@ def client_statement(request, client_id):
 def all_clients_statement(request):
     df, dt, _ = resolve_report_dates(request)
     q = (request.GET.get("q") or "").strip()
+    show_zero = (request.GET.get("show_zero") or "").strip().lower() in ("1", "true", "on", "yes")
     clients = Client.objects.all().order_by("name_en")
     if q:
         clients = clients.filter(Q(name_en__icontains=q) | Q(client_code__icontains=q))
-    rows = build_client_summary_rows(clients, df, dt)
+    rows = build_client_summary_rows(clients, df, dt, include_zero_balances=show_zero)
     tot_dr, tot_cr, bal_dr, bal_cr, total_balance = summarize_totals(rows)
     return render_or_pdf(
         request,
@@ -142,6 +143,7 @@ def all_clients_statement(request):
             "date_from": df,
             "date_to": dt,
             "q": q,
+            "show_zero": show_zero,
             "tot_dr": tot_dr,
             "tot_cr": tot_cr,
             "bal_dr": bal_dr,
@@ -245,10 +247,11 @@ def supplier_statement(request, supplier_id):
 def all_suppliers_statement(request):
     df, dt, _ = resolve_report_dates(request)
     q = (request.GET.get("q") or "").strip()
+    show_zero = (request.GET.get("show_zero") or "").strip().lower() in ("1", "true", "on", "yes")
     suppliers = Supplier.objects.all().order_by("name")
     if q:
         suppliers = suppliers.filter(Q(name__icontains=q) | Q(supplier_code__icontains=q))
-    rows = build_supplier_summary_rows(suppliers, df, dt)
+    rows = build_supplier_summary_rows(suppliers, df, dt, include_zero_balances=show_zero)
     tot_dr, tot_cr, bal_dr, bal_cr, total_balance = summarize_supplier_totals(rows)
     return render_or_pdf(
         request,
@@ -258,6 +261,7 @@ def all_suppliers_statement(request):
             "date_from": df,
             "date_to": dt,
             "q": q,
+            "show_zero": show_zero,
             "tot_dr": tot_dr,
             "tot_cr": tot_cr,
             "bal_dr": bal_dr,

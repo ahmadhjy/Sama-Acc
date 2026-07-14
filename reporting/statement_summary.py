@@ -71,14 +71,18 @@ def _supplier_period_movement(supplier, date_from=None, date_to=None):
     return debit, credit
 
 
-def build_client_summary_rows(clients, date_from=None, date_to=None):
+def build_client_summary_rows(clients, date_from=None, date_to=None, *, include_zero_balances=False):
     day_before = (date_from - timedelta(days=1)) if date_from else None
     rows = []
     for client in clients:
         opening = client_ar_balance(client, day_before) if date_from else Decimal("0.00")
         debit, credit = _client_period_movement(client, date_from, date_to)
         closing = opening + debit - credit
+        # Never-touched clients stay out of the list.
         if debit == 0 and credit == 0 and opening == 0 and closing == 0:
+            continue
+        # Zero closing balance hidden by default.
+        if abs(closing) < Decimal("0.01") and not include_zero_balances:
             continue
         inv_q = SalesInvoice.objects.filter(client=client, status__in=SalesInvoice.reporting_statuses())
         if date_from:
@@ -103,14 +107,18 @@ def build_client_summary_rows(clients, date_from=None, date_to=None):
     return rows
 
 
-def build_supplier_summary_rows(suppliers, date_from=None, date_to=None):
+def build_supplier_summary_rows(suppliers, date_from=None, date_to=None, *, include_zero_balances=False):
     day_before = (date_from - timedelta(days=1)) if date_from else None
     rows = []
     for supplier in suppliers:
         opening = supplier_ap_balance(supplier, day_before) if date_from else Decimal("0.00")
         debit, credit = _supplier_period_movement(supplier, date_from, date_to)
         closing = opening + credit - debit
-        if abs(closing) < Decimal("0.01"):
+        # Never-touched suppliers stay out of the list.
+        if debit == 0 and credit == 0 and abs(opening) < Decimal("0.01"):
+            continue
+        # Zero closing balance hidden by default.
+        if abs(closing) < Decimal("0.01") and not include_zero_balances:
             continue
         bill_q = SupplierBill.objects.filter(supplier=supplier, status=SupplierBill.Status.POSTED)
         if date_from:

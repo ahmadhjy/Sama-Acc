@@ -109,6 +109,83 @@ class SupplierSummaryBalanceTests(TestCase):
         self.assertEqual(total_balance, Decimal("250"))
 
 
+class SummaryZeroBalanceToggleTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="zero-bal", password="test12345")
+        self.employee = Employee.objects.create(name="ZB Emp", role=Employee.EmployeeRole.ACCOUNTING)
+        self.service_type = ServiceType.objects.create(name="Tour ZB", code="TRZB")
+        self.destination = Destination.objects.create(name="Rome")
+        self.supplier = Supplier.objects.create(supplier_code="S-ZB", name="Zero Bal Supplier")
+        self.client_obj = Client.objects.create(client_code="C-ZB", name_en="Zero Bal Client")
+        self.account = MoneyAccount.objects.create(name="Cash ZB", type=MoneyAccount.AccountType.CASH, currency="USD")
+
+        inv = SalesInvoice.objects.create(
+            invoice_no="TMP-ZB",
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=date.today(),
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=inv,
+            supplier=self.supplier,
+            service_type=self.service_type,
+            destination=self.destination,
+            line_employee=self.employee,
+            qty=Decimal("1"),
+            sell_price=Decimal("100"),
+            cost_price=Decimal("40"),
+            line_discount=Decimal("0"),
+        )
+        inv.recalc_usd_amounts()
+        inv.post(self.user)
+
+        # Fully settle client so closing AR is 0; supplier cost remains unless paid.
+        pay = Payment.objects.create(
+            receipt_no="TMP-ZB-PAY",
+            direction=Payment.Direction.IN,
+            party_type=Payment.PartyType.CLIENT,
+            client=self.client_obj,
+            money_account=self.account,
+            date=date.today(),
+            currency="USD",
+            amount=Decimal("100.00"),
+            status=Payment.Status.DRAFT,
+        )
+        pay.post(self.user)
+
+        # Pay supplier cost so closing AP is 0.
+        pay_out = Payment.objects.create(
+            receipt_no="TMP-ZB-SUP-PAY",
+            direction=Payment.Direction.OUT,
+            party_type=Payment.PartyType.SUPPLIER,
+            supplier=self.supplier,
+            money_account=self.account,
+            date=date.today(),
+            currency="USD",
+            amount=Decimal("40.00"),
+            status=Payment.Status.DRAFT,
+        )
+        pay_out.post(self.user)
+
+    def test_client_zero_balance_hidden_by_default(self):
+        from reporting.statement_summary import build_client_summary_rows
+
+        hidden = build_client_summary_rows([self.client_obj])
+        self.assertEqual(hidden, [])
+        shown = build_client_summary_rows([self.client_obj], include_zero_balances=True)
+        self.assertEqual(len(shown), 1)
+        self.assertEqual(shown[0]["net_balance"], Decimal("0.00"))
+
+    def test_supplier_zero_balance_hidden_by_default(self):
+        from reporting.statement_summary import build_supplier_summary_rows
+
+        hidden = build_supplier_summary_rows([self.supplier])
+        self.assertEqual(hidden, [])
+        shown = build_supplier_summary_rows([self.supplier], include_zero_balances=True)
+        self.assertEqual(len(shown), 1)
+
+
 class IncomeStatementPdfTests(TestCase):
     def test_profit_summary_row_shows_loss_in_debit(self):
         from reporting.statement_summary import profit_summary_row

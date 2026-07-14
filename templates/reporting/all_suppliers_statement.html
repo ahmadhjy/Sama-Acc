@@ -12,6 +12,10 @@
     <input type="hidden" name="date_to" value="{{ request.GET.date_to }}">
     <input type="hidden" name="preset" value="{{ request.GET.preset }}">
     <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Supplier name or code"></label>
+    <label class="zero-balance-toggle">
+      <input type="checkbox" name="show_zero" value="1" {% if show_zero %}checked{% endif %} onchange="this.form.submit()">
+      Show zero balances
+    </label>
     <button class="btn" type="submit">Search</button>
     <a class="btn btn-clear hub-btn-clear" href="{% url 'reporting:all_suppliers_statement' %}?{{ default_filter_query }}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
 </form>
