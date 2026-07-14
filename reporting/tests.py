@@ -213,46 +213,67 @@ class SummaryZeroBalanceToggleTests(TestCase):
         shown = build_supplier_summary_rows([self.supplier], include_zero_balances=True)
         self.assertEqual(len(shown), 1)
 
-    def test_client_with_only_opening_balance_hidden_for_period(self):
-        """Opening-only clients have an empty filtered SOA — hide them on All Clients."""
+    def test_client_period_balance_ignores_opening(self):
+        """Balance columns follow the date filter (period debit − credit), not lifetime closing."""
         from reporting.statement_summary import build_client_summary_rows
 
-        old_client = Client.objects.create(client_code="C-OLD", name_en="Old Only Client")
-        inv = SalesInvoice.objects.create(
-            invoice_no="TMP-OLD",
+        old_client = Client.objects.create(client_code="C-PER", name_en="Period Bal Client")
+        old_inv = SalesInvoice.objects.create(
+            invoice_no="TMP-PER-OLD",
             client=old_client,
             sales_employee=self.employee,
-            issue_date=date(2026, 6, 15),
+            issue_date=date(2026, 6, 1),
             currency="USD",
         )
         SalesInvoiceLine.objects.create(
-            invoice=inv,
+            invoice=old_inv,
             supplier=self.supplier,
             service_type=self.service_type,
             destination=self.destination,
             line_employee=self.employee,
-            service_date=date(2026, 6, 15),
+            service_date=date(2026, 6, 1),
             qty=Decimal("1"),
-            sell_price=Decimal("80"),
-            cost_price=Decimal("30"),
+            sell_price=Decimal("1000"),
+            cost_price=Decimal("100"),
             line_discount=Decimal("0"),
         )
-        inv.recalc_usd_amounts()
-        inv.post(self.user)
+        old_inv.recalc_usd_amounts()
+        old_inv.post(self.user)
 
+        new_inv = SalesInvoice.objects.create(
+            invoice_no="TMP-PER-NEW",
+            client=old_client,
+            sales_employee=self.employee,
+            issue_date=date(2026, 7, 10),
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=new_inv,
+            supplier=self.supplier,
+            service_type=self.service_type,
+            destination=self.destination,
+            line_employee=self.employee,
+            service_date=date(2026, 7, 10),
+            qty=Decimal("1"),
+            sell_price=Decimal("200"),
+            cost_price=Decimal("50"),
+            line_discount=Decimal("0"),
+        )
+        new_inv.recalc_usd_amounts()
+        new_inv.post(self.user)
+
+        # Lifetime closing would be 1200; in July–Dec period only the 200 invoice counts.
         rows = build_client_summary_rows(
             [old_client],
             date_from=date(2026, 7, 1),
             date_to=date(2026, 12, 31),
         )
-        self.assertEqual(rows, [])
-        rows_with_zero = build_client_summary_rows(
-            [old_client],
-            date_from=date(2026, 7, 1),
-            date_to=date(2026, 12, 31),
-            include_zero_balances=True,
-        )
-        self.assertEqual(rows_with_zero, [])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["tot_dr"], Decimal("200.00"))
+        self.assertEqual(rows[0]["tot_cr"], Decimal("0.00"))
+        self.assertEqual(rows[0]["net_balance"], Decimal("200.00"))
+        self.assertEqual(rows[0]["bal_dr"], Decimal("200.00"))
+        self.assertEqual(rows[0]["bal_cr"], Decimal("0.00"))
 
 
 class IncomeStatementPdfTests(TestCase):

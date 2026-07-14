@@ -1,11 +1,11 @@
 """One-row-per-party summary builders for consolidated statements."""
 
-from datetime import date, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 from accounts_core.models import Client, Supplier
 from purchases.models import SupplierBill
-from reporting.balances import client_ar_balance, supplier_ap_balance
+from reporting.balances import supplier_ap_balance
 from reporting.client_statement_rows import build_client_statement_rows
 from reporting.supplier_statement_rows import build_supplier_statement_rows
 from sales.models import SalesInvoice
@@ -72,17 +72,15 @@ def _supplier_period_movement(supplier, date_from=None, date_to=None):
 
 
 def build_client_summary_rows(clients, date_from=None, date_to=None, *, include_zero_balances=False):
-    day_before = (date_from - timedelta(days=1)) if date_from else None
     rows = []
     for client in clients:
-        opening = client_ar_balance(client, day_before) if date_from else Decimal("0.00")
         debit, credit = _client_period_movement(client, date_from, date_to)
-        closing = opening + debit - credit
         # Match per-client SOA: no lines in the selected period → omit from All Clients.
         if debit == 0 and credit == 0:
             continue
-        # Zero closing balance hidden by default.
-        if abs(closing) < Decimal("0.01") and not include_zero_balances:
+        # Period balance (same date filter as tot debit/credit), not lifetime closing.
+        period_balance = debit - credit
+        if abs(period_balance) < Decimal("0.01") and not include_zero_balances:
             continue
         inv_q = SalesInvoice.objects.filter(client=client, status__in=SalesInvoice.reporting_statuses())
         if date_from:
@@ -90,7 +88,7 @@ def build_client_summary_rows(clients, date_from=None, date_to=None, *, include_
         if date_to:
             inv_q = inv_q.filter(issue_date__lte=date_to)
         row_curr = inv_q.order_by("-issue_date").values_list("currency", flat=True).first() or "USD"
-        bal_dr, bal_cr = _split_balance_dr_cr(closing)
+        bal_dr, bal_cr = _split_balance_dr_cr(period_balance)
         rows.append(
             {
                 "account": client.client_code,
@@ -101,7 +99,7 @@ def build_client_summary_rows(clients, date_from=None, date_to=None, *, include_
                 "tot_cr": credit,
                 "bal_dr": bal_dr,
                 "bal_cr": bal_cr,
-                "net_balance": closing,
+                "net_balance": period_balance,
             }
         )
     return rows
