@@ -162,6 +162,7 @@ def _append_invoice_line_cost_rows(rows, supplier, date_from=None, date_to=None,
 
 
 def _append_live_payment_rows(rows, supplier, date_from=None, date_to=None):
+    # Money out to supplier → debit (reduces what we owe).
     for pay in _live_supplier_payments_qs(
         supplier, date_from, date_to, Payment.Direction.OUT
     ).order_by("date", "created_at"):
@@ -181,6 +182,7 @@ def _append_live_payment_rows(rows, supplier, date_from=None, date_to=None):
             }
         )
 
+    # Money in from supplier → credit (increases what we owe / reverse of a payment).
     for pay in _live_supplier_payments_qs(
         supplier, date_from, date_to, Payment.Direction.IN
     ).order_by("date", "created_at"):
@@ -192,8 +194,8 @@ def _append_live_payment_rows(rows, supplier, date_from=None, date_to=None):
                 "destination": "—",
                 "ref": pay.receipt_no,
                 "ref_url": None,
-                "debit": pay.amount,
-                "credit": Decimal("0.00"),
+                "debit": Decimal("0.00"),
+                "credit": pay.amount,
                 "sort_seq": pay.created_at,
                 "sort_id": f"live-pay-in-{pay.id}",
                 "is_pending": False,
@@ -236,15 +238,14 @@ def live_supplier_purchase_credits(
     return sum((line.line_cost_amount_usd() for line in lines), Decimal("0.00"))
 
 
-def live_supplier_payment_net(
+def live_supplier_payment_out_total(
     supplier,
     *,
     date_from=None,
     date_to=None,
     on_or_before=None,
 ) -> Decimal:
-    """Payments that reduce AP (OUT + IN), live ERP only."""
-    out_total = sum(
+    return sum(
         (
             p.amount
             for p in _live_supplier_payments_qs(
@@ -253,7 +254,16 @@ def live_supplier_payment_net(
         ),
         Decimal("0.00"),
     )
-    in_total = sum(
+
+
+def live_supplier_payment_in_total(
+    supplier,
+    *,
+    date_from=None,
+    date_to=None,
+    on_or_before=None,
+) -> Decimal:
+    return sum(
         (
             p.amount
             for p in _live_supplier_payments_qs(
@@ -262,7 +272,24 @@ def live_supplier_payment_net(
         ),
         Decimal("0.00"),
     )
-    return out_total + in_total
+
+
+def live_supplier_payment_net(
+    supplier,
+    *,
+    date_from=None,
+    date_to=None,
+    on_or_before=None,
+) -> Decimal:
+    """
+    Net live payment effect on AP: OUT reduces what we owe, IN increases it.
+    Returns out - in so callers can subtract this from AP.
+    """
+    return live_supplier_payment_out_total(
+        supplier, date_from=date_from, date_to=date_to, on_or_before=on_or_before
+    ) - live_supplier_payment_in_total(
+        supplier, date_from=date_from, date_to=date_to, on_or_before=on_or_before
+    )
 
 
 def supplier_purchase_credits(

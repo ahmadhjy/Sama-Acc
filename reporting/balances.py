@@ -52,7 +52,8 @@ def supplier_ap_balance(supplier, on_or_before):
     if supplier_has_ledger(supplier):
         # Ledger net excluding SI rows replaced by editable SalesInvoiceLine costs.
         balance += supplier_ledger_balance(supplier, on_or_before=on_or_before)
-    # All editable invoice line costs (INV- and imported SATO26-) + live PAY- payments.
+    # All editable invoice line costs (INV- and imported SATO26-)
+    # + live PAY-: money out reduces AP, money in from supplier increases AP.
     balance += live_supplier_purchase_credits(supplier, on_or_before=on_or_before)
     balance -= live_supplier_payment_net(supplier, on_or_before=on_or_before)
     return balance

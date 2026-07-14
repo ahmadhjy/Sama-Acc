@@ -451,3 +451,73 @@ class SupplierLedgerStatementTests(TestCase):
         # Ledger PV 836 remains; editable purchase now 900 → AP 64
         self.assertEqual(supplier_ap_balance(self.supplier, date.today()), Decimal("64.00"))
 
+    def test_supplier_money_in_shows_as_credit(self):
+        user = get_user_model().objects.create_user(username="sup-in", password="test12345")
+        pay = Payment.objects.create(
+            receipt_no="PAY-2026-SUP-IN",
+            direction=Payment.Direction.IN,
+            party_type=Payment.PartyType.SUPPLIER,
+            supplier=self.supplier,
+            money_account=self.account,
+            date=date.today(),
+            currency="USD",
+            amount=Decimal("100.00"),
+            status=Payment.Status.DRAFT,
+        )
+        pay.post(user)
+
+        rows = build_supplier_statement_rows(self.supplier)
+        receipt = next(r for r in rows if r["ref"] == "PAY-2026-SUP-IN")
+        self.assertEqual(receipt["type"], "Receipt")
+        self.assertEqual(receipt["credit"], Decimal("100.00"))
+        self.assertEqual(receipt["debit"], Decimal("0.00"))
+
+        from reporting.balances import supplier_ap_balance
+
+        # Ledger: purchase 1076 - payment 836 = 240; money in +100 → AP 340
+        self.assertEqual(supplier_ap_balance(self.supplier, date.today()), Decimal("340.00"))
+
+
+class ClientPaymentDirectionStatementTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="cli-dir", password="test12345")
+        self.client_obj = Client.objects.create(client_code="C-DIR", name_en="Direction Client")
+        self.account = MoneyAccount.objects.create(name="Cash DIR", type=MoneyAccount.AccountType.CASH, currency="USD")
+
+    def test_client_money_in_shows_as_credit(self):
+        pay = Payment.objects.create(
+            receipt_no="PAY-2026-CLI-IN",
+            direction=Payment.Direction.IN,
+            party_type=Payment.PartyType.CLIENT,
+            client=self.client_obj,
+            money_account=self.account,
+            date=date.today(),
+            currency="USD",
+            amount=Decimal("50.00"),
+            status=Payment.Status.DRAFT,
+        )
+        pay.post(self.user)
+        rows = build_client_statement_rows(self.client_obj)
+        receipt = next(r for r in rows if r["ref"] == "PAY-2026-CLI-IN")
+        self.assertEqual(receipt["credit"], Decimal("50.00"))
+        self.assertEqual(receipt["debit"], Decimal("0.00"))
+
+    def test_client_money_out_shows_as_debit(self):
+        pay = Payment.objects.create(
+            receipt_no="PAY-2026-CLI-OUT",
+            direction=Payment.Direction.OUT,
+            party_type=Payment.PartyType.CLIENT,
+            client=self.client_obj,
+            money_account=self.account,
+            date=date.today(),
+            currency="USD",
+            amount=Decimal("25.00"),
+            is_refund=True,
+            status=Payment.Status.DRAFT,
+        )
+        pay.post(self.user)
+        rows = build_client_statement_rows(self.client_obj)
+        refund = next(r for r in rows if r["ref"] == "PAY-2026-CLI-OUT")
+        self.assertEqual(refund["debit"], Decimal("25.00"))
+        self.assertEqual(refund["credit"], Decimal("0.00"))
+
