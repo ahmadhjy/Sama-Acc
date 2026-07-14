@@ -36,7 +36,7 @@ Period: <strong>{{ period_label }}</strong>
             <div class="hub-kpi__head">
                 <span class="hub-kpi__label-wrap">
                     <span class="hub-kpi__label">Revenue (USD)</span>
-                    {% include "partials/info_tip.html" with tip="Total selling on posted sales invoices in the selected period, in USD." %}
+                    {% include "partials/info_tip.html" with tip="Sum of Total selling on sales invoices in the period (by invoice date), in USD — same figure as on each invoice form." %}
                 </span>
                 <span class="hub-kpi__icon"><i class="fa-solid fa-arrow-trend-up"></i></span>
             </div>
@@ -46,7 +46,7 @@ Period: <strong>{{ period_label }}</strong>
             <div class="hub-kpi__head">
                 <span class="hub-kpi__label-wrap">
                     <span class="hub-kpi__label">Gross profit</span>
-                    {% include "partials/info_tip.html" with tip="Revenue minus COGS: supplier/service costs on posted invoice lines in the period (USD)." %}
+                    {% include "partials/info_tip.html" with tip="Revenue minus COGS: Total selling minus Total cost on the same invoices (by invoice date), in USD." %}
                 </span>
                 <span class="hub-kpi__icon"><i class="fa-solid fa-chart-pie"></i></span>
             </div>
@@ -342,7 +342,7 @@ Period: <strong>{{ period_label }}</strong>
             <div class="hub-kpi__head">
                 <span class="hub-kpi__label-wrap">
                     <span class="hub-kpi__label">COGS</span>
-                    {% include "partials/info_tip.html" with tip="Cost of goods sold: service/supplier costs on posted sales invoice lines in the period (USD)." %}
+                    {% include "partials/info_tip.html" with tip="Cost of goods sold: sum of Total cost on the same invoices as Revenue (service-line costs, by invoice date), in USD." %}
                 </span>
                 <span class="hub-kpi__icon"><i class="fa-solid fa-tags"></i></span>
             </div>

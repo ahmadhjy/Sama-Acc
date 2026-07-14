@@ -25,7 +25,7 @@ from reporting.statement_summary import (
 )
 from reporting.statement_running import annotate_client_statement_rows, annotate_supplier_statement_rows
 from reporting.supplier_statement_rows import build_supplier_statement_rows
-from purchases.models import SupplierBill, SupplierBillLine
+from purchases.models import SupplierBill
 from sales.models import SalesInvoice
 from treasury.allocation import invoice_collectible_remaining
 from treasury.models import MoneyAccount, Payment
@@ -44,26 +44,22 @@ def reports_home(request):
 
     df, dt, _ = resolve_report_dates(request)
 
-    inv_q = SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
     bill_q = SupplierBill.objects.filter(status=SupplierBill.Status.POSTED)
     pay_q = Payment.objects.filter(status=Payment.Status.POSTED)
-    cogs_q = SupplierBill.objects.filter(status=SupplierBill.Status.POSTED, lines__line_kind="SERVICE")
     if df:
-        inv_q = inv_q.filter(issue_date__gte=df)
         pay_q = pay_q.filter(date__gte=df)
         bill_q = bill_q.filter(bill_date__gte=df)
-        cogs_q = cogs_q.filter(bill_date__gte=df)
     if dt:
-        inv_q = inv_q.filter(issue_date__lte=dt)
         pay_q = pay_q.filter(date__lte=dt)
         bill_q = bill_q.filter(bill_date__lte=dt)
-        cogs_q = cogs_q.filter(bill_date__lte=dt)
 
-    posted_invoices_total = inv_q.aggregate(total=Sum("grand_total_usd")).get("total") or 0
+    from reporting.invoice_pl import period_cogs_usd, period_revenue_usd
+    from expenses.models import OperatingExpense
+
+    posted_invoices_total = period_revenue_usd(df, dt)
+    posted_cogs_total = period_cogs_usd(df, dt)
     posted_bills_total = bill_q.aggregate(total=Sum("grand_total")).get("total") or 0
     posted_payments_total = pay_q.aggregate(total=Sum("amount")).get("total") or 0
-    posted_cogs_total = cogs_q.aggregate(total=Sum("lines__cost_amount")).get("total") or 0
-    from expenses.models import OperatingExpense
 
     opex_q = OperatingExpense.objects.filter(status=OperatingExpense.Status.POSTED)
     if df:
@@ -83,7 +79,7 @@ def reports_home(request):
             "posted_invoices_total": posted_invoices_total,
             "posted_bills_total": posted_bills_total,
             "posted_payments_total": posted_payments_total,
-            "gross_margin_estimate": posted_invoices_total - posted_bills_total,
+            "gross_margin_estimate": posted_invoices_total - posted_cogs_total,
             "posted_cogs_total": posted_cogs_total,
             "posted_opex_total": posted_opex_total,
             "standalone_opex_total": standalone_opex_total,
@@ -381,26 +377,19 @@ def opex_by_category(request):
 
 
 def activity_trial_balance(request):
-    """P&L-style trial listing from posted sales, COGS service lines, and OPEX lines."""
+    """P&L-style trial listing from invoice selling totals, invoice line costs, and OPEX."""
     df, dt, period_label = resolve_report_dates(request)
+    from reporting.invoice_pl import period_cogs_usd, period_revenue_usd
 
-    inv = SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
-    if df:
-        inv = inv.filter(issue_date__gte=df)
-    if dt:
-        inv = inv.filter(issue_date__lte=dt)
-    sales_total = inv.aggregate(t=Sum("grand_total_usd"))["t"] or Decimal("0.00")
-    currency = inv.exclude(currency="").values_list("currency", flat=True).first() or "USD"
-
-    cogs_lines = SupplierBillLine.objects.filter(
-        line_kind=SupplierBillLine.LineKind.SERVICE,
-        bill__status=SupplierBill.Status.POSTED,
+    sales_total = period_revenue_usd(df, dt)
+    cogs_total = period_cogs_usd(df, dt)
+    currency = (
+        SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
+        .exclude(currency="")
+        .values_list("currency", flat=True)
+        .first()
+        or "USD"
     )
-    if df:
-        cogs_lines = cogs_lines.filter(bill__bill_date__gte=df)
-    if dt:
-        cogs_lines = cogs_lines.filter(bill__bill_date__lte=dt)
-    cogs_total = cogs_lines.aggregate(t=Sum("cost_amount"))["t"] or Decimal("0.00")
 
     rows = [
         {
@@ -414,7 +403,7 @@ def activity_trial_balance(request):
         },
         {
             "account": "5010000001",
-            "name": "Cost of Sales (service supplier bills)",
+            "name": "Cost of Sales (invoice line costs)",
             "curr": currency,
             "tot_dr": cogs_total,
             "tot_cr": Decimal("0.00"),
@@ -483,7 +472,7 @@ def activity_trial_balance(request):
             "opex_total": opex_sum,
             "pdf_income_statement": True,
             "pdf_report_title": "Income Statement",
-            "pdf_report_subtitle": "Posted sales revenue, cost of sales, and operating expenses (USD)",
+            "pdf_report_subtitle": "Invoice selling totals, invoice line costs (COGS), and operating expenses (USD)",
             "pdf_account_range": "Accounts: 401 (Sales revenue), 501 (Cost of sales), 626/631 (Operating expenses by category)",
         },
         export_filename("Income_Statement", export_period_suffix(df, dt)),

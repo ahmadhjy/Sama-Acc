@@ -5,38 +5,20 @@ from django.db.models import Q, Sum
 
 from accounts_core.models import Client, Employee, Supplier
 from expenses.models import OperatingExpense
-from purchases.models import SupplierBill
 from reporting.balances import client_ar_balance, supplier_ap_balance, supplier_line_purchases
+from reporting.invoice_pl import period_cogs_usd, period_revenue_usd
 from treasury.allocation import invoice_collectible_remaining
 from reporting.date_ranges import resolve_report_dates
 from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import Payment
 
 
-def _lines_cost_usd(date_from=None, date_to=None):
-    qs = SalesInvoiceLine.objects.filter(invoice__status__in=SalesInvoice.reporting_statuses())
-    if date_from:
-        qs = qs.filter(service_date__gte=date_from)
-    if date_to:
-        qs = qs.filter(service_date__lte=date_to)
-    total = Decimal("0.00")
-    for line in qs.only("qty", "cost_price_usd"):
-        total += line.line_cost_amount_usd()
-    return total
-
-
 def build_dashboard_analytics(request):
     date_from, date_to, period_label = resolve_report_dates(request)
     today = date.today()
 
-    inv_q = SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
-    if date_from:
-        inv_q = inv_q.filter(issue_date__gte=date_from)
-    if date_to:
-        inv_q = inv_q.filter(issue_date__lte=date_to)
-
-    revenue = inv_q.aggregate(t=Sum("grand_total_usd"))["t"] or Decimal("0.00")
-    cogs = _lines_cost_usd(date_from, date_to)
+    revenue = period_revenue_usd(date_from, date_to)
+    cogs = period_cogs_usd(date_from, date_to)
     opex = OperatingExpense.objects.filter(status=OperatingExpense.Status.POSTED)
     if date_from:
         opex = opex.filter(expense_date__gte=date_from)

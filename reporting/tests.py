@@ -276,6 +276,48 @@ class SummaryZeroBalanceToggleTests(TestCase):
         self.assertEqual(rows[0]["bal_cr"], Decimal("0.00"))
 
 
+class InvoicePeriodPlTests(TestCase):
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="pl1", password="test12345")
+        self.client_obj = Client.objects.create(client_code="C-PL", name_en="PL Client")
+        self.employee = Employee.objects.create(name="PL Emp", role=Employee.EmployeeRole.ACCOUNTING)
+        self.service_type = ServiceType.objects.create(name="Hotel PL", code="HTLPL")
+        self.destination = Destination.objects.create(name="Paris PL")
+        self.supplier = Supplier.objects.create(supplier_code="S-PL", name="PL Supplier")
+
+    def test_revenue_and_cogs_use_same_invoices_by_issue_date(self):
+        from reporting.invoice_pl import period_cogs_usd, period_revenue_usd
+
+        inv = SalesInvoice.objects.create(
+            invoice_no="TMP-PL",
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=date(2026, 7, 10),
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=inv,
+            supplier=self.supplier,
+            service_type=self.service_type,
+            destination=self.destination,
+            line_employee=self.employee,
+            service_date=date(2025, 12, 1),  # service outside period; still counts via issue date
+            qty=Decimal("1"),
+            sell_price=Decimal("3400"),
+            cost_price=Decimal("3270"),
+            line_discount=Decimal("0"),
+        )
+        inv.recalc_usd_amounts()
+        inv.post(self.user)
+
+        revenue = period_revenue_usd(date(2026, 1, 1), date(2026, 12, 31))
+        cogs = period_cogs_usd(date(2026, 1, 1), date(2026, 12, 31))
+        self.assertEqual(revenue, Decimal("3400.00"))
+        self.assertEqual(cogs, Decimal("3270.00"))
+        # Outside issue-date window → excluded even though service date was old
+        self.assertEqual(period_cogs_usd(date(2025, 1, 1), date(2025, 12, 31)), Decimal("0.00"))
+
+
 class IncomeStatementPdfTests(TestCase):
     def test_profit_summary_row_shows_loss_in_debit(self):
         from reporting.statement_summary import profit_summary_row
