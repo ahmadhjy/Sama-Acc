@@ -36,7 +36,7 @@ Period: <strong>{{ period_label }}</strong>
             <div class="hub-kpi__head">
                 <span class="hub-kpi__label-wrap">
                     <span class="hub-kpi__label">Revenue (USD)</span>
-                    {% include "partials/info_tip.html" with tip="Sum of Total selling on sales invoices in the period (by invoice date), in USD — same figure as on each invoice form." %}
+                    {% include "partials/info_tip.html" with tip="Same as All Clients SOA Total debit for this period: sum of service sellings (with zero-balance clients included)." %}
                 </span>
                 <span class="hub-kpi__icon"><i class="fa-solid fa-arrow-trend-up"></i></span>
             </div>
@@ -46,7 +46,7 @@ Period: <strong>{{ period_label }}</strong>
             <div class="hub-kpi__head">
                 <span class="hub-kpi__label-wrap">
                     <span class="hub-kpi__label">Gross profit</span>
-                    {% include "partials/info_tip.html" with tip="Revenue minus COGS: Total selling minus Total cost on the same invoices (by invoice date), in USD." %}
+                    {% include "partials/info_tip.html" with tip="Revenue minus COGS using the same period totals as All Clients / All Suppliers SOA." %}
                 </span>
                 <span class="hub-kpi__icon"><i class="fa-solid fa-chart-pie"></i></span>
             </div>
@@ -342,7 +342,7 @@ Period: <strong>{{ period_label }}</strong>
             <div class="hub-kpi__head">
                 <span class="hub-kpi__label-wrap">
                     <span class="hub-kpi__label">COGS</span>
-                    {% include "partials/info_tip.html" with tip="Cost of goods sold: sum of Total cost on the same invoices as Revenue (service-line costs, by invoice date), in USD." %}
+                    {% include "partials/info_tip.html" with tip="Same as All Suppliers SOA Total credit for this period: supplier service costs (with zero-balance suppliers included)." %}
                 </span>
                 <span class="hub-kpi__icon"><i class="fa-solid fa-tags"></i></span>
             </div>

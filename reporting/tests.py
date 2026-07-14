@@ -350,8 +350,9 @@ class InvoicePeriodPlTests(TestCase):
         self.destination = Destination.objects.create(name="Paris PL")
         self.supplier = Supplier.objects.create(supplier_code="S-PL", name="PL Supplier")
 
-    def test_revenue_and_cogs_use_same_invoices_by_issue_date(self):
+    def test_revenue_and_cogs_match_soa_period_totals(self):
         from reporting.invoice_pl import period_cogs_usd, period_revenue_usd
+        from reporting.statement_summary import build_client_summary_rows, build_supplier_summary_rows
 
         inv = SalesInvoice.objects.create(
             invoice_no="TMP-PL",
@@ -366,7 +367,7 @@ class InvoicePeriodPlTests(TestCase):
             service_type=self.service_type,
             destination=self.destination,
             line_employee=self.employee,
-            service_date=date(2025, 12, 1),  # service outside period; still counts via issue date
+            service_date=date(2026, 7, 10),
             qty=Decimal("1"),
             sell_price=Decimal("3400"),
             cost_price=Decimal("3270"),
@@ -375,12 +376,22 @@ class InvoicePeriodPlTests(TestCase):
         inv.recalc_usd_amounts()
         inv.post(self.user)
 
-        revenue = period_revenue_usd(date(2026, 1, 1), date(2026, 12, 31))
-        cogs = period_cogs_usd(date(2026, 1, 1), date(2026, 12, 31))
+        date_from, date_to = date(2026, 1, 1), date(2026, 12, 31)
+        revenue = period_revenue_usd(date_from, date_to)
+        cogs = period_cogs_usd(date_from, date_to)
+        clients = build_client_summary_rows(
+            Client.objects.all(), date_from, date_to, include_zero_balances=True
+        )
+        suppliers = build_supplier_summary_rows(
+            Supplier.objects.all(), date_from, date_to, include_zero_balances=True
+        )
+        soa_sell = sum((r["tot_dr"] for r in clients), Decimal("0.00"))
+        soa_cost = sum((r["tot_cr"] for r in suppliers), Decimal("0.00"))
         self.assertEqual(revenue, Decimal("3400.00"))
         self.assertEqual(cogs, Decimal("3270.00"))
-        # Outside issue-date window → excluded even though service date was old
-        self.assertEqual(period_cogs_usd(date(2025, 1, 1), date(2025, 12, 31)), Decimal("0.00"))
+        self.assertEqual(revenue, soa_sell)
+        self.assertEqual(cogs, soa_cost)
+        self.assertEqual(revenue - cogs, Decimal("130.00"))
 
 
 class IncomeStatementPdfTests(TestCase):

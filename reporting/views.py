@@ -403,7 +403,7 @@ def activity_trial_balance(request):
         },
         {
             "account": "5010000001",
-            "name": "Cost of Sales (invoice line costs)",
+            "name": "Cost of Sales (All Suppliers SOA credits)",
             "curr": currency,
             "tot_dr": cogs_total,
             "tot_cr": Decimal("0.00"),
@@ -472,7 +472,7 @@ def activity_trial_balance(request):
             "opex_total": opex_sum,
             "pdf_income_statement": True,
             "pdf_report_title": "Income Statement",
-            "pdf_report_subtitle": "Invoice selling totals, invoice line costs (COGS), and operating expenses (USD)",
+            "pdf_report_subtitle": "Revenue and COGS match All Clients / All Suppliers SOA period totals; plus operating expenses (USD)",
             "pdf_account_range": "Accounts: 401 (Sales revenue), 501 (Cost of sales), 626/631 (Operating expenses by category)",
         },
         export_filename("Income_Statement", export_period_suffix(df, dt)),
