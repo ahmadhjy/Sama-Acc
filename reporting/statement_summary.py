@@ -1,11 +1,9 @@
 """One-row-per-party summary builders for consolidated statements."""
 
-from datetime import timedelta
 from decimal import Decimal
 
 from accounts_core.models import Client, Supplier
 from purchases.models import SupplierBill
-from reporting.balances import supplier_ap_balance
 from reporting.client_statement_rows import build_client_statement_rows
 from reporting.supplier_statement_rows import build_supplier_statement_rows
 from sales.models import SalesInvoice
@@ -106,17 +104,15 @@ def build_client_summary_rows(clients, date_from=None, date_to=None, *, include_
 
 
 def build_supplier_summary_rows(suppliers, date_from=None, date_to=None, *, include_zero_balances=False):
-    day_before = (date_from - timedelta(days=1)) if date_from else None
     rows = []
     for supplier in suppliers:
-        opening = supplier_ap_balance(supplier, day_before) if date_from else Decimal("0.00")
         debit, credit = _supplier_period_movement(supplier, date_from, date_to)
-        closing = opening + credit - debit
         # Match per-supplier SOA: no lines in the selected period → omit from All Suppliers.
         if debit == 0 and credit == 0:
             continue
-        # Zero closing balance hidden by default.
-        if abs(closing) < Decimal("0.01") and not include_zero_balances:
+        # Same period net as the filtered supplier statement (debit − credit).
+        period_balance = debit - credit
+        if abs(period_balance) < Decimal("0.01") and not include_zero_balances:
             continue
         bill_q = SupplierBill.objects.filter(supplier=supplier, status=SupplierBill.Status.POSTED)
         if date_from:
@@ -126,7 +122,7 @@ def build_supplier_summary_rows(suppliers, date_from=None, date_to=None, *, incl
         row_curr = bill_q.order_by("-bill_date").values_list("currency", flat=True).first()
         if not row_curr:
             row_curr = supplier.default_currency or "USD"
-        bal_dr, bal_cr = _split_movement_balance_dr_cr(debit, credit)
+        bal_dr, bal_cr = _split_balance_dr_cr(period_balance)
         rows.append(
             {
                 "account": supplier.supplier_code,
@@ -137,7 +133,7 @@ def build_supplier_summary_rows(suppliers, date_from=None, date_to=None, *, incl
                 "tot_cr": credit,
                 "bal_dr": bal_dr,
                 "bal_cr": bal_cr,
-                "net_balance": bal_dr + bal_cr,
+                "net_balance": period_balance,
             }
         )
     return rows
@@ -153,8 +149,9 @@ def summarize_totals(rows):
 
 
 def summarize_supplier_totals(rows):
+    """Footer totals for supplier summaries: net DR/CR balances into a single column."""
     tot_dr = sum((r["tot_dr"] for r in rows), Decimal("0.00"))
     tot_cr = sum((r["tot_cr"] for r in rows), Decimal("0.00"))
-    bal_dr, bal_cr = _split_movement_balance_dr_cr(tot_dr, tot_cr)
-    total_balance = bal_dr + bal_cr
-    return tot_dr, tot_cr, bal_dr, bal_cr, total_balance
+    net_balance = sum((r.get("net_balance") or (r["bal_dr"] - r["bal_cr"]) for r in rows), Decimal("0.00"))
+    bal_dr, bal_cr = _split_balance_dr_cr(net_balance)
+    return tot_dr, tot_cr, bal_dr, bal_cr, net_balance

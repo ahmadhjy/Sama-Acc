@@ -106,7 +106,7 @@ class SupplierSummaryBalanceTests(TestCase):
         self.assertEqual(tot_cr, Decimal("400"))
         self.assertEqual(foot_bal_dr, Decimal("0"))
         self.assertEqual(foot_bal_cr, Decimal("250"))
-        self.assertEqual(total_balance, Decimal("250"))
+        self.assertEqual(total_balance, Decimal("-250"))
 
 
 class ClientSummaryTotalsNetTests(TestCase):
@@ -274,6 +274,71 @@ class SummaryZeroBalanceToggleTests(TestCase):
         self.assertEqual(rows[0]["net_balance"], Decimal("200.00"))
         self.assertEqual(rows[0]["bal_dr"], Decimal("200.00"))
         self.assertEqual(rows[0]["bal_cr"], Decimal("0.00"))
+
+    def test_supplier_period_balance_matches_statement_net(self):
+        """All Suppliers balance = period debit − credit (same filter as supplier SOA)."""
+        from reporting.statement_running import annotate_supplier_statement_rows
+        from reporting.statement_summary import build_supplier_summary_rows
+        from reporting.supplier_statement_rows import build_supplier_statement_rows
+
+        sup = Supplier.objects.create(supplier_code="S-PER", name="Period Sup")
+        # Cost before filter window
+        old_inv = SalesInvoice.objects.create(
+            invoice_no="TMP-SUP-OLD",
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=date(2026, 6, 1),
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=old_inv,
+            supplier=sup,
+            service_type=self.service_type,
+            destination=self.destination,
+            line_employee=self.employee,
+            service_date=date(2026, 6, 1),
+            qty=Decimal("1"),
+            sell_price=Decimal("100"),
+            cost_price=Decimal("500"),
+            line_discount=Decimal("0"),
+        )
+        old_inv.recalc_usd_amounts()
+        old_inv.post(self.user)
+
+        # Activity inside July–Dec
+        new_inv = SalesInvoice.objects.create(
+            invoice_no="TMP-SUP-NEW",
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=date(2026, 7, 10),
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=new_inv,
+            supplier=sup,
+            service_type=self.service_type,
+            destination=self.destination,
+            line_employee=self.employee,
+            service_date=date(2026, 7, 10),
+            qty=Decimal("1"),
+            sell_price=Decimal("100"),
+            cost_price=Decimal("80"),
+            line_discount=Decimal("0"),
+        )
+        new_inv.recalc_usd_amounts()
+        new_inv.post(self.user)
+
+        date_from, date_to = date(2026, 7, 1), date(2026, 12, 31)
+        stmt_rows = build_supplier_statement_rows(sup, date_from, date_to)
+        _, tot_dr, tot_cr, closing = annotate_supplier_statement_rows(stmt_rows)
+        summary = build_supplier_summary_rows([sup], date_from=date_from, date_to=date_to)
+        self.assertEqual(len(summary), 1)
+        self.assertEqual(summary[0]["tot_dr"], tot_dr)
+        self.assertEqual(summary[0]["tot_cr"], tot_cr)
+        self.assertEqual(summary[0]["net_balance"], closing)
+        self.assertEqual(summary[0]["net_balance"], Decimal("-80.00"))
+        self.assertEqual(summary[0]["bal_cr"], Decimal("80.00"))
+        self.assertEqual(summary[0]["bal_dr"], Decimal("0.00"))
 
 
 class InvoicePeriodPlTests(TestCase):
