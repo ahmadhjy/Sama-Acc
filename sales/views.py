@@ -51,7 +51,7 @@ def _redirect_after_invoice_save(request, invoice):
         require_https=request.is_secure(),
     ):
         return redirect(dest)
-    return redirect("sales:invoice_edit", invoice_id=invoice.id)
+    return redirect("sales:invoice_list")
 
 
 def _save_invoice_attachments(request, invoice):

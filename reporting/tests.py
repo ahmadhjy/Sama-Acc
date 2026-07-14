@@ -345,3 +345,63 @@ class SupplierLedgerStatementTests(TestCase):
         self.assertEqual(credits, Decimal("1076.00"))
         self.assertEqual(debits, Decimal("836.00"))
 
+    def test_live_invoice_appended_to_ledger_statement(self):
+        user = get_user_model().objects.create_user(username="live-sup", password="test12345")
+        client = Client.objects.create(client_code="C-LIVE-SUP", name_en="Live Client")
+        employee = Employee.objects.create(name="Live Emp", role=Employee.EmployeeRole.ACCOUNTING)
+        service_type = ServiceType.objects.create(name="Hotel", code="HTL-L")
+        destination = Destination.objects.create(name="Beirut")
+        inv = SalesInvoice.objects.create(
+            invoice_no="INV-2026-00001",
+            client=client,
+            sales_employee=employee,
+            issue_date=date.today(),
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=inv,
+            supplier=self.supplier,
+            service_type=service_type,
+            destination=destination,
+            line_employee=employee,
+            service_date=date.today(),
+            qty=Decimal("1"),
+            sell_price=Decimal("200"),
+            cost_price=Decimal("75"),
+            line_discount=Decimal("0"),
+        )
+        inv.recalc_usd_amounts()
+        inv.post(user)
+
+        # Migrated invoice line must not double-count against ledger SI credit
+        migrated = SalesInvoice.objects.create(
+            invoice_no="SATO26-SI-00440",
+            client=client,
+            sales_employee=employee,
+            issue_date=date(2026, 7, 3),
+            currency="USD",
+            status=SalesInvoice.Status.POSTED,
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=migrated,
+            supplier=self.supplier,
+            service_type=service_type,
+            destination=destination,
+            line_employee=employee,
+            service_date=date(2026, 7, 3),
+            qty=Decimal("1"),
+            sell_price=Decimal("1000"),
+            cost_price=Decimal("1076"),
+            line_discount=Decimal("0"),
+        )
+        migrated.recalc_usd_amounts()
+
+        rows = build_supplier_statement_rows(self.supplier)
+        credits = sum((r["credit"] for r in rows), Decimal("0.00"))
+        refs = {r["ref"] for r in rows}
+        self.assertIn("INV-2026-00001", refs)
+        self.assertEqual(credits, Decimal("1151.00"))  # 1076 ledger + 75 live
+        from reporting.balances import supplier_ap_balance
+
+        self.assertEqual(supplier_ap_balance(self.supplier, date.today()), Decimal("315.00"))
+
