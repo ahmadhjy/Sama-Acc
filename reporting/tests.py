@@ -185,6 +185,47 @@ class SummaryZeroBalanceToggleTests(TestCase):
         shown = build_supplier_summary_rows([self.supplier], include_zero_balances=True)
         self.assertEqual(len(shown), 1)
 
+    def test_client_with_only_opening_balance_hidden_for_period(self):
+        """Opening-only clients have an empty filtered SOA — hide them on All Clients."""
+        from reporting.statement_summary import build_client_summary_rows
+
+        old_client = Client.objects.create(client_code="C-OLD", name_en="Old Only Client")
+        inv = SalesInvoice.objects.create(
+            invoice_no="TMP-OLD",
+            client=old_client,
+            sales_employee=self.employee,
+            issue_date=date(2026, 6, 15),
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=inv,
+            supplier=self.supplier,
+            service_type=self.service_type,
+            destination=self.destination,
+            line_employee=self.employee,
+            service_date=date(2026, 6, 15),
+            qty=Decimal("1"),
+            sell_price=Decimal("80"),
+            cost_price=Decimal("30"),
+            line_discount=Decimal("0"),
+        )
+        inv.recalc_usd_amounts()
+        inv.post(self.user)
+
+        rows = build_client_summary_rows(
+            [old_client],
+            date_from=date(2026, 7, 1),
+            date_to=date(2026, 12, 31),
+        )
+        self.assertEqual(rows, [])
+        rows_with_zero = build_client_summary_rows(
+            [old_client],
+            date_from=date(2026, 7, 1),
+            date_to=date(2026, 12, 31),
+            include_zero_balances=True,
+        )
+        self.assertEqual(rows_with_zero, [])
+
 
 class IncomeStatementPdfTests(TestCase):
     def test_profit_summary_row_shows_loss_in_debit(self):
