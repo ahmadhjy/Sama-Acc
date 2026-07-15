@@ -110,7 +110,7 @@ class SupplierSummaryBalanceTests(TestCase):
 
 
 class ClientSummaryTotalsNetTests(TestCase):
-    def test_footer_nets_balance_debit_and_credit(self):
+    def test_footer_sums_balance_debit_and_credit_separately(self):
         from reporting.statement_summary import summarize_totals
 
         rows = [
@@ -132,8 +132,9 @@ class ClientSummaryTotalsNetTests(TestCase):
         tot_dr, tot_cr, bal_dr, bal_cr, total_balance = summarize_totals(rows)
         self.assertEqual(tot_dr, Decimal("110"))
         self.assertEqual(tot_cr, Decimal("70"))
-        self.assertEqual(bal_dr, Decimal("40"))
-        self.assertEqual(bal_cr, Decimal("0"))
+        # Do not net: show what clients owe you AND what you owe clients.
+        self.assertEqual(bal_dr, Decimal("80"))
+        self.assertEqual(bal_cr, Decimal("40"))
         self.assertEqual(total_balance, Decimal("40"))
 
 

@@ -161,18 +161,26 @@ def build_supplier_summary_rows(suppliers, date_from=None, date_to=None, *, incl
 
 
 def summarize_totals(rows):
-    """Footer totals for client summaries: net DR/CR balances into a single column."""
+    """Footer totals: sum balance debit and balance credit separately (do not net them)."""
     tot_dr = sum((r["tot_dr"] for r in rows), Decimal("0.00"))
     tot_cr = sum((r["tot_cr"] for r in rows), Decimal("0.00"))
-    net_balance = sum((r.get("net_balance") or (r["bal_dr"] - r["bal_cr"]) for r in rows), Decimal("0.00"))
-    bal_dr, bal_cr = _split_balance_dr_cr(net_balance)
+    bal_dr = sum((r["bal_dr"] for r in rows), Decimal("0.00"))
+    bal_cr = sum((r["bal_cr"] for r in rows), Decimal("0.00"))
+    net_balance = sum(
+        (r.get("net_balance") if r.get("net_balance") is not None else (r["bal_dr"] - r["bal_cr"]) for r in rows),
+        Decimal("0.00"),
+    )
     return tot_dr, tot_cr, bal_dr, bal_cr, net_balance
 
 
 def summarize_supplier_totals(rows):
-    """Footer totals for supplier summaries: net DR/CR balances into a single column."""
+    """Footer totals: sum balance debit and balance credit separately (do not net them)."""
     tot_dr = sum((r["tot_dr"] for r in rows), Decimal("0.00"))
     tot_cr = sum((r["tot_cr"] for r in rows), Decimal("0.00"))
-    net_balance = sum((r.get("net_balance") or (r["bal_dr"] - r["bal_cr"]) for r in rows), Decimal("0.00"))
-    bal_dr, bal_cr = _split_balance_dr_cr(net_balance)
+    bal_dr = sum((r["bal_dr"] for r in rows), Decimal("0.00"))
+    bal_cr = sum((r["bal_cr"] for r in rows), Decimal("0.00"))
+    net_balance = sum(
+        (r.get("net_balance") if r.get("net_balance") is not None else (r["bal_dr"] - r["bal_cr"]) for r in rows),
+        Decimal("0.00"),
+    )
     return tot_dr, tot_cr, bal_dr, bal_cr, net_balance
