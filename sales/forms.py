@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from accounts_core.models import Currency, Employee
 from catalog.models import Destination
-from sales.models import SalesInvoice, SalesInvoiceLine
+from sales.models import SalesInvoice, SalesInvoiceLine, SalesInvoiceScheduledPayment
 
 
 def _destination_queryset(extra_pk=None):
@@ -284,5 +284,53 @@ SalesInvoiceLineSalesFormSet = inlineformset_factory(
     extra=1,
     can_delete=True,
     max_num=60,
+    validate_max=True,
+)
+
+
+class SalesInvoiceScheduledPaymentForm(forms.ModelForm):
+    class Meta:
+        model = SalesInvoiceScheduledPayment
+        fields = ["due_date", "amount", "is_paid"]
+        widgets = {
+            "due_date": forms.DateInput(attrs={"type": "date", "class": "schedule-due-date"}),
+            "amount": forms.NumberInput(attrs={"step": "0.01", "min": "0.01", "class": "schedule-amount"}),
+            "is_paid": forms.CheckboxInput(attrs={"class": "schedule-is-paid"}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["due_date"].required = False
+        self.fields["amount"].required = False
+
+    def clean(self):
+        cleaned = super().clean()
+        due = cleaned.get("due_date")
+        amount = cleaned.get("amount")
+        if amount is not None and amount <= 0:
+            self.add_error("amount", "Amount must be greater than zero.")
+        if (due and amount is None) or (amount is not None and not due):
+            raise forms.ValidationError("Each payment needs both a due date and an amount.")
+        return cleaned
+
+
+class SalesInvoiceScheduledPaymentFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+
+    def save_new(self, form, commit=True):
+        if not form.cleaned_data.get("due_date") or form.cleaned_data.get("amount") is None:
+            return None
+        return super().save_new(form, commit=commit)
+
+
+SalesInvoiceScheduledPaymentFormSetFactory = inlineformset_factory(
+    SalesInvoice,
+    SalesInvoiceScheduledPayment,
+    form=SalesInvoiceScheduledPaymentForm,
+    formset=SalesInvoiceScheduledPaymentFormSet,
+    extra=1,
+    can_delete=True,
+    max_num=40,
     validate_max=True,
 )

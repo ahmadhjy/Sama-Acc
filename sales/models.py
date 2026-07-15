@@ -487,6 +487,46 @@ class SalesInvoiceAttachment(models.Model):
         return self.original_name or str(self.pk)
 
 
+class SalesInvoiceScheduledPayment(models.Model):
+    """
+    Management payment plan for an invoice (due date + amount + paid flag).
+
+    Tracking only — not linked to treasury Payment / ARAllocation cash receipts.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    invoice = models.ForeignKey(
+        SalesInvoice,
+        on_delete=models.CASCADE,
+        related_name="scheduled_payments",
+    )
+    due_date = models.DateField()
+    amount = models.DecimalField(max_digits=14, decimal_places=2)
+    is_paid = models.BooleanField(default=False)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["due_date", "sort_order", "created_at"]
+
+    def __str__(self):
+        return f"{self.invoice_id} schedule {self.amount} due {self.due_date}"
+
+    def mark_paid(self, paid=True):
+        self.is_paid = bool(paid)
+        self.paid_at = timezone.now() if self.is_paid else None
+        self.save(update_fields=["is_paid", "paid_at", "updated_at"])
+
+    def save(self, *args, **kwargs):
+        if self.is_paid and self.paid_at is None:
+            self.paid_at = timezone.now()
+        if not self.is_paid:
+            self.paid_at = None
+        super().save(*args, **kwargs)
+
+
 class CreditNote(models.Model):
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "Draft"

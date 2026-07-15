@@ -240,6 +240,72 @@ Period: <strong>{{ period_label }}</strong>
         </table>
     </div>
     {% endif %}
+
+    <div class="hub-table-wrap" id="scheduled-client-payments" style="margin-top:16px;">
+        <h2 class="hub-section-title" style="padding:16px 16px 0;margin:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            Client payment schedule
+            {% include "partials/info_tip.html" with tip="Installments set on each sales invoice (due date + amount). Tracking only — not linked to treasury cash receipts." %}
+            {% if schedule_unpaid_count %}<span class="muted" style="font-weight:normal;font-size:0.85em;">({{ schedule_unpaid_count }} unpaid)</span>{% endif %}
+        </h2>
+        <form method="get" class="filter-bar" style="padding:12px 16px;margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            {% if date_from %}<input type="hidden" name="date_from" value="{{ date_from|date:'Y-m-d' }}">{% endif %}
+            {% if date_to %}<input type="hidden" name="date_to" value="{{ date_to|date:'Y-m-d' }}">{% endif %}
+            {% if request.GET.preset %}<input type="hidden" name="preset" value="{{ request.GET.preset }}">{% endif %}
+            <input type="hidden" name="tab" value="overview">
+            <label>Show
+                <select name="schedule_status" onchange="this.form.submit()">
+                    <option value="unpaid" {% if schedule_status == 'unpaid' %}selected{% endif %}>Unpaid</option>
+                    <option value="paid" {% if schedule_status == 'paid' %}selected{% endif %}>Paid only</option>
+                    <option value="all" {% if schedule_status == 'all' %}selected{% endif %}>All</option>
+                </select>
+            </label>
+        </form>
+        <table>
+            <thead>
+                <tr>
+                    <th>Client</th>
+                    <th>Invoice</th>
+                    <th>Due date</th>
+                    <th class="num">Amount</th>
+                    <th>Currency</th>
+                    <th>Status</th>
+                    <th>Paid</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in scheduled_client_payments %}
+            <tr class="{% if row.status == 'overdue' %}due-overdue{% elif row.status == 'today' %}due-today{% endif %}">
+                <td>{{ row.client_name }}</td>
+                <td><a href="{% url 'sales:invoice_open' row.invoice_id %}">{{ row.invoice_no }}</a></td>
+                <td>{{ row.due_date|date:"d/m/Y" }}</td>
+                <td class="num">{{ row.amount|money }}</td>
+                <td>{{ row.currency }}</td>
+                <td>
+                    {% if row.is_paid %}Paid
+                    {% elif row.status == 'overdue' %}Overdue
+                    {% elif row.status == 'today' %}Due today
+                    {% else %}Upcoming{% endif %}
+                </td>
+                <td>
+                    <form method="post" action="{% url 'sales:scheduled_payment_toggle' row.id %}" class="inline-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        {% if row.is_paid %}
+                        <input type="hidden" name="is_paid" value="0">
+                        <button type="submit" class="btn btn-secondary" title="Mark unpaid">Paid ✓</button>
+                        {% else %}
+                        <input type="hidden" name="is_paid" value="1">
+                        <button type="submit" class="btn" title="Mark paid">Mark paid</button>
+                        {% endif %}
+                    </form>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7">No {% if schedule_status == 'paid' %}paid{% elif schedule_status == 'unpaid' %}unpaid{% endif %} scheduled payments.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </section>
 {% elif hub_tab == 'destinations' %}
 

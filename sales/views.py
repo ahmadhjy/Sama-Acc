@@ -18,14 +18,27 @@ from accounts_core.pdf_utils import render_or_pdf
 from auditlog.models import DocumentEventLog
 from auditlog.utils import log_audit, log_document_event
 from catalog.models import ServiceType
-from sales.forms import SalesInvoiceForm, SalesInvoiceLineFormSet, SalesInvoiceLineSalesFormSet
-from sales.models import SalesInvoice, SalesInvoiceAttachment, SalesInvoiceLine
+from sales.forms import (
+    SalesInvoiceForm,
+    SalesInvoiceLineFormSet,
+    SalesInvoiceLineSalesFormSet,
+    SalesInvoiceScheduledPaymentFormSetFactory,
+)
+from sales.models import SalesInvoice, SalesInvoiceAttachment, SalesInvoiceLine, SalesInvoiceScheduledPayment
 
 
-def _save_draft_invoice_with_recalc(form, formset, request=None):
+def _save_draft_invoice_with_recalc(form, formset, request=None, payment_formset=None):
     inv = form.save()
     formset.instance = inv
     formset.save()
+    if payment_formset is not None:
+        payment_formset.instance = inv
+        payment_formset.save()
+        # Assign sort_order stably after save.
+        for i, row in enumerate(inv.scheduled_payments.order_by("due_date", "created_at")):
+            if row.sort_order != i:
+                row.sort_order = i
+                row.save(update_fields=["sort_order"])
     if inv.sales_employee_id:
         inv.lines.filter(line_employee__isnull=True).update(line_employee_id=inv.sales_employee_id)
     inv.refresh_from_db()
@@ -98,7 +111,7 @@ def _invoice_is_persisted(invoice):
     return invoice.pk is not None and not invoice._state.adding
 
 
-def _invoice_page_context(form, formset, invoice, can_view_cost):
+def _invoice_page_context(form, formset, invoice, can_view_cost, payment_formset=None):
     emp = get_default_employee_for_accounting()
     default_emp = invoice.sales_employee if invoice.sales_employee_id else emp
     if _invoice_is_persisted(invoice):
@@ -112,6 +125,7 @@ def _invoice_page_context(form, formset, invoice, can_view_cost):
     return {
         "form": form,
         "formset": formset,
+        "payment_formset": payment_formset,
         "invoice": invoice,
         "can_view_cost": can_view_cost,
         "service_field_defs_json": _service_field_defs_json(),
@@ -138,8 +152,9 @@ def invoice_create(request):
     if request.method == "POST":
         form = SalesInvoiceForm(request.POST, instance=invoice)
         formset = line_formset_cls(request.POST, instance=invoice)
-        if form.is_valid() and formset.is_valid():
-            saved_invoice = _save_draft_invoice_with_recalc(form, formset, request)
+        payment_formset = SalesInvoiceScheduledPaymentFormSetFactory(request.POST, instance=invoice)
+        if form.is_valid() and formset.is_valid() and payment_formset.is_valid():
+            saved_invoice = _save_draft_invoice_with_recalc(form, formset, request, payment_formset)
             log_document_event(DocumentEventLog.EventType.CREATED, saved_invoice, request.user)
             messages.success(request, f"Invoice {saved_invoice.invoice_no} created.")
             return _redirect_after_invoice_save(request, saved_invoice)
@@ -151,10 +166,11 @@ def invoice_create(request):
         invoice.invoice_no = _next_temp_invoice_no()
         form = SalesInvoiceForm(instance=invoice, initial=initial)
         formset = line_formset_cls(instance=invoice)
+        payment_formset = SalesInvoiceScheduledPaymentFormSetFactory(instance=invoice)
     return render(
         request,
         "sales/invoice_form.html",
-        _invoice_page_context(form, formset, invoice, can_view_cost),
+        _invoice_page_context(form, formset, invoice, can_view_cost, payment_formset),
     )
 
 
@@ -169,18 +185,20 @@ def invoice_edit(request, invoice_id):
     if request.method == "POST":
         form = SalesInvoiceForm(request.POST, instance=invoice)
         formset = line_formset_cls(request.POST, instance=invoice)
-        if form.is_valid() and formset.is_valid():
-            _save_draft_invoice_with_recalc(form, formset, request)
+        payment_formset = SalesInvoiceScheduledPaymentFormSetFactory(request.POST, instance=invoice)
+        if form.is_valid() and formset.is_valid() and payment_formset.is_valid():
+            _save_draft_invoice_with_recalc(form, formset, request, payment_formset)
             log_document_event(DocumentEventLog.EventType.UPDATED_DRAFT, invoice, request.user)
             messages.success(request, f"Invoice {invoice.invoice_no} updated.")
             return _redirect_after_invoice_save(request, invoice)
     else:
         form = SalesInvoiceForm(instance=invoice)
         formset = line_formset_cls(instance=invoice)
+        payment_formset = SalesInvoiceScheduledPaymentFormSetFactory(instance=invoice)
     return render(
         request,
         "sales/invoice_form.html",
-        _invoice_page_context(form, formset, invoice, can_view_cost),
+        _invoice_page_context(form, formset, invoice, can_view_cost, payment_formset),
     )
 
 
@@ -198,6 +216,7 @@ def invoice_open(request, invoice_id):
             "lines": invoice.lines.select_related(
                 "service_type", "supplier", "line_employee", "destination"
             ).all(),
+            "scheduled_payments": invoice.scheduled_payments.all(),
             "attachments": invoice.attachments.all(),
             "can_edit": can_edit,
             "can_void": can_void,
@@ -206,6 +225,33 @@ def invoice_open(request, invoice_id):
             and not invoice.credit_notes.exists(),
         },
     )
+
+
+@login_required
+@require_http_methods(["POST"])
+def scheduled_payment_toggle(request, payment_id):
+    """Mark a management scheduled payment paid/unpaid. Does not post treasury cash."""
+    payment = get_object_or_404(
+        SalesInvoiceScheduledPayment.objects.select_related("invoice"),
+        pk=payment_id,
+    )
+    if payment.invoice.status == SalesInvoice.Status.VOIDED:
+        messages.error(request, "Cannot update payments on a voided invoice.")
+    else:
+        want_paid = (request.POST.get("is_paid") or "").strip().lower() in ("1", "true", "on", "yes")
+        payment.mark_paid(want_paid)
+        messages.success(
+            request,
+            f"Payment {payment.amount} marked {'paid' if payment.is_paid else 'unpaid'}.",
+        )
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect("sales:invoice_open", invoice_id=payment.invoice_id)
 
 
 @login_required

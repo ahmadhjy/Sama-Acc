@@ -67,6 +67,50 @@
 </table>
 </div>
 
+<h3>Payments</h3>
+<p class="muted">Payment plan for tracking installments (not treasury cash receipts).</p>
+<div class="hub-table-wrap">
+<table class="table-compact">
+    <thead>
+        <tr>
+            <th>Due date</th>
+            <th class="num">Amount</th>
+            <th>Status</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for pay in scheduled_payments %}
+        <tr>
+            <td>{{ pay.due_date|date:"d/m/Y" }}</td>
+            <td class="num">{{ pay.amount|money }} {{ invoice.currency }}</td>
+            <td>{% if pay.is_paid %}<span class="badge">Paid</span>{% else %}<span class="muted">Unpaid</span>{% endif %}</td>
+            <td>
+                {% if can_edit %}
+                <form method="post" action="{% url 'sales:scheduled_payment_toggle' pay.id %}" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    {% if pay.is_paid %}
+                    <input type="hidden" name="is_paid" value="0">
+                    <button type="submit" class="btn btn-secondary">Mark unpaid</button>
+                    {% else %}
+                    <input type="hidden" name="is_paid" value="1">
+                    <button type="submit" class="btn">Mark paid</button>
+                    {% endif %}
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+    {% empty %}
+        <tr><td colspan="4">No scheduled payments. Add them when editing the invoice.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% if can_edit %}
+<p style="margin-top:8px;"><a class="btn btn-secondary" href="{% url 'sales:invoice_edit' invoice.id %}#invoice-scheduled-payments">Edit payments</a></p>
+{% endif %}
+
 <div class="detail-actions" style="margin-top:14px;">
     <a class="btn" href="{% url 'sales:invoice_pdf' invoice.id %}?version=client">PDF (Client)</a>
     <a class="btn" href="{% url 'sales:invoice_pdf' invoice.id %}?version=accountant">PDF (Accountant)</a>

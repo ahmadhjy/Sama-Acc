@@ -19,4 +19,9 @@ urlpatterns = [
         views.invoice_delete_attachment,
         name="invoice_delete_attachment",
     ),
+    path(
+        "scheduled-payments/<uuid:payment_id>/toggle/",
+        views.scheduled_payment_toggle,
+        name="scheduled_payment_toggle",
+    ),
 ]

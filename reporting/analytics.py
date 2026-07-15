@@ -13,7 +13,7 @@ from reporting.period_movements import (
     supplier_ap_balances_as_of,
     supplier_period_movements,
 )
-from sales.models import SalesInvoice, SalesInvoiceLine
+from sales.models import SalesInvoice, SalesInvoiceLine, SalesInvoiceScheduledPayment
 from treasury.allocation import invoice_collectible_remaining
 from treasury.models import Payment
 
@@ -248,6 +248,48 @@ def build_dashboard_analytics(request, *, revenue=None, cogs=None, opex_total=No
         float(ar_buckets["b90"]),
     ]
 
+    # Management payment plan rows (independent of treasury allocations).
+    schedule_status = (request.GET.get("schedule_status") or "unpaid").strip().lower()
+    if schedule_status not in ("unpaid", "paid", "all"):
+        schedule_status = "unpaid"
+    schedule_qs = (
+        SalesInvoiceScheduledPayment.objects.filter(
+            invoice__status__in=SalesInvoice.reporting_statuses(),
+        )
+        .select_related("invoice", "invoice__client")
+        .order_by("due_date", "invoice__invoice_no")
+    )
+    if schedule_status == "unpaid":
+        schedule_qs = schedule_qs.filter(is_paid=False)
+    elif schedule_status == "paid":
+        schedule_qs = schedule_qs.filter(is_paid=True)
+    scheduled_client_payments = []
+    for pay in schedule_qs[:200]:
+        due = pay.due_date
+        days_until = (due - today).days if due else 0
+        if pay.is_paid:
+            row_status = "paid"
+        elif days_until < 0:
+            row_status = "overdue"
+        elif days_until == 0:
+            row_status = "today"
+        else:
+            row_status = "upcoming"
+        scheduled_client_payments.append(
+            {
+                "id": pay.id,
+                "client_name": pay.invoice.client.name_en if pay.invoice.client_id else "—",
+                "invoice_id": pay.invoice_id,
+                "invoice_no": pay.invoice.invoice_no,
+                "amount": pay.amount,
+                "currency": pay.invoice.currency,
+                "due_date": due,
+                "is_paid": pay.is_paid,
+                "status": row_status,
+                "days_until": days_until,
+            }
+        )
+
     return {
         "date_from": date_from,
         "date_to": date_to,
@@ -266,6 +308,12 @@ def build_dashboard_analytics(request, *, revenue=None, cogs=None, opex_total=No
         "overdue_client_payments": overdue_client_payments,
         "overdue_count": len(overdue_client_payments),
         "due_today_count": sum(1 for r in receivables_due if r["status"] == "today"),
+        "scheduled_client_payments": scheduled_client_payments,
+        "schedule_status": schedule_status,
+        "schedule_unpaid_count": SalesInvoiceScheduledPayment.objects.filter(
+            invoice__status__in=SalesInvoice.reporting_statuses(),
+            is_paid=False,
+        ).count(),
         "salesman_stats": salesman_stats[:15],
         "supplier_stats": supplier_stats[:15],
         "monthly_revenue": monthly_revenue,

@@ -169,9 +169,62 @@
     {% if formset.non_form_errors %}
     <ul class="errorlist">{% for err in formset.non_form_errors %}<li>{{ err }}</li>{% endfor %}</ul>
     {% endif %}
+
+    <h3>Payments</h3>
+    <p class="muted">Split the invoice into due amounts for tracking (e.g. $200 on one date, $300 on another). This is <strong>not</strong> a cash receipt — treasury payments stay separate.</p>
+    {{ payment_formset.management_form }}
+    <div class="hub-table-wrap" style="margin-bottom:12px;">
+      <table class="table-compact" id="invoice-scheduled-payments">
+        <thead>
+          <tr>
+            <th>Due date</th>
+            <th class="num">Amount</th>
+            <th>Paid</th>
+            <th>Remove</th>
+          </tr>
+        </thead>
+        <tbody id="scheduled-payment-rows">
+        {% for pform in payment_formset %}
+          <tr class="scheduled-payment-row">
+            <td>
+              {{ pform.id }}
+              {{ pform.due_date }}
+              {% if pform.due_date.errors %}<div class="errorlist">{{ pform.due_date.errors }}</div>{% endif %}
+            </td>
+            <td class="num">
+              {{ pform.amount }}
+              {% if pform.amount.errors %}<div class="errorlist">{{ pform.amount.errors }}</div>{% endif %}
+            </td>
+            <td>{{ pform.is_paid }}</td>
+            <td>{% if pform.DELETE %}{{ pform.DELETE }}{% endif %}</td>
+          </tr>
+          {% if pform.non_field_errors %}
+          <tr><td colspan="4"><ul class="errorlist">{% for err in pform.non_field_errors %}<li>{{ err }}</li>{% endfor %}</ul></td></tr>
+          {% endif %}
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p><button type="button" class="btn btn-secondary" id="add-scheduled-payment">+ Add payment</button></p>
+    {% if payment_formset.non_form_errors %}
+    <ul class="errorlist">{% for err in payment_formset.non_form_errors %}<li>{{ err }}</li>{% endfor %}</ul>
+    {% endif %}
+
     <button class="btn" type="submit" id="invoice-save-btn">Save</button>
     <a class="btn" href="{% url 'sales:invoice_list' %}" id="invoice-back-link">Back</a>
 </form>
+
+<template id="scheduled-payment-empty-form">
+  <tr class="scheduled-payment-row">
+    <td>
+      {{ payment_formset.empty_form.id }}
+      {{ payment_formset.empty_form.due_date }}
+    </td>
+    <td class="num">{{ payment_formset.empty_form.amount }}</td>
+    <td>{{ payment_formset.empty_form.is_paid }}</td>
+    <td>{% if payment_formset.empty_form.DELETE %}{{ payment_formset.empty_form.DELETE }}{% endif %}</td>
+  </tr>
+</template>
 
 <div class="qc-modal-backdrop" id="leave-modal-backdrop" aria-hidden="true">
   <div class="qc-modal" role="dialog" aria-labelledby="leave-modal-title">
@@ -1261,6 +1314,23 @@
     markFormDirty();
   });
   defaultEmptyLineServiceDates();
+
+  (function wireScheduledPayments() {
+    var addBtn = document.getElementById('add-scheduled-payment');
+    var tbody = document.getElementById('scheduled-payment-rows');
+    var emptyTpl = document.getElementById('scheduled-payment-empty-form');
+    var totalInput = document.querySelector('input[name$="-TOTAL_FORMS"]');
+    // Prefer the scheduled_payments management form TOTAL_FORMS
+    var scheduleTotal = document.querySelector('input[name="scheduled_payments-TOTAL_FORMS"]');
+    if (!addBtn || !tbody || !emptyTpl || !scheduleTotal) return;
+    addBtn.addEventListener('click', function () {
+      var idx = parseInt(scheduleTotal.value, 10) || 0;
+      var html = emptyTpl.innerHTML.replace(/__prefix__/g, String(idx));
+      tbody.insertAdjacentHTML('beforeend', html);
+      scheduleTotal.value = String(idx + 1);
+      if (typeof markFormDirty === 'function') markFormDirty();
+    });
+  })();
 
   function initInvoiceSelects(root) {
     var container = root || document.getElementById('invoice-form');
