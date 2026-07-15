@@ -1,7 +1,7 @@
 {% extends "hub/layout.html" %}
 {% block title %}Cash Movement{% endblock %}
 {% block hub_title %}Cash / bank movement{% endblock %}
-{% block hub_subtitle %}Expected closing balance per money account as of today.{% endblock %}
+{% block hub_subtitle %}Expected closing balance per money account as of {% if as_of %}{{ as_of|date:"d/m/Y" }}{% else %}today{% endif %}.{% endblock %}
 {% block hub_extra_actions %}
 {% include "partials/export_buttons.html" %}
 {% endblock %}

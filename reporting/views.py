@@ -30,7 +30,7 @@ from reporting.supplier_statement_rows import build_supplier_statement_rows
 from purchases.models import SupplierBill
 from sales.models import SalesInvoice
 from treasury.allocation import invoice_collectible_remaining
-from treasury.models import MoneyAccount, Payment
+from treasury.models import MoneyAccount, Payment, ReconciliationRecord
 
 
 def _sum_client_payments_usd(payments_qs):
