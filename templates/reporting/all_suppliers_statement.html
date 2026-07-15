@@ -2,7 +2,7 @@
 {% load formatting %}
 {% block title %}All Suppliers Statement{% endblock %}
 {% block hub_title %}All suppliers — statement{% endblock %}
-{% block hub_subtitle %}One summary row per supplier for the selected period. Footer total debit/credit matches the income statement; balance columns sum the rows shown below.{% endblock %}
+{% block hub_subtitle %}One summary row per supplier for the selected period. Footer sums the rows shown. Default hides net-zero suppliers — check Show zero balances to include them (then total credit matches the income statement).{% endblock %}
 {% block hub_extra_actions %}
 {% include "partials/export_buttons.html" %}
 {% endblock %}

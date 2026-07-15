@@ -393,10 +393,14 @@ class InvoicePeriodPlTests(TestCase):
         self.assertEqual(cogs, soa_cr)
         self.assertEqual(revenue - cogs, Decimal("130.00"))
 
-    def test_income_statement_matches_soa_footer_when_net_zero_client_hidden(self):
-        """Default SOA hides net-zero clients from rows but footer debit still matches P&L."""
+    def test_soa_footer_includes_net_zero_only_when_show_zero(self):
+        """Default hides net-zero clients from footer; show-zero matches P&L activity."""
         from reporting.invoice_pl import period_revenue_usd
-        from reporting.statement_summary import build_client_summary_rows, period_client_soa_tot_dr_cr
+        from reporting.statement_summary import (
+            build_client_summary_rows,
+            period_client_soa_tot_dr_cr,
+            summarize_totals,
+        )
 
         settled = Client.objects.create(client_code="C-ZERO", name_en="Settled Client")
         inv = SalesInvoice.objects.create(
@@ -437,10 +441,19 @@ class InvoicePeriodPlTests(TestCase):
 
         date_from, date_to = date(2026, 1, 1), date(2026, 12, 31)
         hidden_rows = build_client_summary_rows([settled], date_from, date_to, include_zero_balances=False)
+        shown_rows = build_client_summary_rows([settled], date_from, date_to, include_zero_balances=True)
         self.assertEqual(hidden_rows, [])
-        footer_dr, _ = period_client_soa_tot_dr_cr(date_from, date_to)
-        self.assertEqual(footer_dr, Decimal("100.00"))
-        self.assertEqual(period_revenue_usd(date_from, date_to), footer_dr)
+        self.assertEqual(len(shown_rows), 1)
+        hidden_dr, _, _, _, _ = summarize_totals(hidden_rows)
+        shown_dr, shown_cr, bal_dr, bal_cr, _ = summarize_totals(shown_rows)
+        self.assertEqual(hidden_dr, Decimal("0.00"))
+        self.assertEqual(shown_dr, Decimal("100.00"))
+        self.assertEqual(shown_cr, Decimal("100.00"))
+        self.assertEqual(bal_dr, Decimal("0.00"))
+        self.assertEqual(bal_cr, Decimal("0.00"))
+        full_dr, _ = period_client_soa_tot_dr_cr(date_from, date_to)
+        self.assertEqual(shown_dr, full_dr)
+        self.assertEqual(period_revenue_usd(date_from, date_to), full_dr)
 
 
 class IncomeStatementPdfTests(TestCase):
