@@ -353,7 +353,12 @@ class InvoicePeriodPlTests(TestCase):
 
     def test_revenue_and_cogs_match_soa_period_totals(self):
         from reporting.invoice_pl import period_cogs_usd, period_revenue_usd
-        from reporting.statement_summary import build_client_summary_rows, build_supplier_summary_rows
+        from reporting.statement_summary import (
+            build_client_summary_rows,
+            build_supplier_summary_rows,
+            period_client_soa_tot_dr_cr,
+            period_supplier_soa_tot_dr_cr,
+        )
 
         inv = SalesInvoice.objects.create(
             invoice_no="TMP-PL",
@@ -380,19 +385,62 @@ class InvoicePeriodPlTests(TestCase):
         date_from, date_to = date(2026, 1, 1), date(2026, 12, 31)
         revenue = period_revenue_usd(date_from, date_to)
         cogs = period_cogs_usd(date_from, date_to)
-        clients = build_client_summary_rows(
-            Client.objects.all(), date_from, date_to, include_zero_balances=True
-        )
-        suppliers = build_supplier_summary_rows(
-            Supplier.objects.all(), date_from, date_to, include_zero_balances=True
-        )
-        soa_sell = sum((r["tot_dr"] for r in clients), Decimal("0.00"))
-        soa_cost = sum((r["tot_cr"] for r in suppliers), Decimal("0.00"))
+        soa_dr, _ = period_client_soa_tot_dr_cr(date_from, date_to)
+        _, soa_cr = period_supplier_soa_tot_dr_cr(date_from, date_to)
         self.assertEqual(revenue, Decimal("3400.00"))
         self.assertEqual(cogs, Decimal("3270.00"))
-        self.assertEqual(revenue, soa_sell)
-        self.assertEqual(cogs, soa_cost)
+        self.assertEqual(revenue, soa_dr)
+        self.assertEqual(cogs, soa_cr)
         self.assertEqual(revenue - cogs, Decimal("130.00"))
+
+    def test_income_statement_matches_soa_footer_when_net_zero_client_hidden(self):
+        """Default SOA hides net-zero clients from rows but footer debit still matches P&L."""
+        from reporting.invoice_pl import period_revenue_usd
+        from reporting.statement_summary import build_client_summary_rows, period_client_soa_tot_dr_cr
+
+        settled = Client.objects.create(client_code="C-ZERO", name_en="Settled Client")
+        inv = SalesInvoice.objects.create(
+            invoice_no="TMP-ZERO",
+            client=settled,
+            sales_employee=self.employee,
+            issue_date=date(2026, 7, 5),
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=inv,
+            supplier=self.supplier,
+            service_type=self.service_type,
+            destination=self.destination,
+            line_employee=self.employee,
+            service_date=date(2026, 7, 5),
+            qty=Decimal("1"),
+            sell_price=Decimal("100"),
+            cost_price=Decimal("10"),
+            line_discount=Decimal("0"),
+        )
+        inv.recalc_usd_amounts()
+        inv.post(self.user)
+        from treasury.models import MoneyAccount, Payment
+
+        acct = MoneyAccount.objects.create(name="Test Bank", currency="USD")
+        Payment.objects.create(
+            receipt_no="PAY-ZERO",
+            client=settled,
+            party_type=Payment.PartyType.CLIENT,
+            direction=Payment.Direction.IN,
+            money_account=acct,
+            date=date(2026, 7, 6),
+            amount=Decimal("100"),
+            currency="USD",
+            status=Payment.Status.POSTED,
+        )
+
+        date_from, date_to = date(2026, 1, 1), date(2026, 12, 31)
+        hidden_rows = build_client_summary_rows([settled], date_from, date_to, include_zero_balances=False)
+        self.assertEqual(hidden_rows, [])
+        footer_dr, _ = period_client_soa_tot_dr_cr(date_from, date_to)
+        self.assertEqual(footer_dr, Decimal("100.00"))
+        self.assertEqual(period_revenue_usd(date_from, date_to), footer_dr)
 
 
 class IncomeStatementPdfTests(TestCase):

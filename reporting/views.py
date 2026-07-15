@@ -19,6 +19,8 @@ from reporting.statement_summary import (
     _supplier_period_movement,
     build_client_summary_rows,
     build_supplier_summary_rows,
+    period_client_soa_tot_dr_cr,
+    period_supplier_soa_tot_dr_cr,
     profit_summary_row,
     summarize_totals,
     summarize_supplier_totals,
@@ -123,7 +125,8 @@ def all_clients_statement(request):
     if q:
         clients = clients.filter(Q(name_en__icontains=q) | Q(client_code__icontains=q))
     rows = build_client_summary_rows(clients, df, dt, include_zero_balances=show_zero)
-    tot_dr, tot_cr, bal_dr, bal_cr, total_balance = summarize_totals(rows)
+    tot_dr, tot_cr = period_client_soa_tot_dr_cr(df, dt, clients=Client.objects.all())
+    _, _, bal_dr, bal_cr, total_balance = summarize_totals(rows)
     return render_or_pdf(
         request,
         "reporting/all_clients_statement.html",
@@ -241,7 +244,8 @@ def all_suppliers_statement(request):
     if q:
         suppliers = suppliers.filter(Q(name__icontains=q) | Q(supplier_code__icontains=q))
     rows = build_supplier_summary_rows(suppliers, df, dt, include_zero_balances=show_zero)
-    tot_dr, tot_cr, bal_dr, bal_cr, total_balance = summarize_supplier_totals(rows)
+    tot_dr, tot_cr = period_supplier_soa_tot_dr_cr(df, dt, suppliers=Supplier.objects.all())
+    _, _, bal_dr, bal_cr, total_balance = summarize_supplier_totals(rows)
     return render_or_pdf(
         request,
         "reporting/all_suppliers_statement.html",

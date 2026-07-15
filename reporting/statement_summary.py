@@ -160,6 +160,32 @@ def build_supplier_summary_rows(suppliers, date_from=None, date_to=None, *, incl
     return rows
 
 
+def period_client_soa_tot_dr_cr(date_from=None, date_to=None, clients=None):
+    """Sum period debit/credit for every client with SOA activity (matches income statement)."""
+    from accounts_core.models import Client
+
+    if clients is None:
+        client_ids = None
+    else:
+        client_ids = [c.id for c in clients]
+    movements = client_period_movements(date_from, date_to, client_ids=client_ids)
+    tot_dr = sum((d for d, _c in movements.values()), Decimal("0.00"))
+    tot_cr = sum((c for _d, c in movements.values()), Decimal("0.00"))
+    return tot_dr.quantize(Decimal("0.01")), tot_cr.quantize(Decimal("0.01"))
+
+
+def period_supplier_soa_tot_dr_cr(date_from=None, date_to=None, suppliers=None):
+    """Sum period debit/credit for every supplier with SOA activity (matches income statement)."""
+    if suppliers is None:
+        supplier_ids = None
+    else:
+        supplier_ids = [s.id for s in suppliers]
+    movements = supplier_period_movements(date_from, date_to, supplier_ids=supplier_ids)
+    tot_dr = sum((d for d, _c in movements.values()), Decimal("0.00"))
+    tot_cr = sum((c for _d, c in movements.values()), Decimal("0.00"))
+    return tot_dr.quantize(Decimal("0.01")), tot_cr.quantize(Decimal("0.01"))
+
+
 def summarize_totals(rows):
     """Footer totals: sum balance debit and balance credit separately (do not net them)."""
     tot_dr = sum((r["tot_dr"] for r in rows), Decimal("0.00"))

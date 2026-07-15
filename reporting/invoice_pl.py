@@ -1,9 +1,9 @@
 """
-Period P&L totals aligned with All Clients / All Suppliers SOA.
+Period P&L totals — same figures as All Clients / All Suppliers SOA footers.
 
-Revenue = sum of All Clients SOA period debits  (total sellings + client money-out)
-COGS    = sum of All Suppliers SOA period credits (supplier service costs + supplier money-in credits)
-OPEX    = sum of posted OperatingExpense.amount_usd in the period
+Revenue = All Clients SOA Total debit for the date range (all clients with period activity)
+COGS    = All Suppliers SOA Total credit for the date range (all suppliers with period activity)
+OPEX    = posted OperatingExpense.amount_usd with expense_date in the date range
 """
 
 from decimal import Decimal
@@ -11,20 +11,20 @@ from decimal import Decimal
 from django.db.models import Sum
 
 from expenses.models import OperatingExpense
-from reporting.period_movements import (
-    client_period_movements,
-    period_cogs_from_movements,
-    period_revenue_from_movements,
-    supplier_period_movements,
+from reporting.statement_summary import (
+    period_client_soa_tot_dr_cr,
+    period_supplier_soa_tot_dr_cr,
 )
 
 
 def period_revenue_usd(date_from=None, date_to=None) -> Decimal:
-    return period_revenue_from_movements(client_period_movements(date_from, date_to))
+    tot_dr, _tot_cr = period_client_soa_tot_dr_cr(date_from, date_to)
+    return tot_dr
 
 
 def period_cogs_usd(date_from=None, date_to=None) -> Decimal:
-    return period_cogs_from_movements(supplier_period_movements(date_from, date_to))
+    _tot_dr, tot_cr = period_supplier_soa_tot_dr_cr(date_from, date_to)
+    return tot_cr
 
 
 def period_opex_qs(date_from=None, date_to=None):
@@ -44,7 +44,7 @@ def period_opex_usd(date_from=None, date_to=None) -> Decimal:
 
 
 def period_opex_by_category(date_from=None, date_to=None):
-    """Category breakdown; ordering cleared so MySQL GROUP BY matches the full OPEX total."""
+    """Category breakdown; ordering cleared so GROUP BY matches the full OPEX total."""
     return (
         period_opex_qs(date_from, date_to)
         .values("category__code", "category__name")
