@@ -23,9 +23,10 @@
         {% for att in attachments %}
         <li>
             <a href="{{ att.file.url }}" target="_blank">{{ att.original_name|default:att.file.name }}</a>
-            {% if expense.status == "DRAFT" %}
+            {% if expense.status != "VOIDED" %}
             <form method="post" action="{% url 'expenses:expense_delete_attachment' expense.id att.id %}" style="display:inline;">
                 {% csrf_token %}
+                <input type="hidden" name="next" value="edit">
                 <button type="submit" class="btn-link" onclick="return confirm('Remove this file?');">Remove</button>
             </form>
             {% endif %}

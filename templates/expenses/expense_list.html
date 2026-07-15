@@ -37,7 +37,16 @@
             <td class="num">{{ e.amount_usd }}</td>
             <td>{{ e.attachments.all|length }}</td>
             <td>{{ e.status }}</td>
-            <td><a href="{% url 'expenses:expense_detail' e.id %}">View</a></td>
+            <td class="cell-nowrap">
+                <a class="btn" href="{% url 'expenses:expense_detail' e.id %}">View</a>
+                {% if e.status != "VOIDED" %}
+                <a class="btn" href="{% url 'expenses:expense_edit' e.id %}">Edit</a>
+                <form method="post" action="{% url 'expenses:expense_delete' e.id %}" style="display:inline;" onsubmit="return confirm('Delete expense {{ e.expense_no }} permanently? This cannot be undone.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn">Delete</button>
+                </form>
+                {% endif %}
+            </td>
         </tr>
     {% empty %}
         <tr><td colspan="9">No expenses found.</td></tr>

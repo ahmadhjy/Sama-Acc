@@ -62,12 +62,15 @@ def expense_detail(request, expense_id):
         OperatingExpense.objects.select_related("category", "posted_by"),
         pk=expense_id,
     )
+    can_edit = expense.status != OperatingExpense.Status.VOIDED
     return render(
         request,
         "expenses/expense_detail.html",
         {
             "expense": expense,
             "attachments": expense.attachments.all(),
+            "can_edit": can_edit,
+            "can_delete": can_edit,
         },
     )
 
@@ -107,8 +110,8 @@ def expense_create(request):
 @login_required
 def expense_edit(request, expense_id):
     expense = get_object_or_404(OperatingExpense, pk=expense_id)
-    if expense.status != OperatingExpense.Status.DRAFT:
-        messages.warning(request, "Only draft expenses can be edited.")
+    if expense.status == OperatingExpense.Status.VOIDED:
+        messages.warning(request, "Voided expenses cannot be edited.")
         return redirect("expenses:expense_detail", expense_id=expense.id)
     if request.method == "POST":
         form = OperatingExpenseForm(request.POST, instance=expense)
@@ -117,6 +120,7 @@ def expense_edit(request, expense_id):
             exp.recalc_usd()
             exp.save()
             _save_attachments(request, exp)
+            log_audit("UPDATE_OPERATING_EXPENSE", exp, actor=request.user)
             messages.success(request, f"Expense {exp.expense_no} updated.")
             return redirect("expenses:expense_detail", expense_id=exp.id)
     else:
@@ -149,7 +153,10 @@ def _save_attachments(request, expense):
 @login_required
 @require_http_methods(["POST"])
 def expense_delete(request, expense_id):
-    expense = get_object_or_404(OperatingExpense, pk=expense_id, status=OperatingExpense.Status.DRAFT)
+    expense = get_object_or_404(OperatingExpense, pk=expense_id)
+    if expense.status == OperatingExpense.Status.VOIDED:
+        messages.error(request, "Voided expenses cannot be deleted.")
+        return redirect("expenses:expense_detail", expense_id=expense.id)
     expense_no = expense.expense_no
     for att in expense.attachments.all():
         att.file.delete(save=False)
@@ -162,11 +169,17 @@ def expense_delete(request, expense_id):
 @login_required
 @require_http_methods(["POST"])
 def expense_delete_attachment(request, expense_id, attachment_id):
-    expense = get_object_or_404(OperatingExpense, pk=expense_id, status=OperatingExpense.Status.DRAFT)
+    expense = get_object_or_404(OperatingExpense, pk=expense_id)
+    if expense.status == OperatingExpense.Status.VOIDED:
+        messages.error(request, "Cannot change attachments on a voided expense.")
+        return redirect("expenses:expense_detail", expense_id=expense.id)
     att = get_object_or_404(OperatingExpenseAttachment, pk=attachment_id, expense=expense)
     att.file.delete(save=False)
     att.delete()
     messages.success(request, "Attachment removed.")
+    next_url = request.POST.get("next") or ""
+    if next_url == "edit":
+        return redirect("expenses:expense_edit", expense_id=expense.id)
     return redirect("expenses:expense_detail", expense_id=expense.id)
 
 
