@@ -139,9 +139,31 @@ def _invoice_page_context(form, formset, invoice, can_view_cost, payment_formset
 
 @login_required
 def invoice_list(request):
-    qs = SalesInvoice.objects.select_related("client", "sales_employee").order_by("-created_at")
-    qs = invoice_search_filters(qs, request)[:500]
-    return render_or_pdf(request, "sales/invoice_list.html", {"invoices": qs}, export_filename("Invoices"))
+    qs = (
+        SalesInvoice.objects.select_related("client", "sales_employee")
+        .prefetch_related("lines")
+        .order_by("-created_at")
+    )
+    invoices = list(invoice_search_filters(qs, request)[:500])
+    total_selling_usd = sum(
+        (inv.grand_total_usd or Decimal("0.00") for inv in invoices),
+        Decimal("0.00"),
+    )
+    total_cost_usd = sum((inv.total_line_cost_usd() for inv in invoices), Decimal("0.00"))
+    total_profit_usd = (total_selling_usd - total_cost_usd).quantize(Decimal("0.01"))
+    total_selling_usd = total_selling_usd.quantize(Decimal("0.01"))
+    total_cost_usd = total_cost_usd.quantize(Decimal("0.01"))
+    return render_or_pdf(
+        request,
+        "sales/invoice_list.html",
+        {
+            "invoices": invoices,
+            "total_selling_usd": total_selling_usd,
+            "total_cost_usd": total_cost_usd,
+            "total_profit_usd": total_profit_usd,
+        },
+        export_filename("Invoices"),
+    )
 
 
 @login_required

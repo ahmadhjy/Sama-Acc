@@ -61,6 +61,24 @@ class SalesInvoiceWorkflowTests(TestCase):
         self.assertEqual(posted_bills.count(), 1)
         self.assertEqual(posted_bills.first().currency, "USD")
 
+    def test_invoice_list_shows_period_totals_usd(self):
+        inv_a = self._create_ready_invoice(invoice_no="TMP-LIST-A")
+        inv_a.issue_date = date(2026, 7, 1)
+        inv_a.save(update_fields=["issue_date"])
+        inv_b = self._create_ready_invoice(invoice_no="TMP-LIST-B")
+        inv_b.issue_date = date(2026, 8, 1)
+        inv_b.save(update_fields=["issue_date"])
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("sales:invoice_list"),
+            {"date_from": "2026-07-01", "date_to": "2026-07-31"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total_selling_usd"], Decimal("190.00"))
+        self.assertEqual(response.context["total_cost_usd"], Decimal("160.00"))
+        self.assertEqual(response.context["total_profit_usd"], Decimal("30.00"))
+        self.assertContains(response, "Totals for displayed invoices")
+
     def test_publish_non_usd_invoice_uses_fx_for_usd_amounts(self):
         Currency.objects.get_or_create(code="EUR", defaults={"name": "Euro", "is_active": True, "sort_order": 2})
         invoice = self._create_ready_invoice(
