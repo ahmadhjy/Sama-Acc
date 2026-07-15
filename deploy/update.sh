@@ -87,7 +87,8 @@ pip install -r requirements.txt --disable-pip-version-check -q
 log "Checking database connection"
 python manage.py check --database default
 
-PENDING="$(python manage.py showmigrations --plan 2>/dev/null | grep -c '\[ \]' || true)"
+PENDING_OUT="$(python manage.py showmigrations --plan 2>&1)" || die "showmigrations failed:\n${PENDING_OUT}"
+PENDING="$(printf '%s\n' "$PENDING_OUT" | grep -c '\[ \]' || true)"
 if [[ "$PENDING" -gt 0 ]]; then
   log "Applying $PENDING pending migration(s) (existing data is preserved)"
   python manage.py migrate --noinput
