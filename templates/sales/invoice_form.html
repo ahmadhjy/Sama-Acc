@@ -1159,10 +1159,38 @@
     return d.getFullYear() + '-' + m + '-' + day;
   }
 
+  function invoiceIssueDateIso() {
+    var el = document.getElementById('id_issue_date');
+    if (el && el.value) return el.value;
+    return todayIso();
+  }
+
+  var lastIssueDateForLines = invoiceIssueDateIso();
+
   function defaultEmptyLineServiceDates() {
-    const today = todayIso();
+    var issue = invoiceIssueDateIso();
     document.querySelectorAll('.line-service-date').forEach(function(inp) {
-      if (!inp.value) inp.value = today;
+      if (!inp.value) inp.value = issue;
+    });
+  }
+
+  function syncLineServiceDatesFromIssueDate(prevIssue, nextIssue) {
+    if (!nextIssue) return;
+    document.querySelectorAll('.line-service-date').forEach(function(inp) {
+      // Empty rows, or rows still matching the previous default issue date.
+      if (!inp.value || (prevIssue && inp.value === prevIssue)) {
+        inp.value = nextIssue;
+      }
+    });
+  }
+
+  var issueDateInput = document.getElementById('id_issue_date');
+  if (issueDateInput) {
+    issueDateInput.addEventListener('change', function() {
+      var next = invoiceIssueDateIso();
+      syncLineServiceDatesFromIssueDate(lastIssueDateForLines, next);
+      lastIssueDateForLines = next;
+      if (typeof markFormDirty === 'function') markFormDirty();
     });
   }
 
@@ -1182,7 +1210,7 @@
       else el.value = '';
     });
     box.querySelectorAll('input[type="hidden"][name$="-id"]').forEach(function(el) { el.value = ''; });
-    box.querySelectorAll('.line-service-date').forEach(function(inp) { inp.value = todayIso(); });
+    box.querySelectorAll('.line-service-date').forEach(function(inp) { inp.value = invoiceIssueDateIso(); });
     box.querySelectorAll('.choices').forEach(function(wrap) {
       var sel = wrap.querySelector('select');
       if (sel && wrap.parentNode) {
@@ -1276,7 +1304,7 @@
       el.value = '';
     });
     clone.querySelectorAll('.line-service-date').forEach(function(inp) {
-      inp.value = todayIso();
+      inp.value = invoiceIssueDateIso();
     });
     stripChoicesArtifacts(clone);
     clone.querySelectorAll('select').forEach(function(el) {

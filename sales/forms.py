@@ -171,10 +171,13 @@ class SalesInvoiceLineBaseForm(forms.ModelForm):
         if emp:
             emp.queryset = _employee_queryset(_bound_pk(self, "line_employee"))
             emp.empty_label = "— Employee —"
-        if not self.instance.pk:
-            sd = self.fields.get("service_date")
-            if sd and not self.initial.get("service_date"):
-                sd.initial = timezone.localdate()
+        sd = self.fields.get("service_date")
+        if sd and not self.initial.get("service_date") and not getattr(self.instance, "service_date", None):
+            issue = None
+            if self.instance.invoice_id:
+                issue = getattr(self.instance.invoice, "issue_date", None)
+            if issue:
+                sd.initial = issue
 
     def clean_line_data(self):
         raw = self.cleaned_data.get("line_data")
@@ -231,6 +234,19 @@ class SalesInvoiceLineSalesForm(SalesInvoiceLineBaseForm):
 
 
 class SalesInvoiceLineInlineFormSet(BaseInlineFormSet):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        issue = getattr(self.instance, "issue_date", None) or timezone.localdate()
+        for form in self.forms:
+            sd = form.fields.get("service_date")
+            if not sd:
+                continue
+            if form.instance.pk and form.instance.service_date:
+                continue
+            if form.initial.get("service_date"):
+                continue
+            sd.initial = issue
+
     def _apply_line_order(self):
         order = 0
         for form in self.forms:
@@ -242,6 +258,10 @@ class SalesInvoiceLineInlineFormSet(BaseInlineFormSet):
             form.instance.sort_order = order
             order += 1
 
+    def _default_service_date(self, obj):
+        if obj and not obj.service_date and self.instance.issue_date:
+            obj.service_date = self.instance.issue_date
+
     def save(self, commit=True):
         self._apply_line_order()
         return super().save(commit=commit)
@@ -252,6 +272,7 @@ class SalesInvoiceLineInlineFormSet(BaseInlineFormSet):
         obj = super().save_new(form, commit=False)
         if obj and not obj.line_employee_id and self.instance.sales_employee_id:
             obj.line_employee_id = self.instance.sales_employee_id
+        self._default_service_date(obj)
         if commit and obj is not None:
             obj.save()
         return obj
@@ -260,6 +281,7 @@ class SalesInvoiceLineInlineFormSet(BaseInlineFormSet):
         obj = super().save_existing(form, instance, commit=False)
         if obj and not obj.line_employee_id and self.instance.sales_employee_id:
             obj.line_employee_id = self.instance.sales_employee_id
+        self._default_service_date(obj)
         if commit:
             obj.save()
         return obj

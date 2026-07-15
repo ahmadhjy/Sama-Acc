@@ -266,6 +266,59 @@ class InvoiceLineOrderTests(TestCase):
         self.assertEqual(resp.status_code, 200)
 
 
+class InvoiceServiceDateDefaultsTests(TestCase):
+    def setUp(self):
+        Currency.objects.get_or_create(code="USD", defaults={"name": "US Dollar", "is_active": True, "sort_order": 0})
+        self.client_obj = Client.objects.create(client_code="C-SD", name_en="Service Date Client")
+        self.employee = Employee.objects.create(name="SD Emp", role=Employee.EmployeeRole.ACCOUNTING)
+        self.service_type = ServiceType.objects.create(name="Visa SD", code="VISD")
+        self.destination = Destination.objects.create(name="Dubai SD")
+        self.supplier = Supplier.objects.create(supplier_code="S-SD", name="SD Supplier")
+
+    def test_blank_service_date_defaults_to_invoice_issue_date(self):
+        from sales.forms import SalesInvoiceLineFormSet
+
+        issue = date(2026, 3, 15)
+        invoice = SalesInvoice.objects.create(
+            invoice_no="TMP-SD",
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=issue,
+            currency="USD",
+        )
+        formset = SalesInvoiceLineFormSet(
+            {
+                "lines-TOTAL_FORMS": "1",
+                "lines-INITIAL_FORMS": "0",
+                "lines-MIN_NUM_FORMS": "0",
+                "lines-MAX_NUM_FORMS": "60",
+                "lines-0-service_type": str(self.service_type.pk),
+                "lines-0-supplier": str(self.supplier.pk),
+                "lines-0-line_employee": str(self.employee.pk),
+                "lines-0-destination": str(self.destination.pk),
+                "lines-0-service_date": "",
+                "lines-0-qty": "1.00",
+                "lines-0-sell_price": "80.00",
+                "lines-0-cost_price": "50.00",
+                "lines-0-line_discount": "0.00",
+                "lines-0-line_data": "{}",
+            },
+            instance=invoice,
+        )
+        self.assertTrue(formset.is_valid(), formset.errors)
+        formset.save()
+        line = invoice.lines.get()
+        self.assertEqual(line.service_date, issue)
+
+    def test_new_line_form_initial_service_date_is_issue_date(self):
+        from sales.forms import SalesInvoiceLineFormSet
+
+        issue = date(2026, 4, 20)
+        invoice = SalesInvoice(issue_date=issue, currency="USD")
+        formset = SalesInvoiceLineFormSet(instance=invoice)
+        self.assertEqual(formset.forms[0].fields["service_date"].initial, issue)
+
+
 class StatementLineDetailsTests(TestCase):
     def setUp(self):
         Currency.objects.get_or_create(code="USD", defaults={"name": "US Dollar", "is_active": True, "sort_order": 0})
