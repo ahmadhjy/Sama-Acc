@@ -46,7 +46,9 @@ def build_dashboard_analytics(request, *, revenue=None, cogs=None, opex_total=No
         payments_in = payments_in.filter(date__lte=date_to)
         payments_out = payments_out.filter(date__lte=date_to)
     cash_in = payments_in.aggregate(t=Sum("amount"))["t"] or Decimal("0.00")
-    cash_out = payments_out.aggregate(t=Sum("amount"))["t"] or Decimal("0.00")
+    treasury_cash_out = payments_out.aggregate(t=Sum("amount"))["t"] or Decimal("0.00")
+    # Cash flow Out = treasury money-out + period OPEX (OPEX stays its own KPI/chart).
+    cash_out = treasury_cash_out + opex_total
 
     from treasury.allocation import _client_invoices_ordered, _collectible_open_by_invoice
 
@@ -304,6 +306,7 @@ def build_dashboard_analytics(request, *, revenue=None, cogs=None, opex_total=No
         "cash_in": cash_in,
         "cash_out": cash_out,
         "cash_net": cash_in - cash_out,
+        "treasury_cash_out": treasury_cash_out,
         "receivables_due": receivables_due[:20],
         "overdue_client_payments": overdue_client_payments,
         "overdue_count": len(overdue_client_payments),

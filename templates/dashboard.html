@@ -98,7 +98,7 @@ Period: <strong>{{ period_label }}</strong>
             <div class="hub-kpi__head">
                 <span class="hub-kpi__label-wrap">
                     <span class="hub-kpi__label">Cash out</span>
-                    {% include "partials/info_tip.html" with tip="Sum of posted payments sent out from your money accounts during the selected period." %}
+                    {% include "partials/info_tip.html" with tip="Treasury payments sent out plus operating expenses in the selected period. OPEX remains a separate KPI; it is also included here so cash flow matches real outflow." %}
                 </span>
                 <span class="hub-kpi__icon"><i class="fa-solid fa-circle-up"></i></span>
             </div>
@@ -135,7 +135,7 @@ Period: <strong>{{ period_label }}</strong>
         <div class="hub-chart-card">
             <h2>
                 <span class="hub-chart-title">Cash flow</span>
-                {% include "partials/info_tip.html" with tip="Posted cash received, cash paid out, and net difference for the selected period (treasury payments)." %}
+                {% include "partials/info_tip.html" with tip="Cash received, cash paid out (treasury outflows + operating expenses), and net for the selected period." %}
             </h2>
             <div class="hub-chart-wrap hub-chart-wrap--sm"><canvas id="chart-cash"></canvas></div>
         </div>
@@ -241,25 +241,26 @@ Period: <strong>{{ period_label }}</strong>
     </div>
     {% endif %}
 
-    <div class="hub-table-wrap" id="scheduled-client-payments" style="margin-top:16px;">
-        <h2 class="hub-section-title" style="padding:16px 16px 0;margin:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+    <section class="hub-schedule-section" id="scheduled-client-payments">
+        <h2 class="hub-section-title" style="padding:0;margin:0 0 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             Client payment schedule
             {% include "partials/info_tip.html" with tip="Installments set on each sales invoice (due date + amount). Tracking only — not linked to treasury cash receipts." %}
             {% if schedule_unpaid_count %}<span class="muted" style="font-weight:normal;font-size:0.85em;">({{ schedule_unpaid_count }} unpaid)</span>{% endif %}
         </h2>
-        <form method="get" class="filter-bar" style="padding:12px 16px;margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <form method="get" class="filter-bar hub-schedule-filter" style="margin:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
             {% if date_from %}<input type="hidden" name="date_from" value="{{ date_from|date:'Y-m-d' }}">{% endif %}
             {% if date_to %}<input type="hidden" name="date_to" value="{{ date_to|date:'Y-m-d' }}">{% endif %}
             {% if request.GET.preset %}<input type="hidden" name="preset" value="{{ request.GET.preset }}">{% endif %}
             <input type="hidden" name="tab" value="overview">
             <label>Show
-                <select name="schedule_status" onchange="this.form.submit()">
+                <select name="schedule_status" class="plain-select" onchange="this.form.submit()">
                     <option value="unpaid" {% if schedule_status == 'unpaid' %}selected{% endif %}>Unpaid</option>
                     <option value="paid" {% if schedule_status == 'paid' %}selected{% endif %}>Paid only</option>
                     <option value="all" {% if schedule_status == 'all' %}selected{% endif %}>All</option>
                 </select>
             </label>
         </form>
+        <div class="hub-table-wrap">
         <table>
             <thead>
                 <tr>
@@ -305,7 +306,8 @@ Period: <strong>{{ period_label }}</strong>
             {% endfor %}
             </tbody>
         </table>
-    </div>
+        </div>
+    </section>
 </section>
 {% elif hub_tab == 'destinations' %}
 

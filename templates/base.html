@@ -85,6 +85,7 @@ window.initSearchableSelect = function(el) {
     if (el.closest && el.closest(".hub-hero__filters")) return null;
     if (el.classList.contains("hub-preset-select")) return null;
     if (el.classList.contains("destination-select")) return null;
+    if (el.classList.contains("plain-select") || el.dataset.plainSelect === "1") return null;
     if (el.dataset.choicesInitialized && el._choicesInstance) return el._choicesInstance;
     if (el._choicesInstance) {
         window.destroySearchableSelect(el);

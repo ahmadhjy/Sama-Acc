@@ -427,6 +427,31 @@
     z-index: 500;
 }
 
+.hub-table-wrap--overdue {
+    position: relative;
+    z-index: 1;
+}
+
+.hub-schedule-section {
+    position: relative;
+    z-index: 20;
+    margin-top: 16px;
+}
+
+.hub-schedule-filter {
+    position: relative;
+    z-index: 30;
+    padding: 10px 0;
+    background: transparent;
+}
+
+.hub-schedule-filter select.plain-select {
+    position: relative;
+    z-index: 31;
+    min-width: 140px;
+    background: #fff;
+}
+
 .hub-table-wrap th {
     white-space: nowrap;
 }
