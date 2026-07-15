@@ -334,6 +334,14 @@
     margin-bottom: 20px;
 }
 
+.hub-kpis--cash {
+    margin-top: -6px;
+}
+
+.hub-kpis--cash .hub-kpi {
+    flex: 1 1 220px;
+}
+
 .hub-kpi {
     flex: 1 1 180px;
     min-width: 180px;
