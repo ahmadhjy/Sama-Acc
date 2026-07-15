@@ -351,14 +351,8 @@ class InvoicePeriodPlTests(TestCase):
         self.destination = Destination.objects.create(name="Paris PL")
         self.supplier = Supplier.objects.create(supplier_code="S-PL", name="PL Supplier")
 
-    def test_revenue_and_cogs_match_soa_period_totals(self):
+    def test_revenue_and_cogs_match_invoice_period_totals(self):
         from reporting.invoice_pl import period_cogs_usd, period_revenue_usd
-        from reporting.statement_summary import (
-            build_client_summary_rows,
-            build_supplier_summary_rows,
-            period_client_soa_tot_dr_cr,
-            period_supplier_soa_tot_dr_cr,
-        )
 
         inv = SalesInvoice.objects.create(
             invoice_no="TMP-PL",
@@ -385,16 +379,50 @@ class InvoicePeriodPlTests(TestCase):
         date_from, date_to = date(2026, 1, 1), date(2026, 12, 31)
         revenue = period_revenue_usd(date_from, date_to)
         cogs = period_cogs_usd(date_from, date_to)
-        soa_dr, _ = period_client_soa_tot_dr_cr(date_from, date_to)
-        _, soa_cr = period_supplier_soa_tot_dr_cr(date_from, date_to)
         self.assertEqual(revenue, Decimal("3400.00"))
         self.assertEqual(cogs, Decimal("3270.00"))
-        self.assertEqual(revenue, soa_dr)
-        self.assertEqual(cogs, soa_cr)
+        self.assertEqual(inv.grand_total_usd, revenue)
+        self.assertEqual(inv.total_line_cost_usd(), cogs)
         self.assertEqual(revenue - cogs, Decimal("130.00"))
 
+    def test_revenue_uses_issue_date_not_service_date(self):
+        """Stats follow invoice issue date; SOA can use a different service date."""
+        from reporting.invoice_pl import period_revenue_usd
+        from reporting.statement_summary import period_client_soa_tot_dr_cr
+
+        inv = SalesInvoice.objects.create(
+            invoice_no="TMP-DATE",
+            client=self.client_obj,
+            sales_employee=self.employee,
+            issue_date=date(2026, 7, 15),
+            currency="USD",
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=inv,
+            supplier=self.supplier,
+            service_type=self.service_type,
+            destination=self.destination,
+            line_employee=self.employee,
+            service_date=date(2026, 8, 20),
+            qty=Decimal("1"),
+            sell_price=Decimal("500"),
+            cost_price=Decimal("200"),
+            line_discount=Decimal("0"),
+        )
+        inv.recalc_usd_amounts()
+        inv.post(self.user)
+
+        july_from, july_to = date(2026, 7, 1), date(2026, 7, 31)
+        aug_from, aug_to = date(2026, 8, 1), date(2026, 8, 31)
+        self.assertEqual(period_revenue_usd(july_from, july_to), Decimal("500.00"))
+        self.assertEqual(period_revenue_usd(aug_from, aug_to), Decimal("0.00"))
+        soa_july, _ = period_client_soa_tot_dr_cr(july_from, july_to)
+        soa_aug, _ = period_client_soa_tot_dr_cr(aug_from, aug_to)
+        self.assertEqual(soa_july, Decimal("0.00"))
+        self.assertEqual(soa_aug, Decimal("500.00"))
+
     def test_soa_footer_includes_net_zero_only_when_show_zero(self):
-        """Default hides net-zero clients from footer; show-zero matches P&L activity."""
+        """Default hides net-zero clients from footer; show-zero matches SOA activity."""
         from reporting.invoice_pl import period_revenue_usd
         from reporting.statement_summary import (
             build_client_summary_rows,

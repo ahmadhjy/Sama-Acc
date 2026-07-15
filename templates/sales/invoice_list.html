@@ -15,7 +15,7 @@
     <a class="btn btn-clear hub-btn-clear" href="{% url 'sales:invoice_list' %}?{{ default_filter_query }}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
 </form>
 <div class="panel invoice-list-totals" style="margin-bottom:12px;display:flex;flex-wrap:wrap;gap:1.25rem 2rem;align-items:baseline;">
-    <span class="muted">Totals for displayed invoices (USD)</span>
+    <span class="muted">Totals for displayed invoices (USD, excluding voided)</span>
     <span><strong>Selling:</strong> {{ total_selling_usd|money }}</span>
     <span><strong>Cost:</strong> {{ total_cost_usd|money }}</span>
     <span><strong>Profit:</strong> {{ total_profit_usd|money }}</span>

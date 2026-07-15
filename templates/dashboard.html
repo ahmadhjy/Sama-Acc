@@ -4,7 +4,7 @@
 {% block hub_title %}Business intelligence{% endblock %}
 {% block hub_subtitle %}
 Period: <strong>{{ period_label }}</strong>
-{% include "partials/info_tip.html" with tip="Date range filters Revenue (service dates), Purchases/COGS (supplier costs in range), and Operating expenses (expense date). Outstanding A/R and A/P are always as of today." %}
+{% include "partials/info_tip.html" with tip="Date range filters Revenue and COGS by invoice issue date (same as the Invoices list totals), and Operating expenses by expense date. Outstanding A/R and A/P are always as of today." %}
 {% endblock %}
 
 
@@ -38,7 +38,7 @@ Period: <strong>{{ period_label }}</strong>
             <div class="hub-kpi__head">
                 <span class="hub-kpi__label-wrap">
                     <span class="hub-kpi__label">Revenue (USD)</span>
-                    {% include "partials/info_tip.html" with tip="Same as All Clients SOA Total debit for this period: sum of service sellings (with zero-balance clients included)." %}
+                    {% include "partials/info_tip.html" with tip="Sum of selling totals (USD) for invoices with issue date in this period — same as Selling on the Invoices list." %}
                 </span>
                 <span class="hub-kpi__icon"><i class="fa-solid fa-arrow-trend-up"></i></span>
             </div>
@@ -48,7 +48,7 @@ Period: <strong>{{ period_label }}</strong>
             <div class="hub-kpi__head">
                 <span class="hub-kpi__label-wrap">
                     <span class="hub-kpi__label">Gross profit</span>
-                    {% include "partials/info_tip.html" with tip="Revenue minus COGS using the same period totals as All Clients / All Suppliers SOA." %}
+                    {% include "partials/info_tip.html" with tip="Revenue minus COGS from invoice selling and cost totals for the selected period." %}
                 </span>
                 <span class="hub-kpi__icon"><i class="fa-solid fa-chart-pie"></i></span>
             </div>
@@ -416,7 +416,7 @@ Period: <strong>{{ period_label }}</strong>
             <div class="hub-kpi__head">
                 <span class="hub-kpi__label-wrap">
                     <span class="hub-kpi__label">COGS</span>
-                    {% include "partials/info_tip.html" with tip="Same as All Suppliers SOA Total credit for this period: supplier service costs (with zero-balance suppliers included)." %}
+                    {% include "partials/info_tip.html" with tip="Sum of invoice line costs (USD) for invoices with issue date in this period — same as Cost on the Invoices list." %}
                 </span>
                 <span class="hub-kpi__icon"><i class="fa-solid fa-tags"></i></span>
             </div>

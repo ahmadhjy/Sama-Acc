@@ -145,11 +145,13 @@ def invoice_list(request):
         .order_by("-created_at")
     )
     invoices = list(invoice_search_filters(qs, request)[:500])
+    # Totals match dashboard Revenue/COGS: draft+posted only (exclude voided).
+    totals_invoices = [inv for inv in invoices if inv.status in SalesInvoice.reporting_statuses()]
     total_selling_usd = sum(
-        (inv.grand_total_usd or Decimal("0.00") for inv in invoices),
+        (inv.grand_total_usd or Decimal("0.00") for inv in totals_invoices),
         Decimal("0.00"),
     )
-    total_cost_usd = sum((inv.total_line_cost_usd() for inv in invoices), Decimal("0.00"))
+    total_cost_usd = sum((inv.total_line_cost_usd() for inv in totals_invoices), Decimal("0.00"))
     total_profit_usd = (total_selling_usd - total_cost_usd).quantize(Decimal("0.01"))
     total_selling_usd = total_selling_usd.quantize(Decimal("0.01"))
     total_cost_usd = total_cost_usd.quantize(Decimal("0.01"))

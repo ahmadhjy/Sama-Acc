@@ -7,7 +7,6 @@ from django.db.models.functions import Coalesce, TruncMonth
 from accounts_core.models import Employee, Supplier
 from reporting.date_ranges import resolve_report_dates
 from reporting.invoice_pl import period_cogs_usd, period_opex_by_category, period_opex_usd, period_revenue_usd
-from reporting.payment_amounts import payment_usd_amount
 from reporting.period_movements import (
     client_ar_balances_as_of,
     supplier_ap_balances_as_of,
@@ -145,7 +144,7 @@ def build_dashboard_analytics(request, *, revenue=None, cogs=None, opex_total=No
         if s["supplier_id"] in supplier_objs
     ]
 
-    # Monthly revenue trend (SOA-aligned) within the selected period — one SQL pass.
+    # Monthly revenue trend from invoice selling totals (issue_date) — matches KPI revenue.
     chart_from, chart_to = date_from, date_to
     if not chart_from or not chart_to:
         chart_to = today
@@ -157,37 +156,22 @@ def build_dashboard_analytics(request, *, revenue=None, cogs=None, opex_total=No
                 chart_from = date(chart_from.year, chart_from.month - 1, 1)
 
     month_totals = {}
-    month_lines = SalesInvoiceLine.objects.filter(
-        invoice__status__in=SalesInvoice.reporting_statuses(),
-    ).annotate(line_date=Coalesce("service_date", "invoice__issue_date"))
+    month_invoices = SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
     if chart_from:
-        month_lines = month_lines.filter(line_date__gte=chart_from)
+        month_invoices = month_invoices.filter(issue_date__gte=chart_from)
     if chart_to:
-        month_lines = month_lines.filter(line_date__lte=chart_to)
+        month_invoices = month_invoices.filter(issue_date__lte=chart_to)
     for row in (
-        month_lines.annotate(month=TruncMonth("line_date"))
+        month_invoices.annotate(month=TruncMonth("issue_date"))
         .values("month")
-        .annotate(total=Sum(sell_expr))
+        .annotate(total=Sum("grand_total_usd"))
     ):
         if row["month"]:
             raw = row["month"]
             if hasattr(raw, "date") and callable(raw.date):
                 raw = raw.date()
             key = date(raw.year, raw.month, 1)
-            month_totals[key] = month_totals.get(key, Decimal("0.00")) + (row["total"] or Decimal("0.00"))
-
-    out_pays = Payment.objects.filter(
-        party_type=Payment.PartyType.CLIENT,
-        status=Payment.Status.POSTED,
-        direction=Payment.Direction.OUT,
-    )
-    if chart_from:
-        out_pays = out_pays.filter(date__gte=chart_from)
-    if chart_to:
-        out_pays = out_pays.filter(date__lte=chart_to)
-    for pay in out_pays.only("date", "amount", "currency", "exchange_rate"):
-        key = date(pay.date.year, pay.date.month, 1)
-        month_totals[key] = month_totals.get(key, Decimal("0.00")) + payment_usd_amount(pay)
+            month_totals[key] = (row["total"] or Decimal("0.00")).quantize(Decimal("0.01"))
 
     monthly_revenue = []
     y, m = chart_from.year, chart_from.month

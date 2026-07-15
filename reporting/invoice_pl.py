@@ -1,30 +1,50 @@
 """
-Period P&L totals — same figures as All Clients / All Suppliers SOA footers.
+Period P&L totals from sales invoices (not SOA footers).
 
-Revenue = All Clients SOA Total debit for the date range (all clients with period activity)
-COGS    = All Suppliers SOA Total credit for the date range (all suppliers with period activity)
+Revenue = sum of invoice grand_total_usd for reporting invoices with issue_date in range
+COGS    = sum of line costs (qty × cost_price_usd) on those same invoices
 OPEX    = posted OperatingExpense.amount_usd with expense_date in the date range
+
+SOA totals can differ (service dates, payments, ledger) and stay on the statement pages.
 """
 
 from decimal import Decimal
 
-from django.db.models import Sum
+from django.db.models import DecimalField, ExpressionWrapper, F, Sum, Value
+from django.db.models.functions import Coalesce
 
 from expenses.models import OperatingExpense
-from reporting.statement_summary import (
-    period_client_soa_tot_dr_cr,
-    period_supplier_soa_tot_dr_cr,
-)
+from sales.models import SalesInvoice, SalesInvoiceLine
+
+ZERO = Decimal("0.00")
+
+
+def _period_invoices(date_from=None, date_to=None):
+    qs = SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
+    if date_from:
+        qs = qs.filter(issue_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(issue_date__lte=date_to)
+    return qs
 
 
 def period_revenue_usd(date_from=None, date_to=None) -> Decimal:
-    tot_dr, _tot_cr = period_client_soa_tot_dr_cr(date_from, date_to)
-    return tot_dr
+    total = _period_invoices(date_from, date_to).aggregate(t=Sum("grand_total_usd"))["t"]
+    return (total or ZERO).quantize(Decimal("0.01"))
 
 
 def period_cogs_usd(date_from=None, date_to=None) -> Decimal:
-    _tot_dr, tot_cr = period_supplier_soa_tot_dr_cr(date_from, date_to)
-    return tot_cr
+    cost_expr = ExpressionWrapper(
+        F("qty") * Coalesce(F("cost_price_usd"), Value(ZERO)),
+        output_field=DecimalField(max_digits=18, decimal_places=4),
+    )
+    qs = SalesInvoiceLine.objects.filter(invoice__status__in=SalesInvoice.reporting_statuses())
+    if date_from:
+        qs = qs.filter(invoice__issue_date__gte=date_from)
+    if date_to:
+        qs = qs.filter(invoice__issue_date__lte=date_to)
+    total = qs.aggregate(t=Sum(cost_expr))["t"]
+    return (total or ZERO).quantize(Decimal("0.01"))
 
 
 def period_opex_qs(date_from=None, date_to=None):

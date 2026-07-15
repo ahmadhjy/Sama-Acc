@@ -161,7 +161,7 @@ def build_supplier_summary_rows(suppliers, date_from=None, date_to=None, *, incl
 
 
 def period_client_soa_tot_dr_cr(date_from=None, date_to=None, clients=None):
-    """Sum period debit/credit for every client with SOA activity (matches income statement)."""
+    """Sum period debit/credit for every client with SOA activity."""
     from accounts_core.models import Client
 
     if clients is None:
@@ -175,7 +175,7 @@ def period_client_soa_tot_dr_cr(date_from=None, date_to=None, clients=None):
 
 
 def period_supplier_soa_tot_dr_cr(date_from=None, date_to=None, suppliers=None):
-    """Sum period debit/credit for every supplier with SOA activity (matches income statement)."""
+    """Sum period debit/credit for every supplier with SOA activity."""
     if suppliers is None:
         supplier_ids = None
     else:

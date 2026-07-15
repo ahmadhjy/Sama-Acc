@@ -382,7 +382,7 @@ def activity_trial_balance(request):
     rows = [
         {
             "account": "4010000001",
-            "name": "Sales Revenue (All Clients SOA debits)",
+            "name": "Sales Revenue (invoice selling totals)",
             "curr": currency,
             "tot_dr": Decimal("0.00"),
             "tot_cr": sales_total,
@@ -391,7 +391,7 @@ def activity_trial_balance(request):
         },
         {
             "account": "5010000001",
-            "name": "Cost of Sales (All Suppliers SOA credits)",
+            "name": "Cost of Sales (invoice cost totals)",
             "curr": currency,
             "tot_dr": cogs_total,
             "tot_cr": Decimal("0.00"),
@@ -461,7 +461,7 @@ def activity_trial_balance(request):
             "opex_total": opex_total,
             "pdf_income_statement": True,
             "pdf_report_title": "Income Statement",
-            "pdf_report_subtitle": "Revenue and COGS match All Clients / All Suppliers SOA period totals; plus operating expenses (USD)",
+            "pdf_report_subtitle": "Revenue and COGS from sales invoice selling and cost totals; plus operating expenses (USD)",
             "pdf_account_range": "Accounts: 401 (Sales revenue), 501 (Cost of sales), 626/631 (Operating expenses by category)",
         },
         export_filename("Income_Statement", export_period_suffix(df, dt)),
