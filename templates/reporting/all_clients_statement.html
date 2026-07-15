@@ -2,7 +2,11 @@
 {% load formatting %}
 {% block title %}All Clients Statement{% endblock %}
 {% block hub_title %}All clients — statement of account{% endblock %}
-{% block hub_subtitle %}One summary row per client for the selected period.{% endblock %}
+{% block hub_subtitle %}
+One summary row per client for the selected period.
+<span class="muted">Total debit/credit = period activity. Balance debit = they owe you; balance credit = you owe them (overpayment).</span>
+{% endblock %}
+
 {% block hub_extra_actions %}
 {% include "partials/export_buttons.html" %}
 {% endblock %}

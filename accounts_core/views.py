@@ -27,14 +27,13 @@ class AppLoginView(LoginView):
 def dashboard(request):
     from reporting.analytics import build_dashboard_analytics
     from reporting.date_ranges import resolve_report_dates
+    from reporting.invoice_pl import period_cogs_usd, period_opex_usd, period_revenue_usd
     from reporting.report_summary import build_report_summary
 
     date_from, date_to, period_label = resolve_report_dates(request)
     hub_tab = (request.GET.get("tab") or "overview").lower()
     if hub_tab not in ("overview", "reports", "destinations"):
         hub_tab = "overview"
-
-    from reporting.destination_stats import build_destination_stats
 
     context = {
         "hub_tab": hub_tab,
@@ -50,10 +49,38 @@ def dashboard(request):
         "employee_count": Employee.objects.count(),
         "latest_invoices": SalesInvoice.objects.select_related("client").order_by("-created_at")[:10],
         "latest_payments": Payment.objects.select_related("money_account").order_by("-created_at")[:10],
-        **build_dashboard_analytics(request),
-        **build_report_summary(request),
-        **build_destination_stats(date_from, date_to),
     }
+
+    # Compute period P&L once and share across overview/reports (was double-scanned).
+    revenue = cogs = opex = None
+    if hub_tab in ("overview", "reports"):
+        revenue = period_revenue_usd(date_from, date_to)
+        cogs = period_cogs_usd(date_from, date_to)
+        opex = period_opex_usd(date_from, date_to)
+
+    if hub_tab == "overview":
+        context.update(
+            build_dashboard_analytics(
+                request,
+                revenue=revenue,
+                cogs=cogs,
+                opex_total=opex,
+            )
+        )
+    elif hub_tab == "reports":
+        context.update(
+            build_report_summary(
+                request,
+                revenue=revenue,
+                cogs=cogs,
+                opex_total=opex,
+            )
+        )
+    else:
+        from reporting.destination_stats import build_destination_stats
+
+        context.update(build_destination_stats(date_from, date_to))
+
     return render(request, "dashboard.html", context)
 
 

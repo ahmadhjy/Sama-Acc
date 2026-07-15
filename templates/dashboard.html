@@ -4,8 +4,9 @@
 {% block hub_title %}Business intelligence{% endblock %}
 {% block hub_subtitle %}
 Period: <strong>{{ period_label }}</strong>
-{% include "partials/info_tip.html" with tip="Date range for KPI cards and most charts. Presets (Today, This week, etc.) set From/To in the header. Total sales always shows the last 6 calendar months." %}
+{% include "partials/info_tip.html" with tip="Date range filters Revenue (service dates), Purchases/COGS (supplier costs in range), and Operating expenses (expense date). Outstanding A/R and A/P are always as of today." %}
 {% endblock %}
+
 
 {% block hub_filter_preserve %}
 {% if hub_tab == 'reports' %}<input type="hidden" name="tab" value="reports">{% endif %}
@@ -13,6 +14,7 @@ Period: <strong>{{ period_label }}</strong>
 {% endblock %}
 
 {% block hub_body %}
+{% if hub_tab == 'overview' %}
 {% if overdue_count or due_today_count %}
 <div class="hub-alerts">
     {% if overdue_count %}
@@ -30,7 +32,7 @@ Period: <strong>{{ period_label }}</strong>
 </div>
 {% endif %}
 
-<section class="hub-panel {% if hub_tab != 'reports' and hub_tab != 'destinations' %}hub-panel--active{% endif %}" id="panel-overview">
+<section class="hub-panel hub-panel--active" id="panel-overview">
     <div class="hub-kpis">
         <div class="hub-kpi">
             <div class="hub-kpi__head">
@@ -239,8 +241,9 @@ Period: <strong>{{ period_label }}</strong>
     </div>
     {% endif %}
 </section>
+{% elif hub_tab == 'destinations' %}
 
-<section class="hub-panel {% if hub_tab == 'destinations' %}hub-panel--active{% endif %}" id="panel-destinations">
+<section class="hub-panel hub-panel--active" id="panel-destinations">
     <div class="hub-kpis">
         <div class="hub-kpi">
             <div class="hub-kpi__head"><span class="hub-kpi__label">Destinations</span></div>
@@ -305,8 +308,9 @@ Period: <strong>{{ period_label }}</strong>
     <p class="muted" style="padding:16px;">No posted invoice lines with destinations in this period.</p>
     {% endif %}
 </section>
+{% elif hub_tab == 'reports' %}
 
-<section class="hub-panel {% if hub_tab == 'reports' %}hub-panel--active{% endif %}" id="panel-reports">
+<section class="hub-panel hub-panel--active" id="panel-reports">
     <div class="hub-kpis">
         <div class="hub-kpi">
             <div class="hub-kpi__head">
@@ -396,6 +400,7 @@ Period: <strong>{{ period_label }}</strong>
         <a class="hub-quick-link" href="{% url 'reporting:salesman_reports_home' %}?{{ request.GET.urlencode }}"><strong>Salesman reports</strong><span>Per-employee performance</span></a>
     </div>
 </section>
+{% endif %}
 
 {% include "hub/chart_data.html" %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>

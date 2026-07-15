@@ -10,7 +10,7 @@ from reporting.invoice_pl import period_cogs_usd, period_opex_usd, period_revenu
 from treasury.models import Payment
 
 
-def build_report_summary(request):
+def build_report_summary(request, *, revenue=None, cogs=None, opex_total=None):
     df, dt, _ = resolve_report_dates(request)
 
     bill_q = SupplierBill.objects.filter(status=SupplierBill.Status.POSTED)
@@ -22,11 +22,11 @@ def build_report_summary(request):
         pay_q = pay_q.filter(date__lte=dt)
         bill_q = bill_q.filter(bill_date__lte=dt)
 
-    posted_invoices_total = period_revenue_usd(df, dt)
-    posted_cogs_total = period_cogs_usd(df, dt)
+    posted_invoices_total = revenue if revenue is not None else period_revenue_usd(df, dt)
+    posted_cogs_total = cogs if cogs is not None else period_cogs_usd(df, dt)
     posted_bills_total = bill_q.aggregate(total=Sum("grand_total"))["total"] or Decimal("0.00")
     posted_payments_total = pay_q.aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-    total_opex = period_opex_usd(df, dt)
+    total_opex = opex_total if opex_total is not None else period_opex_usd(df, dt)
 
     net_profit_estimate = posted_invoices_total - posted_cogs_total - total_opex
     gross_margin_estimate = posted_invoices_total - posted_cogs_total

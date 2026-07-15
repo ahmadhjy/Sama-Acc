@@ -34,13 +34,15 @@ def build_client_statement_rows(client, date_from=None, date_to=None):
     invoices = (
         SalesInvoice.objects.filter(client=client, status__in=SalesInvoice.reporting_statuses())
         .prefetch_related(
+            "lines__destination",
             "lines__service_type__field_definitions",
             "lines__service_instance__service_type__field_definitions",
         )
+        .order_by("issue_date", "created_at")
     )
     rows = []
-    for inv in invoices.order_by("issue_date", "created_at"):
-        for line in inv.lines.select_related("destination").all():
+    for inv in invoices:
+        for line in inv.lines.all():
             line_date = line.effective_service_date()
             if date_from and line_date and line_date < date_from:
                 continue

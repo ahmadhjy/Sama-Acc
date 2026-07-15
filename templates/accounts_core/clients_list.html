@@ -13,7 +13,7 @@
     <a class="btn btn-clear hub-btn-clear" href="{% url 'accounts_core:clients_list' %}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
 </form>
 <table>
-    <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Date of birth</th><th>Phone</th><th>Outstanding A/R</th><th></th></tr></thead>
+    <thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Date of birth</th><th>Phone</th><th></th></tr></thead>
     <tbody>
     {% for client in clients %}
         <tr>
@@ -22,14 +22,13 @@
             <td>{{ client.type }}</td>
             <td>{% if client.date_of_birth %}{{ client.date_of_birth|date:"d/m/Y" }}{% else %}-{% endif %}</td>
             <td>{{ client.phone|default:"-" }}</td>
-            <td>{{ client.outstanding_receivable }}</td>
             <td>
                 <a class="btn" href="{% url 'accounts_core:client_edit' client.id %}">Edit</a>
                 <a class="btn" href="{% url 'reporting:client_statement' client.id %}">Statement</a>
             </td>
         </tr>
     {% empty %}
-        <tr><td colspan="7">No clients found.</td></tr>
+        <tr><td colspan="6">No clients found.</td></tr>
     {% endfor %}
     </tbody>
 </table>

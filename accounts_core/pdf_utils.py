@@ -470,7 +470,6 @@ def _flatten_client(c):
         c.type,
         _format_cell(c.date_of_birth) if c.date_of_birth else "-",
         c.whatsapp or "-",
-        _format_cell(c.outstanding_receivable),
     ]
 
 
@@ -626,7 +625,7 @@ def prepare_pdf_export(context):
         context["pdf_description_column_index"] = 3
 
     elif context.get("clients"):
-        context["pdf_table_headers"] = ["Code", "Name", "Type", "Date of birth", "Phone", "Outstanding A/R"]
+        context["pdf_table_headers"] = ["Code", "Name", "Type", "Date of birth", "Phone"]
         context["pdf_table_rows"] = [_flatten_client(c) for c in context["clients"]]
         context["pdf_numeric_column_indexes"] = [5]
 

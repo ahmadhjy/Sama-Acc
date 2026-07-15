@@ -1,18 +1,18 @@
-{{ chart_monthly_labels|json_script:"chart-monthly-labels" }}
-{{ chart_monthly_values|json_script:"chart-monthly-values" }}
-{{ chart_salesman_labels|json_script:"chart-salesman-labels" }}
-{{ chart_salesman_sales|json_script:"chart-salesman-sales" }}
-{{ chart_salesman_profit|json_script:"chart-salesman-profit" }}
-{{ chart_salesman_ids|json_script:"chart-salesman-ids" }}
-{{ chart_supplier_labels|json_script:"chart-supplier-labels" }}
-{{ chart_supplier_balances|json_script:"chart-supplier-balances" }}
-{{ chart_opex_labels|json_script:"chart-opex-labels" }}
-{{ chart_opex_values|json_script:"chart-opex-values" }}
-{{ chart_ar_aging_labels|json_script:"chart-ar-aging-labels" }}
-{{ chart_ar_aging_values|json_script:"chart-ar-aging-values" }}
-{{ chart_summary_labels|json_script:"chart-summary-labels" }}
-{{ chart_summary_values|json_script:"chart-summary-values" }}
-{{ chart_destination_labels|json_script:"chart-destination-labels" }}
-{{ chart_destination_sales|json_script:"chart-destination-sales" }}
-{{ chart_destination_profit|json_script:"chart-destination-profit" }}
+{% if chart_monthly_labels %}{{ chart_monthly_labels|json_script:"chart-monthly-labels" }}{% endif %}
+{% if chart_monthly_values %}{{ chart_monthly_values|json_script:"chart-monthly-values" }}{% endif %}
+{% if chart_salesman_labels %}{{ chart_salesman_labels|json_script:"chart-salesman-labels" }}{% endif %}
+{% if chart_salesman_sales %}{{ chart_salesman_sales|json_script:"chart-salesman-sales" }}{% endif %}
+{% if chart_salesman_profit %}{{ chart_salesman_profit|json_script:"chart-salesman-profit" }}{% endif %}
+{% if chart_salesman_ids %}{{ chart_salesman_ids|json_script:"chart-salesman-ids" }}{% endif %}
+{% if chart_supplier_labels %}{{ chart_supplier_labels|json_script:"chart-supplier-labels" }}{% endif %}
+{% if chart_supplier_balances %}{{ chart_supplier_balances|json_script:"chart-supplier-balances" }}{% endif %}
+{% if chart_opex_labels %}{{ chart_opex_labels|json_script:"chart-opex-labels" }}{% endif %}
+{% if chart_opex_values %}{{ chart_opex_values|json_script:"chart-opex-values" }}{% endif %}
+{% if chart_ar_aging_labels %}{{ chart_ar_aging_labels|json_script:"chart-ar-aging-labels" }}{% endif %}
+{% if chart_ar_aging_values %}{{ chart_ar_aging_values|json_script:"chart-ar-aging-values" }}{% endif %}
+{% if chart_summary_labels %}{{ chart_summary_labels|json_script:"chart-summary-labels" }}{% endif %}
+{% if chart_summary_values %}{{ chart_summary_values|json_script:"chart-summary-values" }}{% endif %}
+{% if chart_destination_labels %}{{ chart_destination_labels|json_script:"chart-destination-labels" }}{% endif %}
+{% if chart_destination_sales %}{{ chart_destination_sales|json_script:"chart-destination-sales" }}{% endif %}
+{% if chart_destination_profit %}{{ chart_destination_profit|json_script:"chart-destination-profit" }}{% endif %}
 <script id="hub-chart-scalars" type="application/json">{"cashIn":{{ chart_cash_in|default:0 }},"cashOut":{{ chart_cash_out|default:0 }},"revenue":{{ chart_revenue|default:0 }},"cogs":{{ chart_cogs|default:0 }},"opex":{{ chart_opex|default:0 }},"netProfit":{{ chart_net_profit|default:0 }},"totalAr":{{ chart_total_ar|default:0 }},"totalAp":{{ chart_total_ap|default:0 }},"grossMargin":{{ gross_margin_estimate|default:0 }},"salesmanReportUrl":"{% url 'reporting:salesman_reports_home' %}?{{ request.GET.urlencode|escapejs }}"}</script>

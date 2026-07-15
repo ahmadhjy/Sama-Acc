@@ -1,8 +1,8 @@
 """
 Period P&L totals aligned with All Clients / All Suppliers SOA.
 
-Revenue = sum of All Clients SOA period debits  (total sellings)
-COGS    = sum of All Suppliers SOA period credits (supplier service costs + any supplier money-in credits)
+Revenue = sum of All Clients SOA period debits  (total sellings + client money-out)
+COGS    = sum of All Suppliers SOA period credits (supplier service costs + supplier money-in credits)
 OPEX    = sum of posted OperatingExpense.amount_usd in the period
 """
 
@@ -10,25 +10,21 @@ from decimal import Decimal
 
 from django.db.models import Sum
 
-from accounts_core.models import Client, Supplier
 from expenses.models import OperatingExpense
-from reporting.statement_summary import _client_period_movement, _supplier_period_movement
+from reporting.period_movements import (
+    client_period_movements,
+    period_cogs_from_movements,
+    period_revenue_from_movements,
+    supplier_period_movements,
+)
 
 
 def period_revenue_usd(date_from=None, date_to=None) -> Decimal:
-    total = Decimal("0.00")
-    for client in Client.objects.all().iterator():
-        debit, _credit = _client_period_movement(client, date_from, date_to)
-        total += debit
-    return total.quantize(Decimal("0.01"))
+    return period_revenue_from_movements(client_period_movements(date_from, date_to))
 
 
 def period_cogs_usd(date_from=None, date_to=None) -> Decimal:
-    total = Decimal("0.00")
-    for supplier in Supplier.objects.all().iterator():
-        _debit, credit = _supplier_period_movement(supplier, date_from, date_to)
-        total += credit
-    return total.quantize(Decimal("0.01"))
+    return period_cogs_from_movements(supplier_period_movements(date_from, date_to))
 
 
 def period_opex_qs(date_from=None, date_to=None):
