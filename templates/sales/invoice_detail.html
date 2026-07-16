@@ -125,9 +125,10 @@
     </form>
     {% endif %}
     {% if can_delete %}
-    <form method="post" action="{% url 'sales:invoice_delete' invoice.id %}" class="inline-form" onsubmit="return confirm('Delete this invoice permanently?');">
+    <form method="post" action="{% url 'sales:invoice_delete' invoice.id %}" class="inline-form" onsubmit="return confirm('Delete invoice {{ invoice.invoice_no }} permanently?{% if invoice.status == 'POSTED' %} The invoice will be voided and removed.{% endif %}');">
         {% csrf_token %}
-        <button type="submit" class="btn">Delete</button>
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn btn-danger">Delete</button>
     </form>
     {% endif %}
     <a class="btn" href="{% url 'sales:invoice_list' %}">Back to list</a>

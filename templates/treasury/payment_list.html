@@ -37,15 +37,9 @@
                 <a class="btn" href="{% url 'treasury:post_payment' payment.id %}" onclick="return confirm('Post payment? Splits will auto-allocate to open invoices/bills where possible.');">Post</a>
                 {% elif payment.status == "POSTED" %}
                 <a class="btn" href="{% url 'treasury:payment_edit' payment.id %}">Edit</a>
-                <form method="post" action="{% url 'treasury:void_payment' payment.id %}" style="display:inline;" onsubmit="return confirm('Void this payment?');">
-                    {% csrf_token %}
-                    <input type="hidden" name="reason" value="Void from list">
-                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                    <button type="submit" class="btn">Void</button>
-                </form>
                 {% endif %}
                 {% if payment.can_delete %}
-                <form method="post" action="{% url 'treasury:payment_delete' payment.id %}" style="display:inline;" onsubmit="return confirm('Delete payment {{ payment.receipt_no }}?');">
+                <form method="post" action="{% url 'treasury:payment_delete' payment.id %}" style="display:inline;" onsubmit="return confirm('Delete payment {{ payment.receipt_no }}?{% if payment.status == 'POSTED' %} Allocations will be removed.{% endif %}');">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <button type="submit" class="btn btn-danger">Delete</button>

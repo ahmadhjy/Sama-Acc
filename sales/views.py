@@ -272,6 +272,11 @@ def invoice_open(request, invoice_id):
     invoice = get_object_or_404(SalesInvoice, pk=invoice_id)
     can_edit = invoice.is_editable()
     can_void = invoice.is_editable() and not invoice.allocations.exists()
+    can_delete = (
+        not invoice.allocations.exists()
+        and not invoice.credit_notes.exists()
+        and invoice.status in (SalesInvoice.Status.DRAFT, SalesInvoice.Status.POSTED, SalesInvoice.Status.VOIDED)
+    )
     return render(
         request,
         "sales/invoice_detail.html",
@@ -284,9 +289,7 @@ def invoice_open(request, invoice_id):
             "attachments": invoice.attachments.all(),
             "can_edit": can_edit,
             "can_void": can_void,
-            "can_delete": invoice.can_delete()
-            and not invoice.allocations.exists()
-            and not invoice.credit_notes.exists(),
+            "can_delete": can_delete,
         },
     )
 
@@ -373,9 +376,6 @@ def invoice_delete_attachment(request, invoice_id, attachment_id):
 @require_http_methods(["POST"])
 def invoice_delete(request, invoice_id):
     invoice = get_object_or_404(SalesInvoice, pk=invoice_id)
-    if not invoice.can_delete():
-        messages.error(request, "Only draft or voided invoices can be deleted.")
-        return redirect("sales:invoice_list")
     if invoice.allocations.exists():
         messages.error(request, "Cannot delete invoice with payment allocations.")
         return redirect("sales:invoice_open", invoice_id=invoice.id)
@@ -383,12 +383,20 @@ def invoice_delete(request, invoice_id):
         messages.error(request, "Cannot delete invoice with linked credit notes.")
         return redirect("sales:invoice_open", invoice_id=invoice.id)
     try:
-        invoice_no = invoice.invoice_no
-        invoice.delete()
+        with transaction.atomic():
+            invoice_no = invoice.invoice_no
+            if invoice.status == SalesInvoice.Status.POSTED:
+                invoice.void(request.user, "Deleted from invoice view")
+            elif invoice.status == SalesInvoice.Status.VOIDED:
+                pass
+            elif not invoice.can_delete():
+                messages.error(request, "This invoice cannot be deleted.")
+                return redirect("sales:invoice_open", invoice_id=invoice.id)
+            invoice.delete()
         log_audit("DELETE_INVOICE", invoice, actor=request.user, before={"invoice_no": invoice_no})
         messages.success(request, f"Invoice {invoice_no} deleted.")
-    except ProtectedError:
-        messages.error(request, "Cannot delete this invoice because it is linked to other records.")
+    except (ProtectedError, ValueError) as exc:
+        messages.error(request, str(exc) if isinstance(exc, ValueError) else "Cannot delete this invoice because it is linked to other records.")
         return redirect("sales:invoice_open", invoice_id=invoice.id)
     next_url = (request.POST.get("next") or "").strip()
     if next_url and url_has_allowed_host_and_scheme(

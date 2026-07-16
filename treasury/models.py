@@ -113,11 +113,7 @@ class Payment(models.Model):
         self.save()
 
     def can_delete(self):
-        if self.status not in (self.Status.DRAFT, self.Status.VOIDED):
-            return False
-        if self.ar_allocations.exists() or self.ap_allocations.exists():
-            return False
-        return True
+        return self.status in (self.Status.DRAFT, self.Status.POSTED, self.Status.VOIDED)
 
 
 class ARAllocation(models.Model):

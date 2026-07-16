@@ -18,6 +18,7 @@ from auditlog.utils import log_audit, log_document_event
 from purchases.models import SupplierBill
 from treasury.forms import MoneyAccountForm
 from treasury.models import MoneyAccount, Payment
+from treasury.allocation import clear_payment_allocations
 from treasury.payment_flow import post_payment_and_allocate, sync_posted_payment_after_edit
 from sales.models import SalesInvoice
 from treasury.models import APAllocation, ARAllocation, AccountTransfer, ReconciliationRecord
@@ -366,9 +367,23 @@ def void_payment(request, payment_id):
 @login_required
 @require_http_methods(["POST"])
 def payment_delete(request, payment_id):
+    from django.db import transaction
+
     payment = get_object_or_404(Payment, pk=payment_id)
+    if payment.status == Payment.Status.VOIDED and (
+        payment.ar_allocations.exists() or payment.ap_allocations.exists()
+    ):
+        messages.error(request, "Cannot delete voided payment with allocations.")
+        next_url = (request.POST.get("next") or "").strip()
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            return redirect(next_url)
+        return redirect("treasury:payment_list")
     if not payment.can_delete():
-        messages.error(request, "Only draft or voided payments without allocations can be deleted.")
+        messages.error(request, "This payment cannot be deleted.")
         next_url = (request.POST.get("next") or "").strip()
         if next_url and url_has_allowed_host_and_scheme(
             next_url,
@@ -378,8 +393,11 @@ def payment_delete(request, payment_id):
             return redirect(next_url)
         return redirect("treasury:payment_list")
     try:
-        receipt_no = payment.receipt_no
-        payment.delete()
+        with transaction.atomic():
+            receipt_no = payment.receipt_no
+            if payment.status == Payment.Status.POSTED:
+                clear_payment_allocations(payment)
+            payment.delete()
         log_audit("DELETE_PAYMENT", payment, actor=request.user, before={"receipt_no": receipt_no})
         messages.success(request, f"Payment {receipt_no} deleted.")
     except ProtectedError:
