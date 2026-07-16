@@ -1,0 +1,116 @@
+{% extends "page/layout.html" %}
+{% load formatting %}
+{% block title %}Client payment schedule{% endblock %}
+{% block page_content %}
+<div class="schedule-page">
+    <header class="schedule-page__head">
+        <div>
+            <h1 class="title">Client payment schedule</h1>
+            <p class="muted schedule-page__lead">
+                Installments added on sales invoices (due date + amount). Tracking only — not treasury cash receipts.
+            </p>
+        </div>
+    </header>
+
+    <div class="schedule-kpis panel">
+        <div class="schedule-kpi">
+            <span class="schedule-kpi__label">Unpaid</span>
+            <strong class="schedule-kpi__value">{{ schedule_unpaid_count }}</strong>
+        </div>
+        <div class="schedule-kpi schedule-kpi--danger">
+            <span class="schedule-kpi__label">Overdue</span>
+            <strong class="schedule-kpi__value">{{ schedule_overdue_count }}</strong>
+        </div>
+        <div class="schedule-kpi">
+            <span class="schedule-kpi__label">Unpaid total</span>
+            <strong class="schedule-kpi__value">{{ schedule_unpaid_total|money }}</strong>
+        </div>
+    </div>
+
+    <nav class="schedule-tabs" aria-label="Payment status">
+        <a class="schedule-tab{% if schedule_status == 'unpaid' %} schedule-tab--active{% endif %}"
+           href="?schedule_status=unpaid{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}{% if request.GET.date_from %}&date_from={{ request.GET.date_from }}{% endif %}{% if request.GET.date_to %}&date_to={{ request.GET.date_to }}{% endif %}">
+            Unpaid
+        </a>
+        <a class="schedule-tab{% if schedule_status == 'paid' %} schedule-tab--active{% endif %}"
+           href="?schedule_status=paid{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}{% if request.GET.date_from %}&date_from={{ request.GET.date_from }}{% endif %}{% if request.GET.date_to %}&date_to={{ request.GET.date_to }}{% endif %}">
+            Paid
+        </a>
+        <a class="schedule-tab{% if schedule_status == 'all' %} schedule-tab--active{% endif %}"
+           href="?schedule_status=all{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}{% if request.GET.date_from %}&date_from={{ request.GET.date_from }}{% endif %}{% if request.GET.date_to %}&date_to={{ request.GET.date_to }}{% endif %}">
+            All
+        </a>
+    </nav>
+
+    <form method="get" class="panel filter-bar schedule-filter">
+        <input type="hidden" name="schedule_status" value="{{ schedule_status }}">
+        <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Client or invoice no."></label>
+        <label>Due from <input type="date" name="date_from" value="{{ request.GET.date_from }}"></label>
+        <label>Due to <input type="date" name="date_to" value="{{ request.GET.date_to }}"></label>
+        <button class="btn" type="submit">Filter</button>
+        <a class="btn btn-clear hub-btn-clear" href="{% url 'sales:scheduled_payment_list' %}?schedule_status={{ schedule_status }}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
+    </form>
+
+    <p class="schedule-legend muted">
+        <span class="schedule-legend__item"><span class="schedule-legend__swatch schedule-legend__swatch--paid"></span> Paid</span>
+        <span class="schedule-legend__item"><span class="schedule-legend__swatch schedule-legend__swatch--overdue"></span> Unpaid &amp; overdue</span>
+        <span class="schedule-legend__item"><span class="schedule-legend__swatch schedule-legend__swatch--today"></span> Due today</span>
+    </p>
+
+    <div class="hub-table-wrap schedule-table-wrap">
+        <table class="table-compact schedule-table">
+            <thead>
+                <tr>
+                    <th>Client</th>
+                    <th>Invoice</th>
+                    <th>Due date</th>
+                    <th class="num">Amount</th>
+                    <th>Currency</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+                <tr class="{% if row.is_paid %}row-paid{% elif row.status == 'overdue' %}due-overdue{% elif row.status == 'today' %}due-today{% endif %}">
+                    <td>{{ row.client_name }}</td>
+                    <td><a href="{% url 'sales:invoice_open' row.invoice_id %}">{{ row.invoice_no }}</a></td>
+                    <td>{{ row.due_date|date:"d M Y" }}</td>
+                    <td class="num">{{ row.amount|money }}</td>
+                    <td>{{ row.currency }}</td>
+                    <td>
+                        {% if row.is_paid %}
+                            <span class="badge badge-POSTED">Paid</span>
+                            {% if row.paid_at %}<span class="muted block-sub">{{ row.paid_at|date:"d M Y" }}</span>{% endif %}
+                        {% elif row.status == 'overdue' %}
+                            <span class="badge badge-VOIDED">Overdue</span>
+                            <span class="muted block-sub">{{ row.days_late }} day{{ row.days_late|pluralize }} late</span>
+                        {% elif row.status == 'today' %}
+                            <span class="badge">Due today</span>
+                        {% else %}
+                            <span class="badge badge-DRAFT">Upcoming</span>
+                            <span class="muted block-sub">in {{ row.days_until }} day{{ row.days_until|pluralize }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="table-actions">
+                        <form method="post" action="{% url 'sales:scheduled_payment_toggle' row.id %}" class="inline-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            {% if row.is_paid %}
+                            <input type="hidden" name="is_paid" value="0">
+                            <button type="submit" class="btn btn-sm btn-secondary">Mark unpaid</button>
+                            {% else %}
+                            <input type="hidden" name="is_paid" value="1">
+                            <button type="submit" class="btn btn-sm">Mark paid</button>
+                            {% endif %}
+                        </form>
+                    </td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="7">No scheduled payments match your filters.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

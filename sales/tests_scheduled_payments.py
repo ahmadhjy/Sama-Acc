@@ -82,7 +82,7 @@ class InvoiceScheduledPaymentTests(TestCase):
         self.assertFalse(payment.is_paid)
         self.assertIsNone(payment.paid_at)
 
-    def test_dashboard_defaults_to_unpaid_schedules(self):
+    def test_scheduled_payment_list_defaults_to_unpaid(self):
         unpaid = SalesInvoiceScheduledPayment.objects.create(
             invoice=self.invoice,
             due_date=date.today(),
@@ -97,12 +97,32 @@ class InvoiceScheduledPaymentTests(TestCase):
         )
         http = RequestClient()
         http.force_login(self.user)
-        resp = http.get("/", follow=True)
+        resp = http.get(reverse("sales:scheduled_payment_list"))
         self.assertEqual(resp.status_code, 200)
-        rows = resp.context["scheduled_client_payments"]
+        rows = resp.context["rows"]
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["id"], unpaid.id)
         self.assertEqual(resp.context["schedule_status"], "unpaid")
 
-        resp_all = http.get("/?schedule_status=all", follow=True)
-        self.assertEqual(len(resp_all.context["scheduled_client_payments"]), 2)
+        resp_all = http.get(reverse("sales:scheduled_payment_list"), {"schedule_status": "all"})
+        self.assertEqual(len(resp_all.context["rows"]), 2)
+
+    def test_scheduled_payment_list_filters_by_due_date(self):
+        SalesInvoiceScheduledPayment.objects.create(
+            invoice=self.invoice,
+            due_date=date(2026, 7, 10),
+            amount=Decimal("100.00"),
+        )
+        SalesInvoiceScheduledPayment.objects.create(
+            invoice=self.invoice,
+            due_date=date(2026, 8, 10),
+            amount=Decimal("200.00"),
+        )
+        http = RequestClient()
+        http.force_login(self.user)
+        resp = http.get(
+            reverse("sales:scheduled_payment_list"),
+            {"schedule_status": "all", "date_from": "2026-07-01", "date_to": "2026-07-31"},
+        )
+        self.assertEqual(len(resp.context["rows"]), 1)
+        self.assertEqual(resp.context["rows"][0]["amount"], Decimal("100.00"))

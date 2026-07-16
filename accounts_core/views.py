@@ -47,8 +47,12 @@ def dashboard(request):
         "payment_count": Payment.objects.count(),
         "file_count": BookingFile.objects.count(),
         "employee_count": Employee.objects.count(),
-        "latest_invoices": SalesInvoice.objects.select_related("client").order_by("-created_at")[:10],
-        "latest_payments": Payment.objects.select_related("money_account").order_by("-created_at")[:10],
+        "latest_invoices": SalesInvoice.objects.select_related("client")
+        .prefetch_related("allocations", "credit_notes")
+        .order_by("-created_at")[:10],
+        "latest_payments": Payment.objects.select_related("money_account", "client", "supplier")
+        .prefetch_related("ar_allocations", "ap_allocations")
+        .order_by("-created_at")[:10],
     }
 
     # Compute period P&L once and share across overview/reports (was double-scanned).

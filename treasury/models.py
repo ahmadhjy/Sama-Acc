@@ -112,6 +112,13 @@ class Payment(models.Model):
         self.voided_at = timezone.now()
         self.save()
 
+    def can_delete(self):
+        if self.status not in (self.Status.DRAFT, self.Status.VOIDED):
+            return False
+        if self.ar_allocations.exists() or self.ap_allocations.exists():
+            return False
+        return True
+
 
 class ARAllocation(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

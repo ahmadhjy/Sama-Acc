@@ -17,6 +17,7 @@ urlpatterns = [
     path("payments/<uuid:payment_id>/receipt/", views.payment_receipt, name="payment_receipt"),
     path("payments/<uuid:payment_id>/post/", views.post_payment, name="post_payment"),
     path("payments/<uuid:payment_id>/void/", views.void_payment, name="void_payment"),
+    path("payments/<uuid:payment_id>/delete/", views.payment_delete, name="payment_delete"),
     path("allocations/ar/new/", views.ar_allocation_create, name="ar_allocation_create"),
     path("allocations/ap/new/", views.ap_allocation_create, name="ap_allocation_create"),
     path("reconcile/", views.reconcile_account, name="reconcile_account"),

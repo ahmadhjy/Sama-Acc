@@ -25,6 +25,7 @@ from sales.forms import (
     SalesInvoiceScheduledPaymentFormSetFactory,
 )
 from sales.models import SalesInvoice, SalesInvoiceAttachment, SalesInvoiceLine, SalesInvoiceScheduledPayment
+from sales.scheduled_payments import build_scheduled_payment_row, filtered_scheduled_payments_qs
 
 
 def _save_draft_invoice_with_recalc(form, formset, request=None, payment_formset=None):
@@ -139,9 +140,16 @@ def _invoice_page_context(form, formset, invoice, can_view_cost, payment_formset
 
 @login_required
 def invoice_list(request):
+    from django.db.models import Prefetch
+    from treasury.models import ARAllocation
+
     qs = (
         SalesInvoice.objects.select_related("client", "sales_employee")
-        .prefetch_related("lines")
+        .prefetch_related(
+            "lines",
+            Prefetch("allocations", queryset=ARAllocation.objects.only("id", "sales_invoice_id")),
+            "credit_notes",
+        )
         .order_by("-created_at")
     )
     invoices = list(invoice_search_filters(qs, request)[:500])
@@ -165,6 +173,38 @@ def invoice_list(request):
             "total_profit_usd": total_profit_usd,
         },
         export_filename("Invoices"),
+    )
+
+
+@login_required
+def scheduled_payment_list(request):
+    from datetime import date
+    from decimal import Decimal
+
+    from django.db.models import Sum
+
+    today = date.today()
+    qs, schedule_status = filtered_scheduled_payments_qs(request)
+    rows = [build_scheduled_payment_row(pay, today=today) for pay in qs[:500]]
+
+    base_qs = SalesInvoiceScheduledPayment.objects.filter(
+        invoice__status__in=SalesInvoice.reporting_statuses(),
+    )
+    unpaid_qs = base_qs.filter(is_paid=False)
+    overdue_count = unpaid_qs.filter(due_date__lt=today).count()
+    unpaid_total = (unpaid_qs.aggregate(t=Sum("amount"))["t"] or Decimal("0.00")).quantize(Decimal("0.01"))
+
+    return render(
+        request,
+        "sales/scheduled_payment_list.html",
+        {
+            "rows": rows,
+            "schedule_status": schedule_status,
+            "today": today,
+            "schedule_unpaid_count": unpaid_qs.count(),
+            "schedule_overdue_count": overdue_count,
+            "schedule_unpaid_total": unpaid_total,
+        },
     )
 
 
@@ -275,7 +315,7 @@ def scheduled_payment_toggle(request, payment_id):
         require_https=request.is_secure(),
     ):
         return redirect(next_url)
-    return redirect("sales:invoice_open", invoice_id=payment.invoice_id)
+    return redirect("sales:scheduled_payment_list")
 
 
 @login_required
@@ -350,6 +390,13 @@ def invoice_delete(request, invoice_id):
     except ProtectedError:
         messages.error(request, "Cannot delete this invoice because it is linked to other records.")
         return redirect("sales:invoice_open", invoice_id=invoice.id)
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
     return redirect("sales:invoice_list")
 
 

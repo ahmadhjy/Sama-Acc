@@ -3,8 +3,11 @@ from decimal import Decimal
 import uuid
 
 from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect, render
 from django.contrib.auth.decorators import login_required
+from django.db.models import ProtectedError
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_http_methods
 
 from accounts_core.list_utils import parse_post_date
 from accounts_core.models import Client, Supplier
@@ -18,7 +21,6 @@ from treasury.models import MoneyAccount, Payment
 from treasury.payment_flow import post_payment_and_allocate, sync_posted_payment_after_edit
 from sales.models import SalesInvoice
 from treasury.models import APAllocation, ARAllocation, AccountTransfer, ReconciliationRecord
-from django.views.decorators.http import require_http_methods
 
 
 def _next_temp_receipt_no():
@@ -136,8 +138,16 @@ def money_account_delete(request, account_id):
 @login_required
 def payment_list(request):
     from accounts_core.list_utils import payment_search_filters
+    from django.db.models import Prefetch
 
-    qs = Payment.objects.select_related("money_account", "client", "supplier").order_by("-created_at")
+    qs = (
+        Payment.objects.select_related("money_account", "client", "supplier")
+        .prefetch_related(
+            Prefetch("ar_allocations", queryset=ARAllocation.objects.only("id", "payment_id")),
+            Prefetch("ap_allocations", queryset=APAllocation.objects.only("id", "payment_id")),
+        )
+        .order_by("-created_at")
+    )
     qs = payment_search_filters(qs, request)[:500]
     return render_or_pdf(request, "treasury/payment_list.html", {"payments": qs}, export_filename("Payments"))
 
@@ -343,6 +353,44 @@ def void_payment(request, payment_id):
         messages.success(request, f"Payment {payment.receipt_no} voided.")
     except Exception as exc:
         messages.error(request, str(exc))
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect("treasury:payment_list")
+
+
+@login_required
+@require_http_methods(["POST"])
+def payment_delete(request, payment_id):
+    payment = get_object_or_404(Payment, pk=payment_id)
+    if not payment.can_delete():
+        messages.error(request, "Only draft or voided payments without allocations can be deleted.")
+        next_url = (request.POST.get("next") or "").strip()
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            return redirect(next_url)
+        return redirect("treasury:payment_list")
+    try:
+        receipt_no = payment.receipt_no
+        payment.delete()
+        log_audit("DELETE_PAYMENT", payment, actor=request.user, before={"receipt_no": receipt_no})
+        messages.success(request, f"Payment {receipt_no} deleted.")
+    except ProtectedError:
+        messages.error(request, "Cannot delete this payment because it is linked to other records.")
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
     return redirect("treasury:payment_list")
 
 

@@ -6,6 +6,7 @@ app_name = "sales"
 
 urlpatterns = [
     path("invoices/", views.invoice_list, name="invoice_list"),
+    path("scheduled-payments/", views.scheduled_payment_list, name="scheduled_payment_list"),
     path("invoices/new/", views.invoice_create, name="invoice_create"),
     path("invoices/<uuid:invoice_id>/edit/", views.invoice_edit, name="invoice_edit"),
     path("invoices/<uuid:invoice_id>/open/", views.invoice_open, name="invoice_open"),

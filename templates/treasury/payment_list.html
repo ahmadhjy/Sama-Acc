@@ -40,10 +40,16 @@
                 <form method="post" action="{% url 'treasury:void_payment' payment.id %}" style="display:inline;" onsubmit="return confirm('Void this payment?');">
                     {% csrf_token %}
                     <input type="hidden" name="reason" value="Void from list">
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <button type="submit" class="btn">Void</button>
                 </form>
-                {% else %}
-                -
+                {% endif %}
+                {% if payment.can_delete %}
+                <form method="post" action="{% url 'treasury:payment_delete' payment.id %}" style="display:inline;" onsubmit="return confirm('Delete payment {{ payment.receipt_no }}?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
                 {% endif %}
             </td>
         </tr>
