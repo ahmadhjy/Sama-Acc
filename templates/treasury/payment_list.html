@@ -38,13 +38,11 @@
                 {% elif payment.status == "POSTED" %}
                 <a class="btn" href="{% url 'treasury:payment_edit' payment.id %}">Edit</a>
                 {% endif %}
-                {% if payment.can_delete %}
-                <form method="post" action="{% url 'treasury:payment_delete' payment.id %}" style="display:inline;" onsubmit="return confirm('Delete payment {{ payment.receipt_no }}?{% if payment.status == 'POSTED' %} Allocations will be removed.{% endif %}');">
+                <form method="post" action="{% url 'treasury:payment_delete' payment.id %}" style="display:inline;" onsubmit="return confirm('Delete payment {{ payment.receipt_no }}? Allocations will be removed if any.');">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <button type="submit" class="btn btn-danger">Delete</button>
                 </form>
-                {% endif %}
             </td>
         </tr>
     {% empty %}

@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_http_methods
 
@@ -370,46 +371,27 @@ def payment_delete(request, payment_id):
     from django.db import transaction
 
     payment = get_object_or_404(Payment, pk=payment_id)
-    if payment.status == Payment.Status.VOIDED and (
-        payment.ar_allocations.exists() or payment.ap_allocations.exists()
-    ):
-        messages.error(request, "Cannot delete voided payment with allocations.")
-        next_url = (request.POST.get("next") or "").strip()
-        if next_url and url_has_allowed_host_and_scheme(
+    next_url = (request.POST.get("next") or "").strip()
+    redirect_target = (
+        next_url
+        if next_url
+        and url_has_allowed_host_and_scheme(
             next_url,
             allowed_hosts={request.get_host()},
             require_https=request.is_secure(),
-        ):
-            return redirect(next_url)
-        return redirect("treasury:payment_list")
-    if not payment.can_delete():
-        messages.error(request, "This payment cannot be deleted.")
-        next_url = (request.POST.get("next") or "").strip()
-        if next_url and url_has_allowed_host_and_scheme(
-            next_url,
-            allowed_hosts={request.get_host()},
-            require_https=request.is_secure(),
-        ):
-            return redirect(next_url)
-        return redirect("treasury:payment_list")
+        )
+        else reverse("treasury:payment_list")
+    )
     try:
         with transaction.atomic():
             receipt_no = payment.receipt_no
-            if payment.status == Payment.Status.POSTED:
-                clear_payment_allocations(payment)
+            clear_payment_allocations(payment)
             payment.delete()
         log_audit("DELETE_PAYMENT", payment, actor=request.user, before={"receipt_no": receipt_no})
         messages.success(request, f"Payment {receipt_no} deleted.")
     except ProtectedError:
         messages.error(request, "Cannot delete this payment because it is linked to other records.")
-    next_url = (request.POST.get("next") or "").strip()
-    if next_url and url_has_allowed_host_and_scheme(
-        next_url,
-        allowed_hosts={request.get_host()},
-        require_https=request.is_secure(),
-    ):
-        return redirect(next_url)
-    return redirect("treasury:payment_list")
+    return redirect(redirect_target)
 
 
 @login_required

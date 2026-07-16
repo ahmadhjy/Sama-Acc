@@ -164,6 +164,31 @@ class SalesInvoiceWorkflowTests(TestCase):
         posted.publish_changes(self.user)
         self.assertFalse(posted.can_delete())
 
+    def test_delete_posted_invoice_clears_allocations(self):
+        from treasury.models import MoneyAccount, Payment
+        from treasury.models import ARAllocation
+
+        invoice = self._create_ready_invoice(invoice_no="TMP-DEL-POST")
+        invoice.publish_changes(self.user)
+        acct = MoneyAccount.objects.create(name="Del Bank", currency="USD")
+        pay = Payment.objects.create(
+            receipt_no="PAY-DEL",
+            client=self.client_obj,
+            party_type=Payment.PartyType.CLIENT,
+            direction=Payment.Direction.IN,
+            money_account=acct,
+            date=date.today(),
+            amount=Decimal("50"),
+            currency="USD",
+            status=Payment.Status.POSTED,
+        )
+        ARAllocation.objects.create(payment=pay, sales_invoice=invoice, allocated_amount=Decimal("50"))
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse("sales:invoice_delete", args=[invoice.id]))
+        self.assertEqual(resp.status_code, 302)
+        self.assertFalse(SalesInvoice.objects.filter(pk=invoice.id).exists())
+        self.assertFalse(ARAllocation.objects.filter(sales_invoice_id=invoice.id).exists())
+
     def test_can_edit_posted_invoice_totals(self):
         invoice = self._create_ready_invoice(invoice_no="TMP-LOCK")
         SalesInvoiceLine.objects.filter(invoice=invoice).update(

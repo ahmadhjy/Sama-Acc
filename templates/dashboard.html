@@ -279,13 +279,11 @@ Period: <strong>{{ period_label }}</strong>
                             {% if invoice.status != "VOIDED" %}
                             <a class="btn btn-sm" href="{% url 'sales:invoice_edit' invoice.id %}">Edit</a>
                             {% endif %}
-                            {% if invoice.can_delete and not invoice.allocations.exists and not invoice.credit_notes.exists %}
                             <form method="post" action="{% url 'sales:invoice_delete' invoice.id %}" class="inline-form" onsubmit="return confirm('Delete invoice {{ invoice.invoice_no }}?');">
                                 {% csrf_token %}
                                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
                                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                             </form>
-                            {% endif %}
                         </td>
                     </tr>
                 {% empty %}
@@ -319,13 +317,11 @@ Period: <strong>{{ period_label }}</strong>
                             {% if payment.status != "VOIDED" %}
                             <a class="btn btn-sm" href="{% url 'treasury:payment_edit' payment.id %}">Edit</a>
                             {% endif %}
-                            {% if payment.can_delete %}
                             <form method="post" action="{% url 'treasury:payment_delete' payment.id %}" class="inline-form" onsubmit="return confirm('Delete payment {{ payment.receipt_no }}?');">
                                 {% csrf_token %}
                                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
                                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                             </form>
-                            {% endif %}
                         </td>
                     </tr>
                 {% empty %}
