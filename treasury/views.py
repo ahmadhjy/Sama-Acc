@@ -20,6 +20,7 @@ from purchases.models import SupplierBill
 from treasury.forms import MoneyAccountForm
 from treasury.models import MoneyAccount, Payment
 from treasury.allocation import clear_payment_allocations
+from treasury.legacy_payment_sync import remove_ledger_for_payment
 from treasury.payment_flow import post_payment_and_allocate, sync_posted_payment_after_edit
 from sales.models import SalesInvoice
 from treasury.models import APAllocation, ARAllocation, AccountTransfer, ReconciliationRecord
@@ -284,7 +285,12 @@ def payment_edit(request, payment_id):
                     f"Unallocated amount remains as client/supplier credit.",
                 )
             else:
-                sync_posted_payment_after_edit(payment, request.user, party_changed=party_changed)
+                sync_posted_payment_after_edit(
+                    payment,
+                    request.user,
+                    party_changed=party_changed,
+                    old_supplier_id=old_supplier_id,
+                )
                 payment.refresh_from_db()
                 messages.success(
                     request,
@@ -349,7 +355,12 @@ def void_payment(request, payment_id):
     payment = get_object_or_404(Payment, pk=payment_id)
     reason = request.POST.get("reason") or "Manual void"
     try:
-        payment.void(reason)
+        from django.db import transaction
+
+        with transaction.atomic():
+            remove_ledger_for_payment(payment)
+            clear_payment_allocations(payment)
+            payment.void(reason)
         log_document_event(DocumentEventLog.EventType.VOIDED, payment, request.user, {"reason": reason})
         log_audit("VOID_PAYMENT", payment, actor=request.user, reason=reason)
         messages.success(request, f"Payment {payment.receipt_no} voided.")
@@ -385,6 +396,7 @@ def payment_delete(request, payment_id):
     try:
         with transaction.atomic():
             receipt_no = payment.receipt_no
+            remove_ledger_for_payment(payment)
             clear_payment_allocations(payment)
             payment.delete()
         log_audit("DELETE_PAYMENT", payment, actor=request.user, before={"receipt_no": receipt_no})

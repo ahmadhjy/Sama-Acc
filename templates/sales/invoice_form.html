@@ -179,6 +179,7 @@
           <tr>
             <th>Due date</th>
             <th class="num">Amount</th>
+            <th>Note</th>
             <th>Paid</th>
             <th>Remove</th>
           </tr>
@@ -195,11 +196,12 @@
               {{ pform.amount }}
               {% if pform.amount.errors %}<div class="errorlist">{{ pform.amount.errors }}</div>{% endif %}
             </td>
+            <td>{{ pform.note }}</td>
             <td>{{ pform.is_paid }}</td>
             <td>{% if pform.DELETE %}{{ pform.DELETE }}{% endif %}</td>
           </tr>
           {% if pform.non_field_errors %}
-          <tr><td colspan="4"><ul class="errorlist">{% for err in pform.non_field_errors %}<li>{{ err }}</li>{% endfor %}</ul></td></tr>
+          <tr><td colspan="5"><ul class="errorlist">{% for err in pform.non_field_errors %}<li>{{ err }}</li>{% endfor %}</ul></td></tr>
           {% endif %}
         {% endfor %}
         </tbody>
@@ -221,6 +223,7 @@
       {{ payment_formset.empty_form.due_date }}
     </td>
     <td class="num">{{ payment_formset.empty_form.amount }}</td>
+    <td>{{ payment_formset.empty_form.note }}</td>
     <td>{{ payment_formset.empty_form.is_paid }}</td>
     <td>{% if payment_formset.empty_form.DELETE %}{{ payment_formset.empty_form.DELETE }}{% endif %}</td>
   </tr>

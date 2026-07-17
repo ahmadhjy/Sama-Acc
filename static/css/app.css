@@ -1108,6 +1108,29 @@ tr.row-paid:hover td { background: #d1fae5 !important; }
 .schedule-table-wrap {
     margin-top: 4px;
 }
+.schedule-note-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 180px;
+}
+.schedule-note-input {
+    flex: 1;
+    min-width: 120px;
+    max-width: 280px;
+    padding: 6px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+}
+.schedule-note-input:focus {
+    outline: 2px solid rgba(15, 39, 68, 0.15);
+    border-color: #0f2744;
+}
+input.schedule-note {
+    min-width: 140px;
+    width: 100%;
+}
 
 tr.statement-row--pending td { background: #fff7ed !important; }
 

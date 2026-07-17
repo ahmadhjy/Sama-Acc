@@ -267,10 +267,10 @@ Period: <strong>{{ period_label }}</strong>
                         <th></th>
                     </tr>
                 </thead>
-                <tbody>
-                {% for invoice in latest_invoices %}
+    <tbody>
+    {% for invoice in latest_invoices %}
                     <tr{% if invoice.status == "VOIDED" %} class="row-voided"{% endif %}>
-                        <td>{{ invoice.invoice_no }}</td>
+            <td>{{ invoice.invoice_no }}</td>
                         <td>{{ invoice.client.name_en|default:"—" }}</td>
                         <td>{{ invoice.issue_date|date:"d/m/Y" }}</td>
                         <td class="num">{{ invoice.grand_total }} {{ invoice.currency }}</td>
@@ -285,12 +285,12 @@ Period: <strong>{{ period_label }}</strong>
                                 <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                             </form>
                         </td>
-                    </tr>
-                {% empty %}
-                    <tr><td colspan="5">No invoices yet.</td></tr>
-                {% endfor %}
-                </tbody>
-            </table>
+        </tr>
+    {% empty %}
+        <tr><td colspan="5">No invoices yet.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
             <p style="padding:8px 16px 12px;margin:0;"><a href="{% url 'sales:invoice_list' %}">All invoices →</a></p>
         </div>
         <div class="hub-table-wrap">

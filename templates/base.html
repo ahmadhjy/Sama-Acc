@@ -37,6 +37,9 @@
                 <a class="sidebar-link{% if '/sales/scheduled-payments/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'sales:scheduled_payment_list' %}">
                     <i class="fa-solid fa-calendar-check"></i> Client payments
                 </a>
+                <a class="sidebar-link{% if '/sales/travellers/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'sales:travellers_list' %}">
+                    <i class="fa-solid fa-plane-departure"></i> Travellers
+                </a>
                 <a class="sidebar-link{% if '/employees/' in request.path %} sidebar-link--active{% endif %}" href="{% url 'accounts_core:employees_list' %}">
                     <i class="fa-solid fa-id-badge"></i> Employees
                 </a>

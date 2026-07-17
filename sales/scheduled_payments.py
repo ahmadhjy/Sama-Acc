@@ -34,6 +34,7 @@ def build_scheduled_payment_row(pay: SalesInvoiceScheduledPayment, *, today: dat
         "amount": pay.amount,
         "currency": pay.invoice.currency,
         "due_date": due,
+        "note": pay.note or "",
         "is_paid": pay.is_paid,
         "paid_at": pay.paid_at,
         "status": row_status,
@@ -66,6 +67,7 @@ def filtered_scheduled_payments_qs(request):
             Q(invoice__invoice_no__icontains=q)
             | Q(invoice__client__name_en__icontains=q)
             | Q(invoice__client__client_code__icontains=q)
+            | Q(note__icontains=q)
         )
 
     date_from = parse_date(request, "date_from")

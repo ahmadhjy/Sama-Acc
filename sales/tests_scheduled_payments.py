@@ -82,6 +82,21 @@ class InvoiceScheduledPaymentTests(TestCase):
         self.assertFalse(payment.is_paid)
         self.assertIsNone(payment.paid_at)
 
+    def test_can_update_note_from_client_payments_page(self):
+        payment = SalesInvoiceScheduledPayment.objects.create(
+            invoice=self.invoice,
+            due_date=date.today(),
+            amount=Decimal("200.00"),
+            note="",
+        )
+        http = RequestClient()
+        http.force_login(self.user)
+        url = reverse("sales:scheduled_payment_update_note", args=[payment.id])
+        resp = http.post(url, {"note": "  First installment  ", "next": reverse("sales:scheduled_payment_list")})
+        self.assertEqual(resp.status_code, 302)
+        payment.refresh_from_db()
+        self.assertEqual(payment.note, "First installment")
+
     def test_scheduled_payment_list_defaults_to_unpaid(self):
         unpaid = SalesInvoiceScheduledPayment.objects.create(
             invoice=self.invoice,

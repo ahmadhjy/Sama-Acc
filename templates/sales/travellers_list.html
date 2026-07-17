@@ -1,0 +1,83 @@
+{% extends "page/layout.html" %}
+{% load formatting %}
+{% block title %}Travellers{% endblock %}
+{% block page_content %}
+<div class="schedule-page">
+    <header class="schedule-page__head">
+        <div>
+            <h1 class="title">Travellers</h1>
+            <p class="muted schedule-page__lead">
+                Ticket invoice lines with a travel date
+                {% if travel_field %}(<strong>{{ travel_field.label }}</strong> on {{ ticket.name }}){% endif %}.
+                Default shows upcoming travel dates only.
+            </p>
+        </div>
+    </header>
+
+    {% if missing_config %}
+    <div class="panel" style="padding:14px 16px;margin-bottom:14px;">
+        <p style="margin:0;">
+            Configure a <strong>Ticket</strong> service type with a date custom field labelled like
+            <em>Travel DATE</em> under Sales → Service types.
+        </p>
+    </div>
+    {% else %}
+
+    <div class="schedule-kpis panel">
+        <div class="schedule-kpi">
+            <span class="schedule-kpi__label">{% if scope == 'upcoming' %}Upcoming{% else %}Shown{% endif %}</span>
+            <strong class="schedule-kpi__value">{{ traveller_count }}</strong>
+        </div>
+    </div>
+
+    <nav class="schedule-tabs" aria-label="Travel date scope">
+        <a class="schedule-tab{% if scope == 'upcoming' %} schedule-tab--active{% endif %}"
+           href="?scope=upcoming{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}{% if request.GET.date_from %}&date_from={{ request.GET.date_from }}{% endif %}{% if request.GET.date_to %}&date_to={{ request.GET.date_to }}{% endif %}">
+            Upcoming
+        </a>
+        <a class="schedule-tab{% if scope == 'all' %} schedule-tab--active{% endif %}"
+           href="?scope=all{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}{% if request.GET.date_from %}&date_from={{ request.GET.date_from }}{% endif %}{% if request.GET.date_to %}&date_to={{ request.GET.date_to }}{% endif %}">
+            All
+        </a>
+    </nav>
+
+    <form method="get" class="panel filter-bar schedule-filter">
+        <input type="hidden" name="scope" value="{{ scope }}">
+        <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Client or invoice"></label>
+        <label>Travel from <input type="date" name="date_from" value="{{ request.GET.date_from }}"></label>
+        <label>Travel to <input type="date" name="date_to" value="{{ request.GET.date_to }}"></label>
+        <button class="btn" type="submit">Filter</button>
+        <a class="btn btn-clear hub-btn-clear" href="{% url 'sales:travellers_list' %}?scope={{ scope }}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
+    </form>
+
+    <div class="hub-table-wrap schedule-table-wrap">
+        <table class="table-compact schedule-table">
+            <thead>
+                <tr>
+                    <th>Client</th>
+                    <th>Travel date</th>
+                    <th>Invoice</th>
+                    <th>Destination</th>
+                    <th>Supplier</th>
+                    <th class="num">Sell (USD)</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for row in rows %}
+                <tr class="{% if row.is_today %}due-today{% elif row.is_past %}row-voided{% endif %}">
+                    <td>{{ row.client_name }}</td>
+                    <td>{{ row.travel_date|date:"d M Y" }}</td>
+                    <td><a href="{% url 'sales:invoice_open' row.invoice_id %}">{{ row.invoice_no }}</a></td>
+                    <td>{{ row.destination }}</td>
+                    <td>{{ row.supplier }}</td>
+                    <td class="num">{{ row.sell_usd|money }}</td>
+                </tr>
+            {% empty %}
+                <tr><td colspan="6">No travellers match your filters.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -502,6 +502,7 @@ class SalesInvoiceScheduledPayment(models.Model):
     )
     due_date = models.DateField()
     amount = models.DecimalField(max_digits=14, decimal_places=2)
+    note = models.TextField(blank=True, default="")
     is_paid = models.BooleanField(default=False)
     paid_at = models.DateTimeField(null=True, blank=True)
     sort_order = models.PositiveIntegerField(default=0)

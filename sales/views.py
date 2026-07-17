@@ -227,6 +227,14 @@ def scheduled_payment_list(request):
 
 
 @login_required
+def travellers_list(request):
+    from sales.travellers import build_traveller_rows
+
+    context = build_traveller_rows(request)
+    return render(request, "sales/travellers_list.html", context)
+
+
+@login_required
 def invoice_create(request):
     invoice = SalesInvoice()
     can_view_cost = not request.user.groups.filter(name="Sales").exists()
@@ -323,6 +331,30 @@ def scheduled_payment_toggle(request, payment_id):
             request,
             f"Payment {payment.amount} marked {'paid' if payment.is_paid else 'unpaid'}.",
         )
+    next_url = (request.POST.get("next") or "").strip()
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect("sales:scheduled_payment_list")
+
+
+@login_required
+@require_http_methods(["POST"])
+def scheduled_payment_update_note(request, payment_id):
+    """Update the note on a scheduled client payment from the Client payments page."""
+    payment = get_object_or_404(
+        SalesInvoiceScheduledPayment.objects.select_related("invoice"),
+        pk=payment_id,
+    )
+    if payment.invoice.status == SalesInvoice.Status.VOIDED:
+        messages.error(request, "Cannot update payments on a voided invoice.")
+    else:
+        payment.note = (request.POST.get("note") or "").strip()
+        payment.save(update_fields=["note", "updated_at"])
+        messages.success(request, "Payment note saved.")
     next_url = (request.POST.get("next") or "").strip()
     if next_url and url_has_allowed_host_and_scheme(
         next_url,

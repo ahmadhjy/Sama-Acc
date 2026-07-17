@@ -313,10 +313,11 @@ SalesInvoiceLineSalesFormSet = inlineformset_factory(
 class SalesInvoiceScheduledPaymentForm(forms.ModelForm):
     class Meta:
         model = SalesInvoiceScheduledPayment
-        fields = ["due_date", "amount", "is_paid"]
+        fields = ["due_date", "amount", "note", "is_paid"]
         widgets = {
             "due_date": forms.DateInput(attrs={"type": "date", "class": "schedule-due-date"}),
             "amount": forms.NumberInput(attrs={"step": "0.01", "min": "0.01", "class": "schedule-amount"}),
+            "note": forms.TextInput(attrs={"class": "schedule-note", "placeholder": "Note", "maxlength": "500"}),
             "is_paid": forms.CheckboxInput(attrs={"class": "schedule-is-paid"}),
         }
 

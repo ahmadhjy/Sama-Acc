@@ -5,6 +5,7 @@ from django.db import transaction
 from auditlog.models import DocumentEventLog
 from auditlog.utils import log_audit, log_document_event
 from treasury.allocation import auto_allocate_payment, clear_payment_allocations, trim_allocations_to_fit
+from treasury.legacy_payment_sync import remove_ledger_for_payment, sync_ledger_from_payment
 from treasury.models import Payment
 
 
@@ -15,6 +16,7 @@ def post_payment_and_allocate(payment: Payment, user) -> None:
         return
     payment.post(user)
     auto_allocate_payment(payment)
+    sync_ledger_from_payment(payment)
     log_document_event(DocumentEventLog.EventType.POSTED, payment, user)
     log_audit("POST_PAYMENT", payment, actor=user)
 
@@ -25,8 +27,9 @@ def sync_posted_payment_after_edit(
     user,
     *,
     party_changed: bool,
+    old_supplier_id=None,
 ) -> None:
-    """Keep allocations consistent after editing a posted payment."""
+    """Keep allocations and imported supplier ledger rows consistent after editing a posted payment."""
     if payment.status != Payment.Status.POSTED:
         return
     if payment.amount <= 0:
@@ -40,6 +43,7 @@ def sync_posted_payment_after_edit(
 
     auto_allocate_payment(payment)
     payment.refresh_from_db()
+    sync_ledger_from_payment(payment, old_supplier_id=old_supplier_id)
     log_document_event(
         DocumentEventLog.EventType.UPDATED_DRAFT,
         payment,
