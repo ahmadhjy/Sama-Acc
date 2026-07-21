@@ -974,6 +974,13 @@ class ClientPaymentDirectionStatementTests(TestCase):
         pay.post(self.user)
         rows = build_client_statement_rows(self.client_obj)
         row = next(r for r in rows if r["ref"] == "PAY-2026-CLI-NOTE")
-        self.assertEqual(row["description"], "Cash DIR")
-        self.assertNotIn("internal", row["description"])
+        # Accountant screen keeps the reference; client-facing export hides it.
+        self.assertEqual(row["description"], "internal ref text - Cash DIR")
+        self.assertEqual(row["export_description"], "Cash DIR")
+
+        from accounts_core.pdf_utils import _flatten_statement_row
+
+        cells = _flatten_statement_row(row)
+        self.assertIn("Cash DIR", cells)
+        self.assertNotIn("internal ref text - Cash DIR", cells)
 

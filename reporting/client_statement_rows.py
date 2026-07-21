@@ -24,8 +24,14 @@ def _client_payments_qs(client, date_from=None, date_to=None, direction=None):
 
 
 def _payment_statement_description(payment: Payment) -> str:
-    # Client-facing: show only the money account. Internal note/reference text
-    # must not appear on statements sent to clients.
+    """On-screen (accountant) description: reference plus money account."""
+    ref_no = (payment.reference or "").strip() or "—"
+    account = payment.money_account.name if payment.money_account_id else "—"
+    return f"{ref_no} - {account}"
+
+
+def _payment_export_description(payment: Payment) -> str:
+    """Client-facing PDF/Excel: only the money account, no internal ref/note text."""
     return payment.money_account.name if payment.money_account_id else "—"
 
 
@@ -73,6 +79,7 @@ def build_client_statement_rows(client, date_from=None, date_to=None):
                 "date": pay.date,
                 "type": "Payment",
                 "description": _payment_statement_description(pay),
+                "export_description": _payment_export_description(pay),
                 "destination": "—",
                 "ref": pay.receipt_no,
                 "ref_url": payment_ref_url(pay.id),
@@ -89,6 +96,7 @@ def build_client_statement_rows(client, date_from=None, date_to=None):
                 "date": pay.date,
                 "type": "Refund" if pay.is_refund else "Payment",
                 "description": _payment_statement_description(pay),
+                "export_description": _payment_export_description(pay),
                 "destination": "—",
                 "ref": pay.receipt_no,
                 "ref_url": payment_ref_url(pay.id),

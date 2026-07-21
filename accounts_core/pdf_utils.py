@@ -173,10 +173,11 @@ def _prepare_income_statement_pdf(context):
 
 
 def _flatten_statement_row(r):
+    # export_description (when present) is the client-safe text without internal notes.
     return [
         _format_cell(r.get("date")),
         _format_cell(r.get("type")),
-        _format_cell(r.get("description")),
+        _format_cell(r.get("export_description") or r.get("description")),
         _format_cell(r.get("destination")),
         _format_cell(r.get("ref")),
         _format_cell(r.get("debit")),
@@ -190,7 +191,7 @@ def _flatten_statement_row_with_party(r, party_label):
         party_label,
         _format_cell(r.get("date")),
         _format_cell(r.get("type")),
-        _format_cell(r.get("description")),
+        _format_cell(r.get("export_description") or r.get("description")),
         _format_cell(r.get("destination")),
         _format_cell(r.get("ref")),
         _format_cell(r.get("debit")),
