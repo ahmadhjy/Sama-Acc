@@ -105,13 +105,13 @@ def supplier_period_movements(date_from=None, date_to=None, supplier_ids=None):
     if date_to:
         ledger = ledger.filter(line_date__lte=date_to)
 
-    # Skip ledger SI only when THIS supplier has editable SalesInvoiceLine costs for that invoice.
-    editable_line = SalesInvoiceLine.objects.filter(
-        supplier_id=OuterRef("supplier_id"),
-        invoice__invoice_no=OuterRef("invoice_no"),
-        invoice__status__in=SalesInvoice.reporting_statuses(),
-    ).exclude(invoice__invoice_no="")
-    ledger = ledger.exclude(Q(journal_type="SI") & Exists(editable_line))
+    # Skip ledger SI whenever the invoice exists in the ERP: costs then come from
+    # SalesInvoiceLine (whichever supplier each line points to now).
+    erp_invoice = SalesInvoice.objects.filter(
+        invoice_no=OuterRef("invoice_no"),
+        status__in=SalesInvoice.reporting_statuses(),
+    )
+    ledger = ledger.exclude(Q(journal_type="SI") & ~Q(invoice_no="") & Exists(erp_invoice))
 
     for row in ledger.values("supplier_id", "dc").annotate(total=Sum("amount")):
         sid = row["supplier_id"]

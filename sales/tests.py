@@ -268,6 +268,10 @@ class InvoiceLineOrderTests(TestCase):
             "lines-INITIAL_FORMS": "0",
             "lines-MIN_NUM_FORMS": "0",
             "lines-MAX_NUM_FORMS": "60",
+            "scheduled_payments-TOTAL_FORMS": "0",
+            "scheduled_payments-INITIAL_FORMS": "0",
+            "scheduled_payments-MIN_NUM_FORMS": "0",
+            "scheduled_payments-MAX_NUM_FORMS": "40",
         }
         for i, sell in enumerate(["100.00", "200.00", "300.00", "400.00"]):
             payload.update(self._line_payload(i, sell))

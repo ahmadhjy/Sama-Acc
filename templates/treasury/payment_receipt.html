@@ -65,6 +65,13 @@
 </div>
 <p style="margin-top:12px;">
     <a class="btn" href="?format=pdf">Download PDF</a>
+    {% if payment.status != "VOIDED" %}
+    <a class="btn" href="{% url 'treasury:payment_edit' payment.id %}">Edit</a>
+    {% endif %}
+    <form method="post" action="{% url 'treasury:payment_delete' payment.id %}" style="display:inline;" onsubmit="return confirm('Delete payment {{ payment.receipt_no }}? Allocations and imported statement entries will be removed.');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
     <a class="btn" href="{% url 'treasury:payment_list' %}">Back to payments</a>
 </p>
 {% endblock %}

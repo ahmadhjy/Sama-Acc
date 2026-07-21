@@ -1236,6 +1236,26 @@ tr.statement-row--pending td { background: #fff7ed !important; }
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
+/* Invoice line dropdowns (supplier, employee): keep a readable width even when
+   no value is selected yet, and let the open list grow wider than the control. */
+#invoice-lines .choices {
+    min-width: 240px;
+    max-width: 100%;
+}
+
+#invoice-lines .choices__list--dropdown,
+#invoice-lines .choices__list[aria-expanded] {
+    min-width: 280px;
+    width: max-content;
+    max-width: 420px;
+}
+
+#invoice-lines .choices__list--dropdown .choices__item,
+#invoice-lines .choices__list[aria-expanded] .choices__item {
+    white-space: normal;
+    word-break: normal;
+}
+
 /* Responsive */
 @media (max-width: 960px) {
     .layout {

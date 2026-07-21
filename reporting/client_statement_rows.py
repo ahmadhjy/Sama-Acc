@@ -24,9 +24,9 @@ def _client_payments_qs(client, date_from=None, date_to=None, direction=None):
 
 
 def _payment_statement_description(payment: Payment) -> str:
-    ref_no = (payment.reference or "").strip() or "—"
-    account = payment.money_account.name if payment.money_account_id else "—"
-    return f"{ref_no} - {account}"
+    # Client-facing: show only the money account. Internal note/reference text
+    # must not appear on statements sent to clients.
+    return payment.money_account.name if payment.money_account_id else "—"
 
 
 def build_client_statement_rows(client, date_from=None, date_to=None):

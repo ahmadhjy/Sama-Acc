@@ -826,6 +826,67 @@ class SupplierLedgerStatementTests(TestCase):
         # Ledger PV 836 remains; editable purchase now 900 → AP 64
         self.assertEqual(supplier_ap_balance(self.supplier, date.today()), Decimal("64.00"))
 
+    def test_ledger_si_hidden_after_line_reassigned_to_other_supplier(self):
+        """Reassigning an imported line's supplier removes the stale ledger SI row."""
+        other = Supplier.objects.create(supplier_code="S-EBK", name="Ebook Transfer")
+        client = Client.objects.create(client_code="C-REASSIGN", name_en="Reassign Client")
+        employee = Employee.objects.create(name="Reassign Emp", role=Employee.EmployeeRole.ACCOUNTING)
+        service_type = ServiceType.objects.create(name="Transfer", code="TRF-R")
+        destination = Destination.objects.create(name="Istanbul")
+        migrated = SalesInvoice.objects.create(
+            invoice_no="SATO26-SI-00440",
+            client=client,
+            sales_employee=employee,
+            issue_date=date(2026, 7, 3),
+            currency="USD",
+            status=SalesInvoice.Status.POSTED,
+        )
+        SalesInvoiceLine.objects.create(
+            invoice=migrated,
+            supplier=other,  # moved off the ledger supplier
+            service_type=service_type,
+            destination=destination,
+            line_employee=employee,
+            service_date=date(2026, 7, 3),
+            qty=Decimal("1"),
+            sell_price=Decimal("1200"),
+            cost_price=Decimal("1076"),
+            line_discount=Decimal("0"),
+        )
+        migrated.recalc_usd_amounts()
+
+        old_rows = build_supplier_statement_rows(self.supplier)
+        self.assertNotIn("SATO26-SI-00440", {r["ref"] for r in old_rows})
+
+        new_rows = build_supplier_statement_rows(other)
+        purchase = next(r for r in new_rows if r["ref"] == "SATO26-SI-00440")
+        self.assertEqual(purchase["credit"], Decimal("1076.00"))
+
+        from reporting.period_movements import supplier_period_movements
+
+        movements = supplier_period_movements(supplier_ids=[self.supplier.id, other.id])
+        old_dr, old_cr = movements[self.supplier.id]
+        self.assertEqual(old_cr, Decimal("0.00"))  # stale SI credit gone
+        _, new_cr = movements[other.id]
+        self.assertEqual(new_cr, Decimal("1076.00"))
+
+    def test_ledger_pv_links_to_imported_payment(self):
+        pay = Payment.objects.create(
+            receipt_no="SATO26-PV-01158",
+            direction=Payment.Direction.OUT,
+            party_type=Payment.PartyType.SUPPLIER,
+            supplier=self.supplier,
+            money_account=self.account,
+            date=date(2026, 7, 3),
+            currency="USD",
+            amount=Decimal("836.00"),
+            status=Payment.Status.POSTED,
+        )
+        rows = build_supplier_statement_rows(self.supplier)
+        pv_row = next(r for r in rows if r["ref"] == "PV-1158")
+        self.assertIsNotNone(pv_row["ref_url"])
+        self.assertIn(str(pay.id), pv_row["ref_url"])
+
     def test_supplier_money_in_shows_as_credit(self):
         user = get_user_model().objects.create_user(username="sup-in", password="test12345")
         pay = Payment.objects.create(
@@ -895,4 +956,24 @@ class ClientPaymentDirectionStatementTests(TestCase):
         refund = next(r for r in rows if r["ref"] == "PAY-2026-CLI-OUT")
         self.assertEqual(refund["debit"], Decimal("25.00"))
         self.assertEqual(refund["credit"], Decimal("0.00"))
+
+    def test_client_statement_hides_payment_note_and_reference(self):
+        pay = Payment.objects.create(
+            receipt_no="PAY-2026-CLI-NOTE",
+            direction=Payment.Direction.IN,
+            party_type=Payment.PartyType.CLIENT,
+            client=self.client_obj,
+            money_account=self.account,
+            date=date.today(),
+            currency="USD",
+            amount=Decimal("10.00"),
+            reference="internal ref text",
+            note="internal note, client must not see this",
+            status=Payment.Status.DRAFT,
+        )
+        pay.post(self.user)
+        rows = build_client_statement_rows(self.client_obj)
+        row = next(r for r in rows if r["ref"] == "PAY-2026-CLI-NOTE")
+        self.assertEqual(row["description"], "Cash DIR")
+        self.assertNotIn("internal", row["description"])
 

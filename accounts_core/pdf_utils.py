@@ -431,6 +431,7 @@ def _prepare_payment_document_pdf(context):
 def _flatten_payment(p):
     return [
         p.receipt_no,
+        _format_cell(p.date),
         p.reference or "",
         _party_label(p),
         p.money_account.name if p.money_account_id else "",
@@ -605,11 +606,11 @@ def prepare_pdf_export(context):
 
     elif context.get("payments"):
         context["pdf_table_headers"] = [
-            "Receipt", "Ref No", "Party", "Account", "Direction", "Amount", "Note", "Status"
+            "Receipt", "Date", "Ref No", "Party", "Account", "Direction", "Amount", "Note", "Status"
         ]
         context["pdf_table_rows"] = [_flatten_payment(p) for p in context["payments"]]
-        context["pdf_numeric_column_indexes"] = [5]
-        context["pdf_ref_column_index"] = 1
+        context["pdf_numeric_column_indexes"] = [6]
+        context["pdf_ref_column_index"] = 2
 
     elif context.get("bills"):
         context["pdf_table_headers"] = ["Bill", "Supplier", "Date", "Status", "Total"]

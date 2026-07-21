@@ -18,11 +18,12 @@
     <a class="btn btn-clear hub-btn-clear" href="{% url 'treasury:payment_list' %}?{{ default_filter_query }}"><i class="fa-solid fa-filter-circle-xmark"></i> Clear filters</a>
 </form>
 <table>
-    <thead><tr><th>Receipt</th><th>Ref No</th><th>Party</th><th>Account</th><th>Direction</th><th>Amount</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Receipt</th><th>Date</th><th>Ref No</th><th>Party</th><th>Account</th><th>Direction</th><th>Amount</th><th>Note</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>
     {% for payment in payments %}
         <tr>
             <td>{{ payment.receipt_no }}</td>
+            <td>{{ payment.date|date:"d/m/Y" }}</td>
             <td>{{ payment.reference|default:"-" }}</td>
             <td>{% if payment.client %}{{ payment.client.name_en }}{% elif payment.supplier %}{{ payment.supplier.name }}{% elif payment.party_name %}{{ payment.party_name }}{% else %}-{% endif %}</td>
             <td>{{ payment.money_account.name }}</td>
@@ -46,7 +47,7 @@
             </td>
         </tr>
     {% empty %}
-        <tr><td colspan="9">No payments found.</td></tr>
+        <tr><td colspan="10">No payments found.</td></tr>
     {% endfor %}
     </tbody>
 </table>

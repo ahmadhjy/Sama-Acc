@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from purchases.models import SupplierLedgerLine
-from reporting.statement_refs import invoice_ref_url
+from reporting.statement_refs import invoice_ref_url, payment_ref_url
 from reporting.statement_sort import sort_statement_rows
 from sales.models import SalesInvoice, SalesInvoiceLine
 from treasury.models import Payment
@@ -81,22 +81,54 @@ def supplier_has_ledger(supplier) -> bool:
     return SupplierLedgerLine.objects.filter(supplier=supplier).exists()
 
 
-def _invoice_nos_with_editable_costs(supplier) -> set[str]:
+def _invoice_nos_with_editable_costs(supplier=None) -> set[str]:
     """
     Invoice numbers whose purchase cost should come from SalesInvoiceLine.
 
-    When an imported SATO26 invoice exists in the ERP, editing its line cost must
-    update the supplier statement — so ledger SI rows for that invoice are skipped.
+    When an imported SATO26 invoice exists in the ERP, its costs are read live from
+    the invoice lines (whichever supplier they point to now), so ledger SI rows for
+    that invoice are skipped for every supplier. This keeps a supplier's statement
+    clean after a line is reassigned to a different supplier.
     """
     return set(
-        SalesInvoiceLine.objects.filter(
-            supplier=supplier,
-            invoice__status__in=SalesInvoice.reporting_statuses(),
-        )
-        .exclude(invoice__invoice_no="")
-        .values_list("invoice__invoice_no", flat=True)
-        .distinct()
+        SalesInvoice.objects.filter(status__in=SalesInvoice.reporting_statuses())
+        .exclude(invoice_no="")
+        .values_list("invoice_no", flat=True)
     )
+
+
+def _legacy_payment_lookup(supplier) -> dict:
+    """
+    Map (journal_type, jvno without leading zeros) -> [Payment, ...] for imported
+    SATO26 PV/RV payments of this supplier, so ledger rows can link to the payment.
+    """
+    from treasury.legacy_payment_sync import parse_legacy_receipt
+
+    lookup: dict = {}
+    payments = Payment.objects.filter(
+        supplier=supplier,
+        party_type=Payment.PartyType.SUPPLIER,
+        receipt_no__startswith=LEGACY_DOC_PREFIX,
+    ).only("id", "receipt_no", "amount")
+    for pay in payments:
+        parsed = parse_legacy_receipt(pay.receipt_no or "")
+        if not parsed:
+            continue
+        jtype, jvno = parsed
+        lookup.setdefault((jtype, jvno.lstrip("0") or "0"), []).append(pay)
+    return lookup
+
+
+def _ledger_payment_ref_url(line: SupplierLedgerLine, legacy_payments: dict):
+    """Payment receipt URL for a ledger PV/RV row when the imported payment exists."""
+    if line.journal_type not in ("PV", "RV"):
+        return None
+    key = (line.journal_type, (line.legacy_jvno or "").lstrip("0") or "0")
+    candidates = legacy_payments.get(key)
+    if not candidates:
+        return None
+    pay = min(candidates, key=lambda p: abs(p.amount - line.amount))
+    return payment_ref_url(pay.id)
 
 
 def _ledger_si_superseded_by_invoice(line: SupplierLedgerLine, editable_invoice_nos: set[str]) -> bool:
@@ -173,7 +205,7 @@ def _append_live_payment_rows(rows, supplier, date_from=None, date_to=None):
                 "description": _payment_supplier_description(pay),
                 "destination": "—",
                 "ref": pay.receipt_no,
-                "ref_url": None,
+                "ref_url": payment_ref_url(pay.id),
                 "debit": pay.amount,
                 "credit": Decimal("0.00"),
                 "sort_seq": pay.created_at,
@@ -193,7 +225,7 @@ def _append_live_payment_rows(rows, supplier, date_from=None, date_to=None):
                 "description": _payment_supplier_description(pay),
                 "destination": "—",
                 "ref": pay.receipt_no,
-                "ref_url": None,
+                "ref_url": payment_ref_url(pay.id),
                 "debit": Decimal("0.00"),
                 "credit": pay.amount,
                 "sort_seq": pay.created_at,
@@ -328,10 +360,14 @@ def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
     editable_nos = _invoice_nos_with_editable_costs(supplier)
 
     if supplier_has_ledger(supplier):
+        legacy_payments = _legacy_payment_lookup(supplier)
         for line in _supplier_ledger_qs(supplier, date_from, date_to):
             if _ledger_si_superseded_by_invoice(line, editable_nos):
                 continue
             inv_id = _invoice_id_for_no(line.invoice_no)
+            ref_url = invoice_ref_url(inv_id) if inv_id else None
+            if ref_url is None:
+                ref_url = _ledger_payment_ref_url(line, legacy_payments)
             debit = line.amount.quantize(Decimal("0.01")) if line.dc == SupplierLedgerLine.DC.DEBIT else Decimal("0.00")
             credit = line.amount.quantize(Decimal("0.01")) if line.dc == SupplierLedgerLine.DC.CREDIT else Decimal("0.00")
             rows.append(
@@ -341,7 +377,7 @@ def build_supplier_statement_rows(supplier, date_from=None, date_to=None):
                     "description": line.description or line.invoice_no or f"JV {line.legacy_jvno}",
                     "destination": "—",
                     "ref": line.invoice_no or f"{line.journal_type}-{line.legacy_jvno}",
-                    "ref_url": invoice_ref_url(inv_id) if inv_id else None,
+                    "ref_url": ref_url,
                     "debit": debit,
                     "credit": credit,
                     "sort_seq": line.line_date,
