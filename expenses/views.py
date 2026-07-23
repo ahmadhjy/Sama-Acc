@@ -33,14 +33,24 @@ def expense_list(request):
         .prefetch_related("attachments")
         .order_by("-expense_date", "-created_at")
     )
+    from django.db.models import Q
+
     df, dt, _ = resolve_report_dates(request)
     cat = request.GET.get("category")
+    q = (request.GET.get("q") or "").strip()
     if df:
         qs = qs.filter(expense_date__gte=df)
     if dt:
         qs = qs.filter(expense_date__lte=dt)
     if cat:
         qs = qs.filter(category_id=cat)
+    if q:
+        qs = qs.filter(
+            Q(description__icontains=q)
+            | Q(expense_no__icontains=q)
+            | Q(category__name__icontains=q)
+            | Q(category__code__icontains=q)
+        )
     return render_or_pdf(
         request,
         "expenses/expense_list.html",
@@ -50,6 +60,7 @@ def expense_list(request):
             "date_to": dt,
             "categories": ExpenseCategory.objects.filter(is_active=True).order_by("code"),
             "selected_category": cat,
+            "search_q": q,
             "pdf_report_title": "Operating Expenses",
         },
         export_filename("Operating_Expenses", export_period_suffix(df, dt)),

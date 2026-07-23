@@ -62,3 +62,29 @@ class OperatingExpenseEditDeleteTests(TestCase):
         self.assertIn("Edit", content)
         self.assertIn("Delete", content)
         self.assertIn(str(self.expense.id), content)
+
+    def test_list_search_matches_description(self):
+        other = OperatingExpense.objects.create(
+            expense_no="OPEX-2026-0002",
+            category=self.category,
+            expense_date=date(2026, 7, 5),
+            currency="USD",
+            amount=Decimal("80.00"),
+            amount_usd=Decimal("80.00"),
+            description="Internet subscription",
+            status=OperatingExpense.Status.POSTED,
+        )
+        url = reverse("expenses:expense_list") + "?date_from=2026-01-01&date_to=2026-12-31&q=office+rent"
+        resp = self.http.get(url)
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn("OPEX-2026-0001", content)
+        self.assertNotIn("OPEX-2026-0002", content)
+        self.assertIn('name="q"', content)
+        self.assertIn("Search", content)
+
+        url2 = reverse("expenses:expense_list") + "?date_from=2026-01-01&date_to=2026-12-31&q=internet"
+        resp2 = self.http.get(url2)
+        content2 = resp2.content.decode()
+        self.assertIn(other.expense_no, content2)
+        self.assertNotIn("OPEX-2026-0001", content2)

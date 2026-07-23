@@ -8,6 +8,7 @@
     <p><strong>Payments recorded:</strong> {{ payment_count }}</p>
 </div>
 <p>
+    <a class="btn" href="{% url 'treasury:payment_list' %}?money_account={{ account.id }}">View payments</a>
     <a class="btn" href="{% url 'treasury:money_account_edit' account.id %}">Edit</a>
     <a class="btn" href="{% url 'treasury:money_accounts_list' %}">Back</a>
     <form method="post" action="{% url 'treasury:money_account_delete' account.id %}" style="display:inline;" onsubmit="return confirm('Delete permanently?');">

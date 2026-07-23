@@ -152,7 +152,17 @@ def payment_list(request):
         .order_by("-created_at")
     )
     qs = payment_search_filters(qs, request)[:500]
-    return render_or_pdf(request, "treasury/payment_list.html", {"payments": qs}, export_filename("Payments"))
+    selected_account = (request.GET.get("money_account") or "").strip()
+    return render_or_pdf(
+        request,
+        "treasury/payment_list.html",
+        {
+            "payments": qs,
+            "money_accounts": MoneyAccount.objects.filter(is_active=True).order_by("name"),
+            "selected_money_account": selected_account,
+        },
+        export_filename("Payments"),
+    )
 
 
 def _default_payment_date():

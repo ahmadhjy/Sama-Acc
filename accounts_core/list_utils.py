@@ -51,7 +51,11 @@ def payment_search_filters(qs, request):
             | Q(party_name__icontains=q)
             | Q(client__name_en__icontains=q)
             | Q(supplier__name__icontains=q)
+            | Q(note__icontains=q)
         )
+    account = (request.GET.get("money_account") or "").strip()
+    if account:
+        qs = qs.filter(money_account_id=account)
     d0 = parse_date(request, "date_from")
     d1 = parse_date(request, "date_to")
     if d0:

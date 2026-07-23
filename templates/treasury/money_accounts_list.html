@@ -6,19 +6,35 @@
     <a class="btn" href="{% url 'treasury:money_account_create' %}">New Money Account</a>
     {% include "partials/export_buttons.html" %}
 </p>
+<p class="muted">Double-click an account to open its payments (filtered on the Payments page).</p>
 <table>
     <thead><tr><th>Name</th><th>Type</th><th>Currency</th><th></th></tr></thead>
     <tbody>
     {% for item in accounts %}
-        <tr>
-            <td><a href="{% url 'treasury:money_account_detail' item.id %}">{{ item.name }}</a></td>
+        <tr class="row-nav-row" data-url="{% url 'treasury:payment_list' %}?money_account={{ item.id }}" title="Double-click to open payments">
+            <td class="row-nav-cell">{{ item.name }}</td>
             <td>{{ item.get_type_display }}</td>
             <td>{{ item.currency }}</td>
-            <td><a class="btn" href="{% url 'treasury:money_account_edit' item.id %}">Edit</a></td>
+            <td>
+                <a class="btn" href="{% url 'treasury:money_account_detail' item.id %}">Details</a>
+                <a class="btn" href="{% url 'treasury:payment_list' %}?money_account={{ item.id }}">Payments</a>
+                <a class="btn" href="{% url 'treasury:money_account_edit' item.id %}">Edit</a>
+            </td>
         </tr>
     {% empty %}
         <tr><td colspan="4">No money accounts found.</td></tr>
     {% endfor %}
     </tbody>
 </table>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".row-nav-row[data-url]").forEach(function (row) {
+        row.style.cursor = "pointer";
+        row.addEventListener("dblclick", function (event) {
+            if (event.target.closest("a, button, form, input, select, textarea")) return;
+            window.location.href = row.dataset.url;
+        });
+    });
+});
+</script>
 {% endblock %}

@@ -312,3 +312,46 @@ class ClientFifoAllocationTests(TestCase):
         self.assertEqual(invoice_collectible_remaining(charge), Decimal("0.00"))
         self.assertEqual(payment.remaining_amount, Decimal("100.00"))
         self.assertEqual(credit.grand_total, Decimal("-598.00"))
+
+
+class MoneyAccountPaymentFilterTests(TestCase):
+    def setUp(self):
+        from django.test import Client as HttpClient
+
+        self.user = get_user_model().objects.create_user(username="cash-filter", password="test12345")
+        self.http = HttpClient()
+        self.http.force_login(self.user)
+        self.cash = MoneyAccount.objects.create(name="Cash Filter", type=MoneyAccount.AccountType.CASH, currency="USD")
+        self.bank = MoneyAccount.objects.create(name="Bank Filter", type=MoneyAccount.AccountType.BANK, currency="USD")
+        self.client_obj = Client.objects.create(client_code="C-FILTER", name_en="Filter Client")
+        for account, receipt in ((self.cash, "PAY-CASH-1"), (self.bank, "PAY-BANK-1")):
+            Payment.objects.create(
+                receipt_no=receipt,
+                direction=Payment.Direction.IN,
+                party_type=Payment.PartyType.CLIENT,
+                client=self.client_obj,
+                money_account=account,
+                date=date.today(),
+                currency="USD",
+                amount=Decimal("10.00"),
+                status=Payment.Status.POSTED,
+            )
+
+    def test_payment_list_filters_by_money_account(self):
+        from django.urls import reverse
+
+        resp = self.http.get(reverse("treasury:payment_list"), {"money_account": str(self.cash.id)})
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn("PAY-CASH-1", content)
+        self.assertNotIn("PAY-BANK-1", content)
+        self.assertIn("selected", content)
+
+    def test_money_accounts_list_links_to_filtered_payments(self):
+        from django.urls import reverse
+
+        resp = self.http.get(reverse("treasury:money_accounts_list"))
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode()
+        self.assertIn(f"money_account={self.cash.id}", content)
+        self.assertIn("Double-click", content)

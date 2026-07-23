@@ -3,6 +3,7 @@
 {% block page_content %}
 <h1 class="title">Operating Expenses</h1>
 <form method="get" class="panel filter-bar">
+    <label>Search <input name="q" value="{{ search_q }}" placeholder="Description, no, or category"></label>
     <label>From <input type="date" name="date_from" value="{% if date_from %}{{ date_from|date:'Y-m-d' }}{% endif %}"></label>
     <label>To <input type="date" name="date_to" value="{% if date_to %}{{ date_to|date:'Y-m-d' }}{% endif %}"></label>
     <label>Category

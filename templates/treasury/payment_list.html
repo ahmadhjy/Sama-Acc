@@ -12,6 +12,14 @@
 </p>
 <form method="get" class="panel filter-bar">
     <label>Search <input name="q" value="{{ request.GET.q }}" placeholder="Receipt / ref / party"></label>
+    <label>Account
+        <select name="money_account">
+            <option value="">All accounts</option>
+            {% for acc in money_accounts %}
+            <option value="{{ acc.id }}" {% if selected_money_account == acc.id|stringformat:"s" %}selected{% endif %}>{{ acc.name }}</option>
+            {% endfor %}
+        </select>
+    </label>
     <label>From <input type="date" name="date_from" value="{{ request.GET.date_from }}"></label>
     <label>To <input type="date" name="date_to" value="{{ request.GET.date_to }}"></label>
     <button class="btn" type="submit">Filter</button>
